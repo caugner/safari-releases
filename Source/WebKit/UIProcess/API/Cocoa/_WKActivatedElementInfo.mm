@@ -39,6 +39,7 @@
 @implementation _WKActivatedElementInfo  {
     RetainPtr<NSURL> _URL;
     RetainPtr<NSURL> _imageURL;
+    RetainPtr<NSURL> _modelURL;
     RetainPtr<NSString> _title;
     WebCore::IntPoint _interactionLocation;
     RetainPtr<NSString> _ID;
@@ -48,7 +49,6 @@
 #if PLATFORM(IOS_FAMILY)
     RetainPtr<NSDictionary> _userInfo;
     BOOL _isAnimating;
-    BOOL _canShowAnimationControls;
     Vector<WebCore::ElementAnimationContext> _animationsUnderElement;
 #endif
     BOOL _animatedImage;
@@ -72,6 +72,7 @@
     
     _URL = information.url.createNSURL();
     _imageURL = information.imageURL.createNSURL();
+    _modelURL = information.modelURL.createNSURL();
     _imageMIMEType = information.imageMIMEType.createNSString().get();
     _interactionLocation = information.request.point;
     _title = information.title.createNSString().get();
@@ -90,7 +91,6 @@
     _ID = information.idAttribute.createNSString().get();
     _animatedImage = information.isAnimatedImage;
     _isAnimating = information.isAnimating;
-    _canShowAnimationControls = information.canShowAnimationControls;
     _isImage = information.isImage;
     _isUsingAlternateURLForImage = isUsingAlternateURLForImage;
 #if ENABLE(SPATIAL_IMAGE_DETECTION)
@@ -137,11 +137,11 @@
     Vector<WebCore::ElementAnimationContext> animationsAtPoint;
 #endif
 
-    return [self _initWithType:type URL:url imageURL:imageURL location:information.request.point title:information.title.createNSString().get() ID:information.idAttribute.createNSString().get() rect:information.bounds image:image imageMIMEType:information.imageMIMEType.createNSString().get() isAnimatedImage:information.isAnimatedImage isAnimating:information.isAnimating canShowAnimationControls:information.canShowAnimationControls animationsUnderElement:animationsAtPoint userInfo:userInfo];
+    return [self _initWithType:type URL:url imageURL:imageURL location:information.request.point title:information.title.createNSString().get() ID:information.idAttribute.createNSString().get() rect:information.bounds image:image imageMIMEType:information.imageMIMEType.createNSString().get() isAnimatedImage:information.isAnimatedImage isAnimating:information.isAnimating animationsUnderElement:animationsAtPoint userInfo:userInfo];
 }
 #endif // PLATFORM(IOS_FAMILY)
 
-- (instancetype)_initWithType:(_WKActivatedElementType)type URL:(NSURL *)url imageURL:(NSURL *)imageURL location:(const WebCore::IntPoint&)location title:(NSString *)title ID:(NSString *)ID rect:(CGRect)rect image:(WebCore::ShareableBitmap*)image imageMIMEType:(NSString *)imageMIMEType isAnimatedImage:(BOOL)isAnimatedImage isAnimating:(BOOL)isAnimating canShowAnimationControls:(BOOL)canShowAnimationControls animationsUnderElement:(Vector<WebCore::ElementAnimationContext>)animationsUnderElement userInfo:(NSDictionary *)userInfo
+- (instancetype)_initWithType:(_WKActivatedElementType)type URL:(NSURL *)url imageURL:(NSURL *)imageURL location:(const WebCore::IntPoint&)location title:(NSString *)title ID:(NSString *)ID rect:(CGRect)rect image:(WebCore::ShareableBitmap*)image imageMIMEType:(NSString *)imageMIMEType isAnimatedImage:(BOOL)isAnimatedImage isAnimating:(BOOL)isAnimating animationsUnderElement:(Vector<WebCore::ElementAnimationContext>)animationsUnderElement userInfo:(NSDictionary *)userInfo
 {
     if (!(self = [super init]))
         return nil;
@@ -158,7 +158,6 @@
 #if PLATFORM(IOS_FAMILY)
     _userInfo = adoptNS([userInfo copy]);
     _isAnimating = isAnimating;
-    _canShowAnimationControls = canShowAnimationControls;
     _animationsUnderElement = animationsUnderElement;
 #endif
     _animatedImage = isAnimatedImage;
@@ -174,6 +173,11 @@
 - (NSURL *)imageURL
 {
     return _imageURL.get();
+}
+
+- (NSURL *)modelURL
+{
+    return _modelURL.get();
 }
 
 - (NSString *)title
@@ -217,11 +221,6 @@
 - (BOOL)isAnimating
 {
     return _isAnimating;
-}
-
-- (BOOL)canShowAnimationControls
-{
-    return _canShowAnimationControls;
 }
 
 - (const Vector<WebCore::ElementAnimationContext>&)_animationsUnderElement

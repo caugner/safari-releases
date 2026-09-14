@@ -28,11 +28,9 @@
 
 #if BUSE(TZONE)
 
-#include "IsoHeap.h"
-#include "IsoMallocFallback.h"
 #include "TZoneHeapManager.h"
 #include "bmalloc.h"
-#include "bmalloc_heap_internal.h"
+#include "bmalloc_heap_iso_internal.h"
 #include "bmalloc_heap_ref.h"
 
 #if !BUSE(LIBPAS)

@@ -205,7 +205,7 @@ protected:
     const_iterator begin() const LIFETIME_BOUND { return m_map.begin(); }
     const_iterator end() const LIFETIME_BOUND { return m_map.end(); }
 
-    OrderStorage keys() const { return m_order; }
+    const OrderStorage& keys() const { return m_order; }
 
     unsigned size() const { return m_map.size(); }
 
@@ -271,7 +271,7 @@ public:
 
     size_t length() const { return m_map.size(); }
 
-    Ref<Value> get(size_t index) const;
+    Ref<Value> NODELETE get(size_t index) const;
 
 protected:
     ~ArrayBase();
@@ -318,12 +318,12 @@ public:
     using ArrayBase::end;
 };
 
-inline ObjectBase::iterator ObjectBase::find(const String& name)
+inline ObjectBase::iterator ObjectBase::find(const String& name) LIFETIME_BOUND
 {
     return m_map.find(name);
 }
 
-inline ObjectBase::const_iterator ObjectBase::find(const String& name) const
+inline ObjectBase::const_iterator ObjectBase::find(const String& name) const LIFETIME_BOUND
 {
     return m_map.find(name);
 }

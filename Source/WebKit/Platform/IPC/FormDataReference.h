@@ -28,7 +28,6 @@
 #include "Decoder.h"
 #include "Encoder.h"
 #include "Logging.h"
-#include "PathsBlockedForSandboxExtensions.h"
 #include "SandboxExtension.h"
 #include <WebCore/FormData.h>
 
@@ -48,8 +47,6 @@ public:
     RefPtr<WebCore::FormData> takeData() { return WTF::move(m_data); }
 
     Vector<WebKit::SandboxExtensionHandle> sandboxExtensionHandles() const;
-
-    static bool sandboxExtensionsAreSufficient(const RefPtr<WebCore::FormData>&, const Vector<WebKit::SandboxExtensionHandle>&);
 
 private:
     RefPtr<WebCore::FormData> m_data;

@@ -134,7 +134,7 @@ void PopUpSOAuthorizationSession::fallBackToWebPathInternal()
 void PopUpSOAuthorizationSession::abortInternal()
 {
     AUTHORIZATIONSESSION_RELEASE_LOG("abortInternal: m_page=%p", page());
-    if (!page()) {
+    if (!page() || page()->isClosed()) {
         m_newPageCallback(nullptr);
         return;
     }
@@ -152,7 +152,7 @@ void PopUpSOAuthorizationSession::abortInternal()
 void PopUpSOAuthorizationSession::completeInternal(const WebCore::ResourceResponse& response, NSData *data)
 {
     AUTHORIZATIONSESSION_RELEASE_LOG("completeInternal: httpState=%d", response.httpStatusCode());
-    if (response.httpStatusCode() != httpStatus200OK || !page()) {
+    if (response.httpStatusCode() != httpStatus200OK || !page() || page()->isClosed()) {
         fallBackToWebPathInternal();
         return;
     }
@@ -194,7 +194,7 @@ void PopUpSOAuthorizationSession::initSecretWebView()
     [m_secretWebView setUIDelegate:m_secretDelegate.get()];
     [m_secretWebView setNavigationDelegate:m_secretDelegate.get()];
 
-    RELEASE_ASSERT(!m_secretWebView->_page->protectedPreferences()->isExtensibleSSOEnabled());
+    RELEASE_ASSERT(!protect(m_secretWebView->_page->preferences())->isExtensibleSSOEnabled());
     AUTHORIZATIONSESSION_RELEASE_LOG("SecretWebView is created.");
 }
 

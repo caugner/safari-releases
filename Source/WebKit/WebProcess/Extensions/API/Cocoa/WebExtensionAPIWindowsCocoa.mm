@@ -29,6 +29,7 @@
 
 #import "config.h"
 #import "WebExtensionAPIWindows.h"
+#import "WebExtensionAPIKeys.h"
 
 #if ENABLE(WK_WEB_EXTENSIONS)
 
@@ -44,37 +45,9 @@
 #import "WebExtensionWindowIdentifier.h"
 #import "WebProcess.h"
 
-static NSString * const populateKey = @"populate";
-
-static NSString * const windowTypesKey = @"windowTypes";
-static NSString * const normalKey = @"normal";
-static NSString * const popupKey = @"popup";
-
-static NSString * const minimizedKey = @"minimized";
-static NSString * const maximizedKey = @"maximized";
-static NSString * const fullscreenKey = @"fullscreen";
-
-static NSString * const focusedKey = @"focused";
-static NSString * const incognitoKey = @"incognito";
-static NSString * const stateKey = @"state";
-static NSString * const typeKey = @"type";
-
-static NSString * const topKey = @"top";
-static NSString * const leftKey = @"left";
-static NSString * const widthKey = @"width";
-static NSString * const heightKey = @"height";
-
-static NSString * const tabsKey = @"tabs";
-
-static NSString * const idKey = @"id";
-static NSString * const alwaysOnTopKey = @"alwaysOnTop";
-
-static NSString * const urlKey = @"url";
-static NSString * const tabIdKey = @"tabId";
-
 namespace WebKit {
 
-static inline NSString *toWebAPI(WebExtensionWindow::State state)
+static inline NSString *NODELETE toWebAPI(WebExtensionWindow::State state)
 {
     switch (state) {
     case WebExtensionWindow::State::Normal:
@@ -91,7 +64,7 @@ static inline NSString *toWebAPI(WebExtensionWindow::State state)
     }
 }
 
-static inline NSString *toWebAPI(WebExtensionWindow::Type type)
+static inline NSString *NODELETE toWebAPI(WebExtensionWindow::Type type)
 {
     switch (type) {
     case WebExtensionWindow::Type::Normal:
@@ -378,7 +351,7 @@ bool isValid(std::optional<WebExtensionWindowIdentifier> identifier, NSString **
 
 bool WebExtensionAPIWindows::isPropertyAllowed(const ASCIILiteral& name, WebPage*)
 {
-    if (protectedExtensionContext()->isUnsupportedAPI(propertyPath(), name)) [[unlikely]]
+    if (protect(extensionContext())->isUnsupportedAPI(propertyPath(), name)) [[unlikely]]
         return false;
 
 #if PLATFORM(MAC)
@@ -558,7 +531,7 @@ WebExtensionAPIWindowsEvent& WebExtensionAPIWindows::onFocusChanged()
     return *m_onFocusChanged;
 }
 
-inline OptionSet<WebExtensionWindowTypeFilter> toWindowTypeFilter(WebExtensionWindow::Type type)
+inline OptionSet<WebExtensionWindowTypeFilter> NODELETE toWindowTypeFilter(WebExtensionWindow::Type type)
 {
     switch (type) {
     case WebExtensionWindow::Type::Normal:

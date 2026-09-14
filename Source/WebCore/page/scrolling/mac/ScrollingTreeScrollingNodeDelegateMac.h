@@ -58,7 +58,13 @@ public:
     void willDoProgrammaticScroll(const FloatPoint&);
     void currentScrollPositionChanged();
 
-    bool isRubberBandInProgress() const;
+    bool NODELETE isRubberBandInProgress() const;
+    void startRubberBandSnapBack();
+    void rubberBandTargetOffsetDidChange();
+
+#if HAVE(RUBBER_BANDING)
+    std::optional<RubberbandingState> captureRubberbandingState() const final;
+#endif
 
     void updateScrollbarPainters();
     void updateScrollbarLayers() final;
@@ -76,18 +82,28 @@ private:
     // ScrollingEffectsControllerClient.
     bool allowsHorizontalStretching(const PlatformWheelEvent&) const final;
     bool allowsVerticalStretching(const PlatformWheelEvent&) const final;
+    bool isScrollDeltaOpposingStretch(ScrollEventAxis, float) const final;
     IntSize stretchAmount() const final;
     bool isPinnedOnSide(BoxSide) const final;
     RectEdges<bool> edgePinnedState() const final;
 
-    bool shouldRubberBandOnSide(BoxSide) const final;
+    bool shouldRubberBandOnSide(BoxSide, FloatSize) const final;
     void didStopRubberBandAnimation() final;
     void rubberBandingStateChanged(bool) final;
+    FloatSize rubberBandTargetOffset() const final;
+#if HAVE(NSREFRESHCONTROLLER)
+    bool hasRefreshController() const final;
+    float refreshControllerSnappingThreshold() const final;
+#endif
     bool scrollPositionIsNotRubberbandingEdge(const FloatPoint&) const;
 
     const Ref<ScrollerPairMac> m_scrollerPair;
 
     bool m_inMomentumPhase { false };
+
+#if HAVE(RUBBER_BANDING)
+    std::optional<RubberbandingState> m_pendingRubberbandingState;
+#endif
 };
 
 } // namespace WebCore

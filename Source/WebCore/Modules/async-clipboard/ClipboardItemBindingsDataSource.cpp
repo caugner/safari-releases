@@ -33,29 +33,35 @@
 #include "CommonAtomStrings.h"
 #include "ContextDestructionObserverInlines.h"
 #include "Document.h"
+#include "DocumentPage.h"
 #include "ExceptionCode.h"
 #include "FileReaderLoader.h"
 #include "GraphicsContext.h"
 #include "ImageBuffer.h"
+#include "ImageUtilities.h"
 #include "JSBlob.h"
+#include "JSDOMConvertInterface.h"
 #include "JSDOMPromise.h"
 #include "JSDOMPromiseDeferred.h"
 #include "LocalFrame.h"
+#include "LocalFrameInlines.h"
 #include "Page.h"
 #include "PasteboardCustomData.h"
 #include "SharedBuffer.h"
 #include "markup.h"
+#include <JavaScriptCore/HeapCellInlines.h>
+#include <JavaScriptCore/JSCJSValueStructure.h>
 #include <wtf/Function.h>
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
 
-static Document* documentFromClipboard(const Clipboard* clipboard)
+static Document* NODELETE documentFromClipboard(const Clipboard* clipboard)
 {
     if (!clipboard)
         return nullptr;
 
-    RefPtr frame = clipboard->frame();
+    auto* frame = clipboard->frame();
     return frame ? frame->document() : nullptr;
 }
 
@@ -95,22 +101,21 @@ void ClipboardItemBindingsDataSource::getType(const String& type, Ref<DeferredPr
     }
 
     Ref itemPromise = m_itemPromises[matchIndex].value;
-    itemPromise->whenSettled([itemPromise, promise = WTF::move(promise), type] () mutable {
-        if (itemPromise->status() != DOMPromise::Status::Fulfilled) {
+    itemPromise->whenSettledWithResult([promise = WTF::move(promise), type](auto* globalObject, bool isFulfilled, auto result) mutable {
+        if (!isFulfilled) {
             promise->reject(ExceptionCode::AbortError);
             return;
         }
 
-        auto result = itemPromise->result();
         if (!result) {
             promise->reject(ExceptionCode::TypeError);
             return;
         }
 
         String string;
-        result.getString(itemPromise->globalObject(), string);
+        result.getString(globalObject, string);
         if (!string.isNull()) {
-            promise->resolve<IDLInterface<Blob>>(ClipboardItem::blobFromString(promise->protectedScriptExecutionContext().get(), string, type));
+            promise->resolve<IDLInterface<Blob>>(ClipboardItem::blobFromString(protect(promise->scriptExecutionContext()).get(), string, type));
             return;
         }
 
@@ -151,14 +156,13 @@ void ClipboardItemBindingsDataSource::collectDataForWriting(Clipboard& destinati
         auto promise = typeAndItem.value;
         /* hack: gcc 8.4 will segfault if the WeakPtr is instantiated within the lambda captures */
         auto wl = WeakPtr { itemTypeLoader };
-        promise->whenSettled([this, protectedItem = Ref { m_item.get() }, destination = m_writingDestination, promise, type, weakItemTypeLoader = WTF::move(wl)] () mutable {
+        promise->whenSettledWithResult([this, protectedItem = Ref { m_item.get() }, destination = m_writingDestination, type, weakItemTypeLoader = WTF::move(wl)] (auto* globalObject, bool, JSC::JSValue result) mutable {
             if (!weakItemTypeLoader)
                 return;
 
             Ref itemTypeLoader { *weakItemTypeLoader };
             ASSERT_UNUSED(this, notFound != m_itemTypeLoaders.findIf([&] (auto& loader) { return loader.ptr() == itemTypeLoader.ptr(); }));
 
-            auto result = promise->result();
             if (!result) {
                 itemTypeLoader->didFailToResolve();
                 return;
@@ -176,7 +180,7 @@ void ClipboardItemBindingsDataSource::collectDataForWriting(Clipboard& destinati
             }
 
             String text;
-            result.getString(promise->globalObject(), text);
+            result.getString(globalObject, text);
             if (!text.isNull()) {
                 itemTypeLoader->didResolveToString(text);
                 return;
@@ -289,7 +293,7 @@ String ClipboardItemBindingsDataSource::ClipboardItemTypeLoader::dataAsString() 
 void ClipboardItemBindingsDataSource::ClipboardItemTypeLoader::sanitizeDataIfNeeded()
 {
     if (m_type == textPlainContentTypeAtom() || m_type == "text/uri-list"_s) {
-        RefPtr document = documentFromClipboard(RefPtr { m_writingDestination.get() }.get());
+        RefPtr document = documentFromClipboard(m_writingDestination.get());
         if (!document)
             return;
 
@@ -309,7 +313,7 @@ void ClipboardItemBindingsDataSource::ClipboardItemTypeLoader::sanitizeDataIfNee
         if (markupToSanitize.isEmpty())
             return;
 
-        RefPtr document = documentFromClipboard(RefPtr { m_writingDestination.get() }.get());
+        RefPtr document = documentFromClipboard(m_writingDestination.get());
         m_data = { sanitizeMarkup(markupToSanitize, document.get()) };
     }
 
@@ -332,7 +336,7 @@ void ClipboardItemBindingsDataSource::ClipboardItemTypeLoader::sanitizeDataIfNee
         }
 
         imageBuffer->context().drawImage(bitmapImage.get(), FloatPoint::zero());
-        m_data = { SharedBuffer::create(imageBuffer->toData("image/png"_s)) };
+        m_data = { SharedBuffer::create(encodeData(WTF::move(imageBuffer), "image/png"_s)) };
     }
 }
 

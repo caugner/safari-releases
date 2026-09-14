@@ -29,9 +29,11 @@
 #import "Logging.h"
 #import "PlatformCAAnimationRemote.h"
 #import "PlatformCALayerRemote.h"
+#import "RemoteLayerTreeDrawingAreaProxy.h"
 #import "RemoteLayerTreeHost.h"
 #import "RemoteLayerTreeInteractionRegionLayers.h"
 #import "WKVideoView.h"
+#import "WebPageProxy.h"
 #import <QuartzCore/QuartzCore.h>
 #import <WebCore/ContentsFormatCocoa.h>
 #import <WebCore/GraphicsLayerEnums.h>
@@ -255,7 +257,7 @@ static MTCoreMaterialVisualStyleCategory materialVisualStyleCategoryForAppleVisu
 
 #if HAVE(MATERIAL_HOSTING)
 
-static WKHostedMaterialEffectType hostedMaterialEffectTypeForAppleVisualEffect(AppleVisualEffect effect)
+static WKHostedMaterialEffectType NODELETE hostedMaterialEffectTypeForAppleVisualEffect(AppleVisualEffect effect)
 {
     switch (effect) {
     case AppleVisualEffect::GlassMaterial:
@@ -287,7 +289,7 @@ static WKHostedMaterialEffectType hostedMaterialEffectTypeForAppleVisualEffect(A
     }
 }
 
-static WKHostedMaterialColorScheme hostedMaterialColorSchemeForAppleVisualEffectData(const AppleVisualEffectData& data)
+static WKHostedMaterialColorScheme NODELETE hostedMaterialColorSchemeForAppleVisualEffectData(const AppleVisualEffectData& data)
 {
     switch (data.colorScheme) {
     case AppleVisualEffectData::ColorScheme::Light:
@@ -425,8 +427,18 @@ void RemoteLayerTreePropertyApplier::applyPropertiesToLayer(CALayer *layer, Remo
     if (properties.changedProperties & LayerChange::NameChanged)
         layer.name = properties.name.createNSString().get();
 
-    if (properties.changedProperties & LayerChange::BackgroundColorChanged)
-        layer.backgroundColor = cgColorFromColor(properties.backgroundColor).get();
+    if (properties.changedProperties & LayerChange::BackgroundColorChanged) {
+        auto colorSpace = [&]() {
+            Ref drawingArea = layerTreeHost->drawingArea();
+            if (RefPtr webPage = drawingArea->page())
+                return webPage->colorSpace();
+
+            return DestinationColorSpace::SRGB();
+        }();
+
+        RetainPtr cgColor = cachedCGColorInDestinationStandardRange(properties.backgroundColor, colorSpace);
+        layer.backgroundColor = cgColor.get();
+    }
 
     if (properties.changedProperties & LayerChange::BorderColorChanged)
         layer.borderColor = cgColorFromColor(properties.borderColor).get();
@@ -450,11 +462,11 @@ void RemoteLayerTreePropertyApplier::applyPropertiesToLayer(CALayer *layer, Remo
         Path path;
         if (properties.shapeRoundedRect)
             path.addRoundedRect(*properties.shapeRoundedRect);
-        dynamic_objc_cast<CAShapeLayer>(layer).path = path.protectedPlatformPath().get();
+        dynamic_objc_cast<CAShapeLayer>(layer).path = protect(path.platformPath()).get();
     }
 
     if (properties.changedProperties & LayerChange::ShapePathChanged)
-        dynamic_objc_cast<CAShapeLayer>(layer).path = properties.shapePath.protectedPlatformPath().get();
+        dynamic_objc_cast<CAShapeLayer>(layer).path = protect(properties.shapePath.platformPath()).get();
 
     if (properties.changedProperties & LayerChange::MinificationFilterChanged)
         layer.minificationFilter = toCAFilterType(properties.minificationFilter).get();
@@ -503,7 +515,8 @@ void RemoteLayerTreePropertyApplier::applyPropertiesToLayer(CALayer *layer, Remo
 
     if (properties.changedProperties & LayerChange::AnimationsChanged) {
 #if ENABLE(THREADED_ANIMATIONS)
-        if (layerTreeHost->threadedAnimationsEnabled()) {
+        // FIXME: layerTreeHost will be null if this method is called from within the Web process.
+        if (layerTreeHost && layerTreeHost->threadedAnimationsEnabled()) {
             LOG_WITH_STREAM(Animations, stream << "RemoteLayerTreePropertyApplier::applyProperties() for layer " << layerTreeNode->layerID() << " found " << properties.animationChanges.effects.size() << " effects.");
             layerTreeNode->setAcceleratedEffectsAndBaseValues(properties.animationChanges.effects, properties.animationChanges.baseValues, *layerTreeHost);
         }
@@ -540,8 +553,10 @@ void RemoteLayerTreePropertyApplier::applyPropertiesToLayer(CALayer *layer, Remo
     if (properties.changedProperties & LayerChange::VideoGravityChanged) {
         auto *playerLayer = layer;
 #if PLATFORM(IOS_FAMILY)
-        if (layerTreeNode && [layerTreeNode->uiView() isKindOfClass:WKVideoView.class])
-            playerLayer = [(WKVideoView*)layerTreeNode->uiView() playerLayer];
+        if (layerTreeNode) {
+            if (RetainPtr videoView = dynamic_objc_cast<WKVideoView>(layerTreeNode->uiView()))
+                playerLayer = [videoView playerLayer];
+        }
 #endif
         ASSERT([playerLayer respondsToSelector:@selector(setVideoGravity:)]);
         if (RetainPtr webAVPlayerLayer = dynamic_objc_cast<WebAVPlayerLayer>(playerLayer))
@@ -556,7 +571,7 @@ void RemoteLayerTreePropertyApplier::applyPropertiesToLayer(CALayer *layer, Remo
 
     if (properties.changedProperties & LayerChange::ShadowPathChanged) {
         BEGIN_BLOCK_OBJC_EXCEPTIONS
-        [layer setShadowPath:properties.shadowPath.protectedPlatformPath().get()];
+        [layer setShadowPath:protect(properties.shadowPath.platformPath()).get()];
         END_BLOCK_OBJC_EXCEPTIONS
     }
 }
@@ -565,12 +580,12 @@ void RemoteLayerTreePropertyApplier::applyProperties(RemoteLayerTreeNode& node, 
 {
     BEGIN_BLOCK_OBJC_EXCEPTIONS
 
-    applyPropertiesToLayer(node.protectedLayer().get(), &node, layerTreeHost, properties);
+    applyPropertiesToLayer(protect(node.layer()).get(), &node, layerTreeHost, properties);
     if (properties.changedProperties & LayerChange::EventRegionChanged)
         node.setEventRegion(properties.eventRegion);
     updateMask(node, properties, relatedLayers);
 
-#if ENABLE(GAZE_GLOW_FOR_INTERACTION_REGIONS) || HAVE(CORE_ANIMATION_SEPARATED_LAYERS)
+#if ENABLE(GAZE_GLOW_FOR_INTERACTION_REGIONS) || HAVE(CORE_ANIMATION_SEPARATED_LAYERS) || ENABLE(OVERLAY_REGIONS_REMOTE_EFFECT)
     if (properties.changedProperties & LayerChange::VisibleRectChanged)
         node.setVisibleRect(properties.visibleRect);
 #endif
@@ -593,13 +608,18 @@ void RemoteLayerTreePropertyApplier::applyProperties(RemoteLayerTreeNode& node, 
     }
 #endif
 
+#if ENABLE(OVERLAY_REGIONS_REMOTE_EFFECT)
+    if (properties.changedProperties & LayerChange::VisibleRectChanged)
+        node.visibleRectChangedForOverlayRegions();
+#endif
+
 #if ENABLE(SCROLLING_THREAD)
     if (properties.changedProperties & LayerChange::ScrollingNodeIDChanged)
         node.setScrollingNodeID(properties.scrollingNodeID);
 #endif
 
 #if PLATFORM(IOS_FAMILY)
-    applyPropertiesToUIView(node.uiView(), properties, relatedLayers);
+    applyPropertiesToUIView(protect(node.uiView()).get(), properties, relatedLayers);
 #endif
 
     END_BLOCK_OBJC_EXCEPTIONS
@@ -614,11 +634,12 @@ void RemoteLayerTreePropertyApplier::applyHierarchyUpdates(RemoteLayerTreeNode& 
 
 #if PLATFORM(IOS_FAMILY)
     auto hasViewChildren = [&] {
-        if (node.uiView() && [[node.uiView() subviews] count])
+        RetainPtr uiView = node.uiView();
+        if (uiView && [[uiView subviews] count])
             return true;
         if (properties.children.isEmpty())
             return false;
-        auto* childNode = relatedLayers.get(properties.children.first());
+        RefPtr childNode = relatedLayers.get(properties.children.first());
         ASSERT(childNode);
         return childNode && childNode->uiView();
     };
@@ -643,6 +664,9 @@ void RemoteLayerTreePropertyApplier::applyHierarchyUpdates(RemoteLayerTreeNode& 
 #if ENABLE(GAZE_GLOW_FOR_INTERACTION_REGIONS)
         node.updateInteractionRegionAfterHierarchyChange();
 #endif
+#if ENABLE(OVERLAY_REGIONS_REMOTE_EFFECT)
+        node.updateOverlayRegionAfterHierarchyChange();
+#endif
         return;
     }
 #endif
@@ -664,6 +688,10 @@ void RemoteLayerTreePropertyApplier::applyHierarchyUpdates(RemoteLayerTreeNode& 
         return childNode->layer();
     }).get()];
 
+#if ENABLE(OVERLAY_REGIONS_REMOTE_EFFECT)
+    node.updateOverlayRegionAfterHierarchyChange();
+#endif
+
     END_BLOCK_OBJC_EXCEPTIONS
 }
 
@@ -679,7 +707,7 @@ void RemoteLayerTreePropertyApplier::updateMask(RemoteLayerTreeNode& node, const
         return;
     }
 
-    RefPtr maskNode = properties.maskLayerID ? relatedLayers.get(*properties.maskLayerID) : nullptr;
+    RefPtr maskNode = relatedLayers.get(*properties.maskLayerID);
     ASSERT(maskNode);
     if (!maskNode)
         return;

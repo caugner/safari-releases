@@ -238,7 +238,7 @@
       "nicks" : [
          "adetaylor"
       ],
-      "status" : "committer"
+      "status" : "reviewer"
    },
    {
       "emails" : [
@@ -583,6 +583,17 @@
    },
    {
       "emails" : [
+         "alice_tang2@apple.com",
+         "tang.alice.000@gmail.com"
+      ],
+      "github" : "tangalice",
+      "name" : "Alice Tang",
+      "nicks" : [
+         "tangalice"
+      ]
+   },
+   {
+      "emails" : [
          "aboya@igalia.com",
          "ntrrgc@gmail.com"
       ],
@@ -658,7 +669,8 @@
          "anand_srinivasan@apple.com"
       ],
       "github" : "asworkjsc",
-      "name" : "Anand Srinivasan"
+      "name" : "Anand Srinivasan",
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -953,7 +965,8 @@
       "name" : "Anthony Tarbinian",
       "nicks" : [
          "atar"
-      ]
+      ],
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -1044,9 +1057,21 @@
       "emails" : [
          "a_panta@apple.com"
       ],
-      "expertise" : "Web Inspector",
+      "expertise" : "Web Inspector, WebDriver, Developer Tools",
       "github" : "anujpanta1",
-      "name" : "Anuj Panta"
+      "name" : "Anuj Panta",
+      "nicks" : [
+         "anuj"
+      ],
+      "status" : "committer"
+   },
+   {
+      "emails" : [
+         "sear-browser-bot@apple.com"
+      ],
+      "github" : "apple-security-bot",
+      "name" : "Apple (SEAR) Security Bot",
+      "status" : "bot"
    },
    {
       "emails" : [
@@ -1922,13 +1947,13 @@
       "emails" : [
          "csaavedra@igalia.com"
       ],
-      "expertise" : "WebKitGTK port, Epiphany developer, HTML Editing",
+      "expertise" : "WebKitGTK, WPE, security",
       "github" : "csaavedra",
       "name" : "Claudio Saavedra",
       "nicks" : [
-         "claudio___"
+         "claudio"
       ],
-      "status" : "committer"
+      "status" : "reviewer"
    },
    {
       "emails" : [
@@ -1937,7 +1962,7 @@
       ],
       "github" : "colelao",
       "name" : "Cole Carley",
-      "status" : "committer"
+      "status" : "reviewer"
    },
    {
       "emails" : [
@@ -2386,6 +2411,14 @@
    },
    {
       "emails" : [
+         "stockley@apple.com",
+         "david@stockley.me"
+      ],
+      "github" : "WDUK",
+      "name" : "David Stockley"
+   },
+   {
+      "emails" : [
          "davidtranhq@gmail.com",
          "david_tran5@apple.com",
          "dtran253@uwo.ca"
@@ -2482,6 +2515,14 @@
       "nicks" : [
          "diorahman"
       ]
+   },
+   {
+      "emails" : [
+         "d_delatoba@apple.com"
+      ],
+      "github" : "diegodelatoba",
+      "name" : "Diego De La Toba",
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -2614,7 +2655,7 @@
       "nicks" : [
          "dmazzoni"
       ],
-      "status" : "committer"
+      "status" : "reviewer"
    },
    {
       "emails" : [
@@ -2911,7 +2952,8 @@
       "name" : "Eri Pazos P\u00e9rez",
       "nicks" : [
          "eri"
-      ]
+      ],
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -2990,6 +3032,16 @@
       "name" : "Erik Arvidsson",
       "nicks" : [
          "arv"
+      ]
+   },
+   {
+      "emails" : [
+         "e_melone@apple.com"
+      ],
+      "github" : "emelone16",
+      "name" : "Erik Melone",
+      "nicks" : [
+         "emelone"
       ]
    },
    {
@@ -3179,7 +3231,7 @@
          "fwang@igalia.com"
       ],
       "github" : "fred-wang",
-      "name" : "Fr\u00e9d\u00e9ric Wang",
+      "name" : "Fr\u00e9d\u00e9ric Wang N\u00e9lar",
       "nicks" : [
          "fredw"
       ],
@@ -3737,12 +3789,11 @@
    },
    {
       "emails" : [
-         "ian.grunert@gmail.com",
-         "ian@andromeda.net"
+         "ian.grunert@gmail.com"
       ],
       "github" : "iangrunert",
       "name" : "Ian Grunert",
-      "status" : "committer"
+      "status" : "reviewer"
    },
    {
       "emails" : [
@@ -3846,6 +3897,14 @@
       ],
       "github" : "asiagho",
       "name" : "Isi Agho"
+   },
+   {
+      "emails" : [
+         "iroy@apple.com",
+         "issacroy05@gmail.com"
+      ],
+      "github" : "TheBoyRoy05",
+      "name" : "Issac Roy"
    },
    {
       "emails" : [
@@ -4102,6 +4161,16 @@
    },
    {
       "emails" : [
+         "jason_barkley@apple.com"
+      ],
+      "github" : "jbarkley-apple",
+      "name" : "Jason Barkley",
+      "nicks" : [
+         "jbarkley"
+      ]
+   },
+   {
+      "emails" : [
          "lawrence.j@apple.com"
       ],
       "name" : "Jason Lawrence"
@@ -4111,7 +4180,20 @@
          "jlee32@apple.com"
       ],
       "github" : "aznair",
-      "name" : "Jason Lee"
+      "name" : "Jason Lee",
+      "status" : "committer"
+   },
+   {
+      "emails" : [
+         "m.jason.liu@outlook.com",
+         "m.jason.liu@gmail.com",
+         "cgqaq@chromium.org"
+      ],
+      "github" : "cgqaq",
+      "name" : "Jason Leo",
+      "nicks" : [
+         "cgqaq"
+      ]
    },
    {
       "emails" : [
@@ -4179,7 +4261,8 @@
          "jean.haberer@hotmail.fr"
       ],
       "github" : "jeanhbr",
-      "name" : "Jean Haberer"
+      "name" : "Jean Haberer",
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -4225,6 +4308,13 @@
       "nicks" : [
          "jpfau"
       ]
+   },
+   {
+      "emails" : [
+         "jeffrey_xu2@apple.com"
+      ],
+      "github" : "jeffreyhxu",
+      "name" : "Jeffrey Xu"
    },
    {
       "emails" : [
@@ -4306,7 +4396,7 @@
       "nicks" : [
          "jesxilin"
       ],
-      "status" : "committer"
+      "status" : "reviewer"
    },
    {
       "emails" : [
@@ -4424,6 +4514,19 @@
    },
    {
       "emails" : [
+         "joanne_pan2@apple.com",
+         "jpan0917@gmail.com"
+      ],
+      "github" : "J0pan",
+      "name" : "Joanne Pan",
+      "nicks" : [
+         "jopan",
+         "J0pan"
+      ],
+      "status" : "committer"
+   },
+   {
+      "emails" : [
          "jturcotte@woboq.com",
          "jocelyn.turcotte@digia.com",
          "jocelyn.turcotte@nokia.com"
@@ -4461,6 +4564,16 @@
       "name" : "Johan K. Jensen",
       "nicks" : [
          "johankj"
+      ]
+   },
+   {
+      "emails" : [
+         "johannes.odland@gmail.com",
+         "johannes@odland.dev"
+      ],
+      "name" : "Johannes Odland",
+      "nicks" : [
+         "johannesodland"
       ]
    },
    {
@@ -4558,7 +4671,8 @@
          "jonbutler@apple.com"
       ],
       "github" : "jon-b-apple",
-      "name" : "Jon Butler"
+      "name" : "Jon Butler",
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -4714,6 +4828,13 @@
       "nicks" : [
          "JoePeck"
       ]
+   },
+   {
+      "emails" : [
+         "jhernandez89@apple.com"
+      ],
+      "github" : "Joshua-XIV",
+      "name" : "Josh Hernandez"
    },
    {
       "emails" : [
@@ -4873,7 +4994,8 @@
       "nicks" : [
          "kai",
          "heimskr"
-      ]
+      ],
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -4942,7 +5064,8 @@
       "name" : "Kate Lee",
       "nicks" : [
          "klee"
-      ]
+      ],
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -5158,7 +5281,7 @@
       "expertise" : "Safari Extensions, Web Extensions",
       "github" : "kiaraarose",
       "name" : "Kiara Rose",
-      "status" : "committer"
+      "status" : "reviewer"
    },
    {
       "emails" : [
@@ -5166,12 +5289,13 @@
          "tho22@apple.com",
          "tuankiet65@gmail.com"
       ],
+      "expertise" : "CSS, Style resolution",
       "github" : "tuankiet65",
       "name" : "Kiet Ho",
       "nicks" : [
          "tuankiet65"
       ],
-      "status" : "committer"
+      "status" : "reviewer"
    },
    {
       "emails" : [
@@ -5482,6 +5606,14 @@
    },
    {
       "emails" : [
+         "info.aeslilly@gmail.com",
+         "lilly_le@apple.com"
+      ],
+      "github" : "codedbycupidity",
+      "name" : "Lilly Le"
+   },
+   {
+      "emails" : [
          "lily_spiniolas@apple.com"
       ],
       "github" : "lilyspiniolas",
@@ -5610,6 +5742,7 @@
          "mjs@apple.com"
       ],
       "expertise" : "JavaScript/ECMAScript, Performance, Security, Basic types and data structures, FastMalloc, DOM Bindings for JavaScript, Core DOM, HTML DOM, JavaScript DOM Bindings, WebKit API (Mac, Win), HTML Editing, Networking, Tools, New Features / Standards Support, General (probably a good backup on most topics even if not specifically an expert)",
+      "github" : "othermaciej",
       "name" : "Maciej Stachowiak",
       "nicks" : [
          "othermaciej",
@@ -5824,6 +5957,13 @@
    },
    {
       "emails" : [
+         "mathew_mason@apple.com"
+      ],
+      "github" : "masonm12",
+      "name" : "Mathew Mason"
+   },
+   {
+      "emails" : [
          "mattbaker01@gmail.com"
       ],
       "expertise" : "Web Inspector",
@@ -6005,8 +6145,8 @@
    },
    {
       "emails" : [
-         "mcatanzaro@redhat.com",
          "mcatanzaro@gnome.org",
+         "mcatanzaro@redhat.com",
          "mcatanzaro@igalia.com"
       ],
       "expertise" : "WebKitGTK, Epiphany",
@@ -6174,6 +6314,18 @@
       "nicks" : [
          "mfenton"
       ]
+   },
+   {
+      "emails" : [
+         "mgorse@suse.com",
+         "mgorse@alum.wpi.edu"
+      ],
+      "github" : "mgorse",
+      "name" : "Mike Gorse",
+      "nicks" : [
+         "mgorse"
+      ],
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -6389,6 +6541,17 @@
       "name" : "Nayan Kumar K",
       "nicks" : [
          "xc0ffee"
+      ]
+   },
+   {
+      "emails" : [
+         "neeraqa@gmail.com",
+         "n_raj@apple.com"
+      ],
+      "github" : "neeraqa",
+      "name" : "Neethu Raj",
+      "nicks" : [
+         "neethuraj"
       ]
    },
    {
@@ -6861,7 +7024,8 @@
          "pfuachie2@apple.com"
       ],
       "github" : "phinny01",
-      "name" : "Phinehas Fuachie"
+      "name" : "Phinehas Fuachie",
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -6909,7 +7073,8 @@
          "pnikkhah@ucdavis.edu"
       ],
       "github" : "pooneh-nb",
-      "name" : "Pouneh Bahrami"
+      "name" : "Pouneh Bahrami",
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -6968,7 +7133,7 @@
       "nicks" : [
          "qianlangchen"
       ],
-      "status" : "committer"
+      "status" : "reviewer"
    },
    {
       "emails" : [
@@ -7270,7 +7435,8 @@
       "name" : "Ronan Turner",
       "nicks" : [
          "ronan-apple"
-      ]
+      ],
+      "status" : "committer"
    },
    {
       "emails" : [
@@ -7345,7 +7511,7 @@
       "nicks" : [
          "rkonda"
       ],
-      "status" : "committer"
+      "status" : "reviewer"
    },
    {
       "emails" : [
@@ -7554,6 +7720,17 @@
    },
    {
       "emails" : [
+         "sean_patterson@apple.com",
+         "spatterson@apple.com"
+      ],
+      "github" : "swpatters",
+      "name" : "Sean Patterson",
+      "nicks" : [
+         "spatters"
+      ]
+   },
+   {
+      "emails" : [
          "slomo@coaxion.net",
          "sebastian@centricular.com",
          "sebastian.droege@collabora.co.uk",
@@ -7750,6 +7927,7 @@
    },
    {
       "emails" : [
+         "sosuke@bun.com",
          "sosuke@bun.sh",
          "aosukeke@gmail.com"
       ],
@@ -7903,7 +8081,7 @@
       ],
       "github" : "nullhook",
       "name" : "Taher Ali",
-      "status" : "committer"
+      "status" : "reviewer"
    },
    {
       "emails" : [
@@ -8098,7 +8276,8 @@
       "name" : "Tim Chevalier",
       "nicks" : [
          "tim"
-      ]
+      ],
+      "status" : "committer"
    },
    {
       "aliases" : [
@@ -8314,6 +8493,17 @@
    },
    {
       "emails" : [
+         "v_rubanova@apple.com"
+      ],
+      "github" : "valrubanova",
+      "name" : "Valeriia Rubanova",
+      "nicks" : [
+         "vrubanova",
+         "valrubanova"
+      ]
+   },
+   {
+      "emails" : [
          "vangelis@chromium.org"
       ],
       "name" : "Vangelis Kokkevis",
@@ -8328,7 +8518,7 @@
       "expertise" : "JavaScriptCore",
       "github" : "ast-hugger",
       "name" : "Vassili Bykov",
-      "status" : "committer"
+      "status" : "reviewer"
    },
    {
       "emails" : [
@@ -8512,6 +8702,14 @@
       ],
       "github" : "webkit-integration",
       "name" : "WebKit Integration",
+      "status" : "committer"
+   },
+   {
+      "emails" : [
+         "webkit-opensource-integration@apple.com"
+      ],
+      "github" : "webkit-opensource-integration",
+      "name" : "WebKit Opensource Integration",
       "status" : "committer"
    },
    {
@@ -8869,7 +9067,7 @@
       "nicks" : [
          "zakr"
       ],
-      "status" : "committer"
+      "status" : "reviewer"
    },
    {
       "emails" : [

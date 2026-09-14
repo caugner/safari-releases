@@ -28,7 +28,6 @@
 
 #import "AXObjectCacheInlines.h"
 #import "AXRemoteFrame.h"
-#import "BufferSource.h"
 #import "ColorCocoa.h"
 #import "CompositionHighlight.h"
 #import "CompositionUnderline.h"
@@ -40,7 +39,7 @@
 #import "LocalFrame.h"
 #import "LocalFrameView.h"
 #import "LocalizedStrings.h"
-#import "RenderObjectInlines.h"
+#import "RenderObject.h"
 #import "Settings.h"
 #import "TextCheckerClient.h"
 #import "TextCheckingHelper.h"
@@ -163,13 +162,13 @@ AccessibilityObjectInclusion AccessibilityObject::accessibilityPlatformIncludesO
 
 bool AccessibilityObject::caretBrowsingEnabled() const
 {
-    RefPtr frame = this->frame();
+    auto* frame = this->frame();
     return frame && frame->settings().caretBrowsingEnabled();
 }
 
 void AccessibilityObject::setCaretBrowsingEnabled(bool on)
 {
-    RefPtr frame = this->frame();
+    auto* frame = this->frame();
     if (!frame)
         return;
     frame->settings().setCaretBrowsingEnabled(on);
@@ -447,7 +446,7 @@ static void attributedStringSetCompositionAttributes(NSMutableAttributedString *
 static bool shouldHaveAnySpellCheckAttribute(Node& node)
 {
     // If this node is not inside editable content, do not run the spell checker on the text.
-    auto* cache = node.document().axObjectCache();
+    CheckedPtr cache = node.document().axObjectCache();
     return cache && cache->rootAXEditableElement(&node);
 }
 
@@ -496,7 +495,7 @@ RetainPtr<NSAttributedString> attributedStringCreate(Node& node, StringView text
     if (!renderer)
         return nil;
 
-    auto* cache = renderer->document().axObjectCache();
+    CheckedPtr cache = renderer->document().axObjectCache();
     RefPtr object = cache ? cache->getOrCreate(node) : nullptr;
     if (!object)
         return nil;
@@ -523,9 +522,9 @@ void AXRemoteFrame::initializePlatformElementWithRemoteToken(AccessibilityRemote
     m_processIdentifier = processIdentifier;
     if ([wrapper() respondsToSelector:@selector(accessibilitySetPresenterProcessIdentifier:)])
         [(id)wrapper() accessibilitySetPresenterProcessIdentifier:processIdentifier];
-    m_remoteFramePlatformElement = adoptNS([[NSAccessibilityRemoteUIElement alloc] initWithRemoteToken:toNSData(BufferSource { token.bytes }).get()]);
+    m_remoteFramePlatformElement = adoptNS([[NSAccessibilityRemoteUIElement alloc] initWithRemoteToken:WTF::toNSData(token.bytes.span()).get()]);
 
-    if (auto* cache = axObjectCache())
+    if (CheckedPtr cache = axObjectCache())
         cache->onRemoteFrameInitialized(*this);
 }
 

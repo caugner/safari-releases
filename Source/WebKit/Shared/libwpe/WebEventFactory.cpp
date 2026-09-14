@@ -205,7 +205,7 @@ WebMouseEvent WebEventFactory::createWebMouseEvent(struct wpe_input_pointer_even
     WebCore::IntPoint position(event->x, event->y);
     position.scale(1 / deviceScaleFactor);
     return WebMouseEvent({ type, modifiersForEventModifiers(event->modifiers), monotonicTimeForEventTimeInMilliseconds(event->time) }, button, pressedMouseButtons(event->modifiers), position, position,
-        0, 0, 0, clickCount(event), 0, syntheticClickType);
+        0, 0, 0, clickCount(event), 0, WebEventInputSource::UserDriven, WebCore::PlatformMouseEvent::CanInitiateDrag::Yes, syntheticClickType);
 }
 
 WebWheelEvent WebEventFactory::createWebWheelEvent(struct wpe_input_axis_event* event, float deviceScaleFactor, WebWheelEvent::Phase phase, WebWheelEvent::Phase momentumPhase)
@@ -315,10 +315,7 @@ WebTouchEvent WebEventFactory::createWebTouchEvent(struct wpe_input_touch_event*
     Vector<WebKit::WebPlatformTouchPoint> touchPoints;
     touchPoints.reserveCapacity(event->touchpoints_length);
 
-    for (unsigned i = 0; i < event->touchpoints_length; ++i) {
-        WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // WPE port
-        auto& point = event->touchpoints[i];
-        WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
+    for (auto& point : unsafeMakeSpan(event->touchpoints, event->touchpoints_length)) {
         if (point.type == wpe_input_touch_event_type_null)
             continue;
 

@@ -29,10 +29,17 @@
 #include <WebCore/CharacterRange.h>
 #include <WebCore/FloatRect.h>
 #include <WebCore/FloatSize.h>
+#include <WebCore/IntPoint.h>
 #include <WebCore/NodeIdentifier.h>
 #include <WebCore/WebKitJSHandle.h>
 #include <wtf/Forward.h>
+#include <wtf/TZoneMalloc.h>
 #include <wtf/URL.h>
+#include <wtf/UniqueRef.h>
+
+#if ENABLE(DATA_DETECTION)
+#include <WebCore/DataDetectorType.h>
+#endif
 
 namespace WebCore {
 
@@ -48,7 +55,8 @@ enum class Action : uint8_t {
     TextInput,
     KeyPress,
     HighlightText,
-    ScrollBy,
+    Scroll,
+    Hover,
 };
 
 struct Interaction {
@@ -69,6 +77,7 @@ struct ExtractedText {
 struct InteractionDescription {
     String description;
     Vector<String> stringsToValidate;
+    bool didFindTargetNode { true };
 };
 
 enum class EventListenerCategory : uint8_t {
@@ -91,12 +100,17 @@ struct Request {
     std::optional<FloatRect> collectionRectInRootView;
     std::optional<JSHandleIdentifier> targetNodeHandleIdentifier;
     Vector<JSHandleIdentifier> handleIdentifiersOfNodesToSkip;
+    std::optional<NodeIdentifier> contextMenuTargetNodeIdentifier;
     bool mergeParagraphs { false };
     bool skipNearlyTransparentContent { false };
     NodeIdentifierInclusion nodeIdentifierInclusion { NodeIdentifierInclusion::None };
-    bool includeEventListeners { false };
+    OptionSet<EventListenerCategory> eventListenerCategories;
     bool includeAccessibilityAttributes { false };
     bool includeTextInAutoFilledControls { false };
+    bool includeOffscreenPasswordFields { false };
+#if ENABLE(DATA_DETECTION)
+    OptionSet<DataDetectorType> dataDetectorTypes;
+#endif
 };
 
 struct Editable {
@@ -115,6 +129,9 @@ struct TextItemData {
 
 struct ScrollableItemData {
     FloatSize contentSize;
+    IntPoint scrollPosition;
+    bool isRoot { false };
+    bool hasOverflowItems { false };
 };
 
 struct ImageItemData {
@@ -127,10 +144,14 @@ struct LinkItemData {
     String target;
     URL completedURL;
     String shortenedURLString;
+    bool linksToCurrentURL { false };
+    String shortenedSelfLinkURLString;
 };
 
 struct IFrameData {
     String origin;
+    String shortenedOrigin;
+    bool isSameOriginAsParent { false };
     FrameIdentifier identifier;
 };
 
@@ -150,21 +171,28 @@ struct TextFormControlData {
     String autocomplete;
     String pattern;
     String name;
+    String value;
     std::optional<int> minLength;
     std::optional<int> maxLength;
     bool isRequired { false };
     bool isReadonly { false };
     bool isDisabled { false };
     bool isChecked { false };
+    bool isAutofilled { false };
+};
+
+struct SelectOptionData {
+    String value;
+    String label;
+    bool isSelected { false };
 };
 
 struct SelectData {
-    Vector<String> selectedValues;
+    Vector<SelectOptionData> options;
     bool isMultiple { false };
 };
 
 enum class ContainerType : uint8_t {
-    Root,
     ViewportConstrained,
     List,
     ListItem,
@@ -188,12 +216,17 @@ struct Item {
     Vector<Item> children;
     String nodeName;
     std::optional<NodeIdentifier> nodeIdentifier;
+    std::optional<FrameIdentifier> frameIdentifier;
     OptionSet<EventListenerCategory> eventListeners;
     HashMap<String, String> ariaAttributes;
     String accessibilityRole;
     String title;
     HashMap<String, String> clientAttributes;
+    Vector<String> classNames;
+    String idAttribute;
     unsigned enclosingBlockNumber { 0 };
+    unsigned visualBlockContainerNumber { 0 };
+    bool hasLineThrough { false };
 
     template<typename T> bool hasData() const
     {
@@ -207,6 +240,21 @@ struct Item {
         return std::nullopt;
     }
 };
+
+struct Result {
+    WTF_MAKE_STRUCT_TZONE_ALLOCATED_EXPORT(Result, WEBCORE_EXPORT);
+
+    Item rootItem;
+    unsigned visibleTextLength { 0 };
+    std::optional<String> pdfMarkdownContent;
+};
+
+struct PageResults {
+    Result mainFrameResult;
+    HashMap<FrameIdentifier, UniqueRef<Result>> subFrameResults;
+};
+
+WEBCORE_EXPORT Result collatePageResults(PageResults&&);
 
 struct FilterRuleData {
     String name;

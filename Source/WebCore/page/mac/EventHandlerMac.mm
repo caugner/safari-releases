@@ -29,6 +29,7 @@
 #if PLATFORM(MAC)
 
 #import "AXObjectCache.h"
+#import "AutoscrollController.h"
 #import "Chrome.h"
 #import "ChromeClient.h"
 #import "DataTransfer.h"
@@ -88,9 +89,7 @@
 
 namespace WebCore {
 
-static const Seconds resetLatchedStateTimeout { 100_ms };
-
-static RetainPtr<NSEvent>& currentNSEventSlot()
+static RetainPtr<NSEvent>& NODELETE currentNSEventSlot()
 {
     static NeverDestroyed<RetainPtr<NSEvent>> event;
     return event;
@@ -101,7 +100,7 @@ NSEvent *EventHandler::currentNSEvent()
     return currentNSEventSlot().get();
 }
 
-static RetainPtr<NSEvent>& correspondingPressureEventSlot()
+static RetainPtr<NSEvent>& NODELETE correspondingPressureEventSlot()
 {
     static NeverDestroyed<RetainPtr<NSEvent>> event;
     return event;
@@ -194,13 +193,13 @@ void EventHandler::focusDocumentView()
     }
 
     RELEASE_ASSERT(page == m_frame->page());
-    page->focusController().setFocusedFrame(protectedFrame().ptr());
+    page->focusController().setFocusedFrame(protect(m_frame).ptr());
 }
 
 bool EventHandler::passWidgetMouseDownEventToWidget(const MouseEventWithHitTestResults& event)
 {
     // Figure out which view to send the event to.
-    auto* target = event.targetNode() ? dynamicDowncast<RenderWidget>(event.targetNode()->renderer()) : nullptr;
+    RefPtr target = event.targetNode() ? dynamicDowncast<RenderWidget>(event.targetNode()->renderer()) : nullptr;
     if (!target)
         return false;
 
@@ -208,12 +207,12 @@ bool EventHandler::passWidgetMouseDownEventToWidget(const MouseEventWithHitTestR
     // just pass currentEvent down to the widget, we don't want to call it for events that
     // don't correspond to Cocoa events. The mousedown/ups will have already been passed on as
     // part of the pressed/released handling.
-    return passMouseDownEventToWidget(target->protectedWidget().get());
+    return passMouseDownEventToWidget(protect(target->widget()).get());
 }
 
 bool EventHandler::passWidgetMouseDownEventToWidget(RenderWidget* renderWidget)
 {
-    return passMouseDownEventToWidget(renderWidget->protectedWidget().get());
+    return passMouseDownEventToWidget(protect(renderWidget->widget()).get());
 }
 
 static bool lastEventIsMouseUp()
@@ -256,9 +255,9 @@ bool EventHandler::passMouseDownEventToWidget(Widget* pWidget)
 
     BEGIN_BLOCK_OBJC_EXCEPTIONS
 
-    NSView *nodeView = widget->platformWidget();
-    ASSERT([nodeView superview]);
-    NSView *view = [nodeView hitTest:[[nodeView superview] convertPoint:[currentNSEvent() locationInWindow] fromView:nil]];
+    RetainPtr nodeView = widget->platformWidget();
+    ASSERT([nodeView.get() superview]);
+    NSView *view = [nodeView.get() hitTest:[[nodeView.get() superview] convertPoint:[currentNSEvent() locationInWindow] fromView:nil]];
     if (!view) {
         // We probably hit the border of a RenderWidget
         return true;
@@ -343,9 +342,9 @@ RetainPtr<NSView> EventHandler::mouseDownViewIfStillGood()
     if (!mouseDownView) {
         return nil;
     }
-    auto* topFrameView = m_frame->view();
-    NSView *topView = topFrameView ? topFrameView->platformWidget() : nil;
-    if (!topView || !findViewInSubviews(topView, mouseDownView.get())) {
+    RefPtr topFrameView = m_frame->view();
+    RetainPtr<NSView> topView = topFrameView ? topFrameView->platformWidget() : nil;
+    if (!topView || !findViewInSubviews(topView.get(), mouseDownView.get())) {
         m_mouseDownView = nil;
         return nil;
     }
@@ -454,7 +453,7 @@ static IMP originalNSScrollViewScrollWheel;
 static bool _nsScrollViewScrollWheelShouldRetainSelf;
 static void selfRetainingNSScrollViewScrollWheel(NSScrollView *, SEL, NSEvent *);
 
-static bool nsScrollViewScrollWheelShouldRetainSelf()
+static bool NODELETE nsScrollViewScrollWheelShouldRetainSelf()
 {
     ASSERT(isMainThread());
 
@@ -486,7 +485,7 @@ bool EventHandler::passWheelEventToWidget(const PlatformWheelEvent& wheelEvent, 
 {
     BEGIN_BLOCK_OBJC_EXCEPTIONS
 
-    NSView* nodeView = widget.platformWidget();
+    RetainPtr nodeView = widget.platformWidget();
     if (!nodeView) {
         // WebKit2 code path.
         RefPtr frameView = dynamicDowncast<LocalFrameView>(widget);
@@ -500,8 +499,8 @@ bool EventHandler::passWheelEventToWidget(const PlatformWheelEvent& wheelEvent, 
         return false;
 
     ASSERT(nodeView);
-    ASSERT([nodeView superview]);
-    NSView *view = [nodeView hitTest:[[nodeView superview] convertPoint:[currentNSEvent() locationInWindow] fromView:nil]];
+    ASSERT([nodeView.get() superview]);
+    NSView *view = [nodeView.get() hitTest:[[nodeView.get() superview] convertPoint:[currentNSEvent() locationInWindow] fromView:nil]];
     if (!view) {
         // We probably hit the border of a RenderWidget
         return false;
@@ -524,7 +523,7 @@ bool EventHandler::passWheelEventToWidget(const PlatformWheelEvent& wheelEvent, 
 
 void EventHandler::mouseDown(NSEvent *event, NSEvent *correspondingPressureEvent)
 {
-    auto* v = m_frame->view();
+    RefPtr v = m_frame->view();
     if (!v || m_sendingEventToSubview)
         return;
 
@@ -541,7 +540,7 @@ void EventHandler::mouseDown(NSEvent *event, NSEvent *correspondingPressureEvent
 
 void EventHandler::mouseDragged(NSEvent *event, NSEvent *correspondingPressureEvent)
 {
-    auto* v = m_frame->view();
+    RefPtr v = m_frame->view();
     if (!v || m_sendingEventToSubview)
         return;
 
@@ -555,7 +554,7 @@ void EventHandler::mouseDragged(NSEvent *event, NSEvent *correspondingPressureEv
 
 void EventHandler::mouseUp(NSEvent *event, NSEvent *correspondingPressureEvent)
 {
-    auto* v = m_frame->view();
+    RefPtr v = m_frame->view();
     if (!v || m_sendingEventToSubview)
         return;
 
@@ -592,7 +591,7 @@ void EventHandler::mouseUp(NSEvent *event, NSEvent *correspondingPressureEvent)
  */
 void EventHandler::sendFakeEventsAfterWidgetTracking(NSEvent *initiatingEvent)
 {
-    auto* view = m_frame->view();
+    RefPtr view = m_frame->view();
     if (!view)
         return;
 
@@ -739,18 +738,18 @@ HandleUserInputEventResult EventHandler::passMouseReleaseEventToSubframe(MouseEv
 
 PlatformMouseEvent EventHandler::currentPlatformMouseEvent() const
 {
-    NSView *windowView = nil;
+    RetainPtr<NSView> windowView;
     if (RefPtr page = m_frame->page())
         windowView = page->chrome().platformPageClient();
-    return PlatformEventFactory::createPlatformMouseEvent(currentNSEvent(), correspondingPressureEvent(), windowView);
+    return PlatformEventFactory::createPlatformMouseEvent(currentNSEvent(), correspondingPressureEvent(), windowView.get());
 }
 
-bool EventHandler::eventActivatedView(const PlatformMouseEvent& event) const
+bool NODELETE EventHandler::eventActivatedView(const PlatformMouseEvent& event) const
 {
     return m_activationEventNumber == event.eventNumber();
 }
 
-bool EventHandler::needsKeyboardEventDisambiguationQuirks() const
+bool NODELETE EventHandler::needsKeyboardEventDisambiguationQuirks() const
 {
     return m_frame->settings().needsKeyboardEventDisambiguationQuirks();
 }
@@ -766,7 +765,7 @@ OptionSet<PlatformEvent::Modifier> EventHandler::accessKeyModifiers()
     return { PlatformEvent::Modifier::ControlKey, PlatformEvent::Modifier::AltKey };
 }
 
-static ScrollableArea* scrollableAreaForBox(RenderBox& box)
+static ScrollableArea* NODELETE scrollableAreaForBox(RenderBox& box)
 {
     if (auto* listBox = dynamicDowncast<RenderListBox>(box))
         return listBox;
@@ -782,24 +781,24 @@ static ContainerNode* findEnclosingScrollableContainer(ContainerNode* node, cons
 {
     // Find the first node with a valid scrollable area starting with the current
     // node and traversing its parents (or shadow hosts).
-    for (auto* candidate = node; candidate; candidate = candidate->parentInComposedTree()) {
+    for (SUPPRESS_UNCOUNTED_LOCAL auto* candidate = node; candidate; candidate = candidate->parentInComposedTree()) {
         if (is<HTMLIFrameElement>(*candidate))
             continue;
 
-        if (is<HTMLHtmlElement>(*candidate) || is<HTMLDocument>(*candidate))
+        if (isAnyOf<HTMLHtmlElement, HTMLDocument>(*candidate))
             return nullptr;
 
-        RenderBox* box = candidate->renderBox();
+        CheckedPtr box = candidate->renderBox();
         if (!box || !box->canBeScrolledAndHasScrollableArea())
             continue;
-        
-        auto* scrollableArea = scrollableAreaForBox(*box);
+
+        CheckedPtr scrollableArea = scrollableAreaForBox(*box);
         if (!scrollableArea)
             continue;
-        
+
         if (scrollableArea->shouldBlockScrollPropagation(wheelEvent.delta()))
             return candidate;
-        
+
         if (wheelEvent.phase() == PlatformWheelEventPhase::MayBegin || wheelEvent.phase() == PlatformWheelEventPhase::Cancelled)
             return candidate;
 
@@ -810,7 +809,7 @@ static ContainerNode* findEnclosingScrollableContainer(ContainerNode* node, cons
     return nullptr;
 }
 
-static WeakPtr<ScrollableArea> scrollableAreaForEventTarget(Element* eventTarget)
+static WeakPtr<ScrollableArea> NODELETE scrollableAreaForEventTarget(Element* eventTarget)
 {
     return dynamicDowncast<ScrollView>(EventHandler::widgetForEventTarget(eventTarget));
 }
@@ -821,13 +820,13 @@ static bool eventTargetIsPlatformWidget(Element* eventTarget)
     return widget && widget->platformWidget();
 }
 
-static WeakPtr<ScrollableArea> scrollableAreaForContainerNode(ContainerNode& container)
+static WeakPtr<ScrollableArea> NODELETE scrollableAreaForContainerNode(ContainerNode& container)
 {
-    auto box = container.renderBox();
+    auto* box = container.renderBox();
     if (!box)
         return { };
 
-    auto scrollableAreaPtr = scrollableAreaForBox(*box);
+    auto* scrollableAreaPtr = scrollableAreaForBox(*box);
     if (!scrollableAreaPtr)
         return { };
     
@@ -840,14 +839,14 @@ void EventHandler::determineWheelEventTarget(const PlatformWheelEvent& wheelEven
     if (!page)
         return;
 
-    auto* view = m_frame->view();
+    RefPtr view = m_frame->view();
     if (!view)
         return;
 
     if (eventTargetIsPlatformWidget(wheelEventTarget.get()))
         scrollableArea = scrollableAreaForEventTarget(wheelEventTarget.get());
     else {
-        auto* scrollableContainer = findEnclosingScrollableContainer(wheelEventTarget.get(), wheelEvent);
+        RefPtr scrollableContainer = findEnclosingScrollableContainer(wheelEventTarget.get(), wheelEvent);
         if (scrollableContainer)
             scrollableArea = scrollableAreaForContainerNode(*scrollableContainer);
         else
@@ -862,7 +861,7 @@ void EventHandler::determineWheelEventTarget(const PlatformWheelEvent& wheelEven
     if (wheelEvent.shouldResetLatching() || wheelEvent.isNonGestureEvent())
         return;
 
-    page->scrollLatchingController().updateAndFetchLatchingStateForFrame(protectedFrame(), wheelEvent, wheelEventTarget, scrollableArea, isOverWidget);
+    page->scrollLatchingController().updateAndFetchLatchingStateForFrame(protect(m_frame), wheelEvent, wheelEventTarget, scrollableArea, isOverWidget);
 }
 
 bool EventHandler::processWheelEventForScrolling(const PlatformWheelEvent& wheelEvent, const WeakPtr<ScrollableArea>& scrollableArea, OptionSet<EventHandling> eventHandling)
@@ -1006,8 +1005,148 @@ IntSize EventHandler::autoscrollAdjustmentFactorForScreenBoundaries(const FloatP
     return adjustmentFactor;
 }
 
+// Selection-drag autoscroll on macOS is split into two decisions that share one edge-band geometry
+// (`selectionAutoscrollGeometry`):
+//
+//   - The gate (`isPointNearSelectionAutoscrollEdge`) runs on each extent-point update from the UI
+//     process and decides *whether* to autoscroll - including the drag-distance threshold.
+//   - The push (`pushSelectionAutoscrollTargetPastVisibleEdges`, via
+//     `targetPositionInWindowForSelectionAutoscroll`) runs on each 50ms autoscroll-timer tick and
+//     decides *how far* past the edge to aim the target so the scroll velocity stays steady.
+//
+// Both reason about the same edge band, but for different purposes; the threshold lives only in the
+// gate, since by the time the push runs the decision to scroll has already been made.
+//
+// The edge band both functions share (root-view coords; thickness = edgeHotZone on every side):
+//
+//     x()                               maxX()
+//      +---------------------------------+  y()
+//      |#################################|
+//      |##                             ##|
+//      |##   interior: no autoscroll   ##|
+//      |##                             ##|
+//      |#################################|
+//      +---------------------------------+  maxY()
+//       \/                           \/
+//      edgeHotZone              edgeHotZone
+//
+// A point in the '#' band that is dragged toward that edge past the threshold autoscrolls toward it.
+
+// Pushes a selection-autoscroll target that sits within the edge hot-zone of (or past)
+// `visibleRect` to a point just outside the nearest edge, scaling how far outside by how deep into
+// the hot-zone the point is so the scroll speed ramps up toward the edge. Input and output are in
+// the same root-view coordinate space, so the autoscroll timer's windowToContents mapping keeps the
+// target a fixed distance past the visible content each tick — a stable scroll velocity for as long
+// as the gesture holds near (or past) the edge, with no need for the UI process to re-push a target.
+// `zoomScale` is the page scale factor (magnification); dividing the hot-zone and speed by it keeps
+// both a constant on-screen size while the page is magnified, matching iOS.
+//
+// Ramp (schematic) - how far the target is pushed past the edge vs. how deep the point is in the band:
+//
+//   push past edge
+//   (per-tick speed)
+//        ^
+//    max |- - - - - - - - - .__________   clamped at / beyond the visible edge
+//        |                 /
+//        |               /       slope = maxSpeed / edgeHotZone
+//        |             /
+//        |           /
+//        |         /
+//      0 +-------/-----------------------> depth into band
+//        0                  edgeHotZone
+//   (band inner boundary)   (= visible edge)
+//
+//   pushDistance = (min(depth, edgeHotZone) / edgeHotZone) * maxSpeed
+static IntPoint pushSelectionAutoscrollTargetPastVisibleEdges(IntPoint point, FloatRect visibleRect, float zoomScale)
+{
+    const float edgeHotZone = AutoscrollController::selectionAutoscrollEdgeDistance / zoomScale;
+    const float maximumScrollingSpeed = AutoscrollController::selectionAutoscrollMaximumSpeed / zoomScale;
+
+    auto pushedCoordinate = [&](float position, float minEdge, float maxEdge) -> float {
+        if (position < minEdge + edgeHotZone) {
+            float depth = std::min<float>((minEdge + edgeHotZone) - position, edgeHotZone);
+            return minEdge - AutoscrollController::rampedSelectionAutoscrollDistance(depth, edgeHotZone, maximumScrollingSpeed);
+        }
+        if (position > maxEdge - edgeHotZone) {
+            float depth = std::min<float>(position - (maxEdge - edgeHotZone), edgeHotZone);
+            return maxEdge + AutoscrollController::rampedSelectionAutoscrollDistance(depth, edgeHotZone, maximumScrollingSpeed);
+        }
+        return position;
+    };
+
+    return roundedIntPoint(FloatPoint {
+        pushedCoordinate(point.x(), visibleRect.x(), visibleRect.maxX()),
+        pushedCoordinate(point.y(), visibleRect.y(), visibleRect.maxY()),
+    });
+}
+
+// The visible-content rect (in root-view coordinates) and zoom scale used to size the selection
+// autoscroll edge band. Shared by the start/cancel predicate and the target-push so they agree.
+static std::optional<std::pair<FloatRect, float>> selectionAutoscrollGeometry(const LocalFrame& frame)
+{
+    RefPtr frameView = frame.view();
+    if (!frameView)
+        return std::nullopt;
+    RefPtr page = frame.page();
+    float zoomScale = page ? page->pageScaleFactor() : 1;
+    return std::make_pair(frameView->contentsToRootView(frameView->unobscuredContentRect()), zoomScale);
+}
+
+bool EventHandler::isPointNearSelectionAutoscrollEdge(const IntPoint& positionInRootView, const IntPoint& dragOriginInRootView) const
+{
+    // Require the drag to have moved toward an edge before that edge autoscrolls, so a selection that
+    // merely originates near an edge (a short drag) doesn't scroll the page out from under the user. The
+    // delta is measured from the drag's first extent (`dragOriginInRootView`): a drag that starts in the
+    // interior has already crossed `dragThreshold` by the time it reaches the band, so it stays as
+    // responsive as before, while a drag that starts inside the band must be pushed deliberately toward
+    // the edge. This is the macOS counterpart to iOS's `insetDistanceThreshold` (also half the band).
+    //
+    // Toward the max edge (the min edge is the mirror image):
+    //
+    //   |<----------- interior ----------->|<------ edge band ------>|
+    //   +----------------------------------+-------------------------+ maxEdge
+    //        origin                            p
+    //          o . . . . . . . . . . . . . . . *
+    //          |<--------- p - origin -------->|
+    //                must exceed dragThreshold (= edgeHotZone / 2)
+    //
+    // Arms only when BOTH hold: p is in the band, and (p - origin) toward the edge > dragThreshold.
+    auto geometry = selectionAutoscrollGeometry(m_frame.get());
+    if (!geometry)
+        return false;
+
+    auto [visibleRect, zoomScale] = *geometry;
+    const float edgeHotZone = AutoscrollController::selectionAutoscrollEdgeDistance / zoomScale;
+    const float dragThreshold = edgeHotZone / 2;
+
+    auto dragOffset = positionInRootView - dragOriginInRootView;
+
+    // Per axis, an edge arms only when the point is within its hot zone and the drag points toward it
+    // past the threshold. Mirrors the per-axis `pushedCoordinate` lambda in the target-push below.
+    auto draggingTowardArmedEdge = [&](float position, float dragComponent, float minEdge, float maxEdge) {
+        bool towardMinEdge = position < minEdge + edgeHotZone && dragComponent < -dragThreshold;
+        bool towardMaxEdge = position > maxEdge - edgeHotZone && dragComponent > dragThreshold;
+        return towardMinEdge || towardMaxEdge;
+    };
+
+    return draggingTowardArmedEdge(positionInRootView.x(), dragOffset.width(), visibleRect.x(), visibleRect.maxX())
+        || draggingTowardArmedEdge(positionInRootView.y(), dragOffset.height(), visibleRect.y(), visibleRect.maxY());
+}
+
 IntPoint EventHandler::targetPositionInWindowForSelectionAutoscroll() const
 {
+    // During a selection-drag, autoscrolling is driven by the UI process pushing a target
+    // point (in root-view coordinates) as the selection is extended.
+    // Push that point past the nearest visible-content edge so the autoscroll timer keeps scrolling
+    // at a stable velocity while the gesture holds near (or past) the edge.
+    if (m_isAutoscrolling) {
+        auto geometry = selectionAutoscrollGeometry(m_frame.get());
+        if (!geometry)
+            return m_targetAutoscrollPositionInRootView;
+        auto [visibleRect, zoomScale] = *geometry;
+        return pushSelectionAutoscrollTargetPastVisibleEdges(m_targetAutoscrollPositionInRootView, visibleRect, zoomScale);
+    }
+
     RefPtr page = m_frame->page();
     if (!page)
         return flooredIntPoint(valueOrDefault(m_lastKnownMousePosition));

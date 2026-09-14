@@ -33,12 +33,13 @@
 #include "WebTransport.h"
 #include "WebTransportError.h"
 #include "WebTransportSession.h"
+#include <JavaScriptCore/HeapCellInlines.h>
+#include <JavaScriptCore/JSCellInlines.h>
+#include <wtf/Scope.h>
 
 namespace WebCore {
 
-WebTransportReceiveStreamSource::WebTransportReceiveStreamSource()
-{
-}
+WebTransportReceiveStreamSource::WebTransportReceiveStreamSource() = default;
 
 WebTransportReceiveStreamSource::WebTransportReceiveStreamSource(WebTransport& transport, WebTransportStreamIdentifier identifier)
     : m_transport(transport)
@@ -50,7 +51,7 @@ bool WebTransportReceiveStreamSource::receiveIncomingStream(JSC::JSGlobalObject&
 {
     if (m_isCancelled || m_identifier)
         return false;
-    auto& jsDOMGlobalObject = *JSC::jsCast<JSDOMGlobalObject*>(&globalObject);
+    auto& jsDOMGlobalObject = downcast<JSDOMGlobalObject>(globalObject);
     Locker<JSC::JSLock> locker(jsDOMGlobalObject.vm().apiLock());
     auto value = toJS(&globalObject, &jsDOMGlobalObject, stream.get());
     if (!controller().enqueue(value)) {
@@ -103,6 +104,10 @@ void WebTransportReceiveStreamSource::receiveError(JSDOMGlobalObject& globalObje
 
 void WebTransportReceiveStreamSource::doCancel(JSC::JSValue value)
 {
+    auto scope = makeScopeExit([&] {
+        cancelFinished();
+    });
+
     if (m_isCancelled)
         return;
     m_isCancelled = true;
@@ -118,9 +123,9 @@ void WebTransportReceiveStreamSource::doCancel(JSC::JSValue value)
         return;
 
     std::optional<uint64_t> errorCode;
-    if (auto* jsWebTransportError = JSC::jsDynamicCast<JSWebTransportError*>(value)) {
-        Ref webTransportError = jsWebTransportError->wrapped();
-        if (auto webTransportErrorCode = webTransportError->streamErrorCode())
+    if (auto* jsWebTransportError = dynamicDowncast<JSWebTransportError>(value)) {
+        auto& webTransportError = jsWebTransportError->wrapped();
+        if (auto webTransportErrorCode = webTransportError.streamErrorCode())
             errorCode = static_cast<uint64_t>(*webTransportErrorCode);
     }
     session->cancelReceiveStream(*m_identifier, errorCode);

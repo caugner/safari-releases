@@ -51,6 +51,7 @@ public:
     virtual ~ExternalTextureImpl();
 
     WGPUExternalTexture backing() const { return m_backing.get(); };
+    bool isExternalTextureImpl() const final { return true; }
 
 private:
     friend class DowncastConvertToBackingContext;
@@ -62,7 +63,7 @@ private:
     ExternalTextureImpl& operator=(const ExternalTextureImpl&) = delete;
     ExternalTextureImpl& operator=(ExternalTextureImpl&&) = delete;
 
-    void setLabelInternal(const String&) final;
+    void NODELETE setLabelInternal(const String&) final;
     void destroy() final;
     void undestroy() final;
 #if PLATFORM(COCOA)
@@ -76,5 +77,9 @@ private:
 };
 
 } // namespace WebCore::WebGPU
+
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::WebGPU::ExternalTextureImpl)
+    static bool isType(const WebCore::WebGPU::ExternalTexture& texture) { return texture.isExternalTextureImpl(); }
+SPECIALIZE_TYPE_TRAITS_END()
 
 #endif // HAVE(WEBGPU_IMPLEMENTATION)

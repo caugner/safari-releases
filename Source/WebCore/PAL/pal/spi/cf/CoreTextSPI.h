@@ -33,6 +33,11 @@ DECLARE_SYSTEM_HEADER
 #include <CoreText/CoreText.h>
 #include <pal/spi/cg/CoreGraphicsSPI.h>
 
+#ifdef __cplusplus
+#include <wtf/cf/CFTypeTraits.h>
+WTF_DECLARE_CF_TYPE_TRAIT(CTFont);
+#endif
+
 #if USE(APPLE_INTERNAL_SDK)
 
 #include <CoreText/CoreTextPriv.h>
@@ -65,7 +70,8 @@ typedef CF_OPTIONS(CFOptionFlags, CTFontShapeOptions) {
 
 typedef CF_OPTIONS(uint32_t, CTFontDescriptorOptions) {
     kCTFontDescriptorOptionSystemUIFont = 1 << 1,
-    kCTFontDescriptorOptionPreferAppleSystemFont = kCTFontOptionsPreferSystemFont
+    kCTFontDescriptorOptionPreferAppleSystemFont = kCTFontOptionsPreferSystemFont,
+    kCTFontDescriptorOptionThisIsNotARealOption = 0xFFFFFFFF
 };
 
 enum {
@@ -104,10 +110,6 @@ typedef CF_ENUM(CFIndex, CTFontPalette)
 };
 
 typedef const struct __OTSVGTable * OTSVGTableRef;
-
-typedef CF_OPTIONS(uint32_t, CTFontDescriptorOptions) {
-    kCTFontDescriptorOptionThisIsNotARealOption = 0xFFFFFFFF
-};
 
 typedef CF_ENUM(uint32_t, CTFontTextStylePlatform)
 {

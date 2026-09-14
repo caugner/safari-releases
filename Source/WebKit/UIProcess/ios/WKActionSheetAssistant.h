@@ -25,12 +25,15 @@
 
 #if PLATFORM(IOS_FAMILY)
 
+#import "FrameInfoData.h"
 #import "GestureTypes.h"
 #import "WKActionSheet.h"
 #import <UIKit/UIPopoverController.h>
 #import <WebCore/ElementContext.h>
+#import <WebCore/ExceptionData.h>
 #import <WebCore/HTMLMediaElementIdentifier.h>
 #import <WebCore/MediaControlsContextMenuItem.h>
+#import <WebCore/ResolvedCaptionDisplaySettingsOptions.h>
 #import <pal/spi/ios/DataDetectorsUISPI.h>
 #import <wtf/CompletionHandler.h>
 #import <wtf/Forward.h>
@@ -65,6 +68,7 @@ typedef NS_ENUM(NSInteger, _WKElementActionType);
 - (BOOL)actionSheetAssistant:(WKActionSheetAssistant *)assistant shouldIncludeAppLinkActionsForElement:(_WKActivatedElementInfo *)element;
 #endif
 - (RetainPtr<NSArray>)actionSheetAssistant:(WKActionSheetAssistant *)assistant decideActionsForElement:(_WKActivatedElementInfo *)element defaultActions:(RetainPtr<NSArray>)defaultActions;
+- (NSURL *)currentPageURLForActionSheetAssistant:(WKActionSheetAssistant *)assistant;
 
 @optional
 - (BOOL)actionSheetAssistant:(WKActionSheetAssistant *)assistant showCustomSheetForElement:(_WKActivatedElementInfo *)element;
@@ -103,6 +107,10 @@ typedef NS_ENUM(NSInteger, _WKElementActionType);
 - (void)captionStyleMenuDidCloseWithFrameInfo:(const WebKit::FrameInfoData&)frameInfo identifier:(WebCore::HTMLMediaElementIdentifier)identifier;
 #endif
 @end
+
+#if ENABLE(DATA_DETECTION)
+@protocol DDDetectionControllerInteractionDelegate;
+#endif
 
 #if USE(UICONTEXTMENU)
 @interface WKActionSheetAssistant : NSObject <WKActionSheetDelegate,

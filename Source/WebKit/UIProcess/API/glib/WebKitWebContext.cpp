@@ -62,6 +62,7 @@
 #include <libintl.h>
 #include <memory>
 #include <pal/HysteresisActivity.h>
+#include <wtf/Borrow.h>
 #include <wtf/DateMath.h>
 #include <wtf/FileSystem.h>
 #include <wtf/HashMap.h>
@@ -71,9 +72,7 @@
 #include <wtf/RefPtr.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/URLParser.h>
-#include <wtf/glib/GRefPtr.h>
 #include <wtf/glib/GSpanExtras.h>
-#include <wtf/glib/GUniquePtr.h>
 #include <wtf/glib/WTFGType.h>
 #include <wtf/text/CString.h>
 
@@ -251,9 +250,6 @@ struct _WebKitWebContextPrivate {
     bool clientsDetached;
 #if PLATFORM(GTK) && !USE(GTK4)
     bool psonEnabled;
-#if USE(CAIRO)
-    bool useSystemAppearanceForScrollbars;
-#endif
 #endif
 
 #if !ENABLE(2022_GLIB_API)
@@ -444,9 +440,6 @@ static void webkitWebContextConstructed(GObject* object)
     configuration->setUsesWebProcessCache(true);
 #if PLATFORM(GTK) && !USE(GTK4)
     configuration->setProcessSwapsOnNavigation(priv->psonEnabled);
-#if USE(CAIRO)
-    configuration->setUseSystemAppearanceForScrollbars(priv->useSystemAppearanceForScrollbars);
-#endif
 #else
     configuration->setProcessSwapsOnNavigation(true);
 #endif
@@ -1468,9 +1461,8 @@ static bool pathIsBlocked(const char* path)
         return true;
 
     GUniquePtr<char*> splitPath(g_strsplit(path, G_DIR_SEPARATOR_S, 3));
-    WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // GTK/WPE Port
-    return blockedPrefixes.contains(splitPath.get()[1]);
-    WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
+    auto pathElements = unsafeMakeSpan(splitPath.get(), g_strv_length(splitPath.get()));
+    return (pathElements.size() < 2) || blockedPrefixes.contains(pathElements[1]);
 }
 
 /**
@@ -1648,10 +1640,10 @@ void webkit_web_context_set_preferred_languages(WebKitWebContext* context, const
 {
     g_return_if_fail(WEBKIT_IS_WEB_CONTEXT(context));
 
-    if (!languageList || !g_strv_length(const_cast<char**>(languageList)))
-        return;
-
     auto languagesSpan = span(const_cast<char**>(languageList));
+
+    if (!languagesSpan.size())
+        return;
 
     Vector<String> languages;
     for (auto language : languagesSpan) {
@@ -1947,7 +1939,7 @@ void webkit_web_context_send_message_to_all_extensions(WebKitWebContext* context
 
     // We sink the reference in case of being floating.
     GRefPtr<WebKitUserMessage> adoptedMessage = message;
-    for (Ref process : context->priv->processPool->processes())
+    for (Ref process : borrow(context->priv->processPool->processes()).get())
         process->send(Messages::WebProcess::SendMessageToWebProcessExtension(webkitUserMessageGetMessage(message)), 0);
 }
 
@@ -1969,22 +1961,8 @@ void webkit_web_context_set_use_system_appearance_for_scrollbars(WebKitWebContex
 {
     g_return_if_fail(WEBKIT_IS_WEB_CONTEXT(context));
 
-#if USE(CAIRO)
-    if (context->priv->useSystemAppearanceForScrollbars == enabled)
-        return;
-
-    context->priv->useSystemAppearanceForScrollbars = enabled;
-    g_object_notify_by_pspec(G_OBJECT(context), sObjProperties[PROP_USE_SYSTEM_APPEARANCE_FOR_SCROLLBARS]);
-
-    if (!context->priv->processPool)
-        return;
-
-    context->priv->processPool->configuration().setUseSystemAppearanceForScrollbars(enabled);
-    context->priv->processPool->sendToAllProcesses(Messages::WebProcess::SetUseSystemAppearanceForScrollbars(enabled));
-#else
     if (enabled)
         g_warning("WebKitWebContext:use-system-appearance-for-scrollbars property is deprecated and does nothing");
-#endif
 }
 
 /**
@@ -2003,11 +1981,7 @@ gboolean webkit_web_context_get_use_system_appearance_for_scrollbars(WebKitWebCo
 {
     g_return_val_if_fail(WEBKIT_IS_WEB_CONTEXT(context), TRUE);
 
-#if USE(CAIRO)
-    return context->priv->useSystemAppearanceForScrollbars;
-#else
     return FALSE;
-#endif
 }
 #endif
 

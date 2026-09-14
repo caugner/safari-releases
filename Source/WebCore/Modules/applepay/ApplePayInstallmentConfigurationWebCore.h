@@ -37,6 +37,7 @@ namespace WebCore {
 
 struct ApplePayInstallmentConfiguration {
     ApplePaySetupFeatureType featureType { ApplePaySetupFeatureType::AppleCard };
+    String merchandisingImageData; // This property remains here because it is web-exposed, but has no effect and is no longer serialized.
     String openToBuyThresholdAmount;
     String bindingTotalAmount;
     String currencyCode;
@@ -47,7 +48,7 @@ struct ApplePayInstallmentConfiguration {
     String applicationMetadata;
     ApplePayInstallmentRetailChannel retailChannel { ApplePayInstallmentRetailChannel::Unknown };
 
-    String merchandisingImageData; // This property remains here because it is web-exposed, but has no effect and is no longer serialized.
+    WEBCORE_EXPORT static std::optional<ApplePayInstallmentConfiguration> fromInstallmentConfiguration(ApplePaySetupFeatureType, String&& openToBuyThresholdAmount, String&& bindingTotalAmount, String&& currencyCode, bool isInStorePurchase, String&& merchantIdentifier, String&& referrerIdentifier, Vector<ApplePayInstallmentItem>&&, String&& applicationMetadata, ApplePayInstallmentRetailChannel);
 };
 
 } // namespace WebCore

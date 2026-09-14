@@ -235,7 +235,7 @@ public:
 
     ALWAYS_INLINE static bool isValidVM(VM* vm)
     {
-        return vm == s_recentVM ? true : isValidVMSlow(vm);
+        return vm == s_recentVM || isValidVMSlow(vm);
     }
 
     // StopTheWorld APIs ======================================================
@@ -254,22 +254,15 @@ public:
         Mode worldMode;
         VM* targetVM;
 
-        void dump(PrintStream& out) const
-        {
-            out.print("VMManager::Info(numberOfVMs:", numberOfVMs);
-            out.print(", numberOfActiveVMs:", numberOfActiveVMs);
-            out.print(", numberOfStoppedVMs:", numberOfStoppedVMs);
-            out.print(", worldMode:", worldMode);
-            out.print(", targetVM:", RawPointer(targetVM), ")");
-        }
+        void dump(PrintStream& out) const;
     };
 
     JS_EXPORT_PRIVATE static Info info();
     static unsigned numberOfVMs() { return singleton().m_numberOfVMs; }
 
-    JS_EXPORT_PRIVATE static void setWasmDebuggerOnStop(StopTheWorldCallback);
-    JS_EXPORT_PRIVATE static void setWasmDebuggerOnResume(PostResumeCallback);
-    JS_EXPORT_PRIVATE static void setMemoryDebuggerCallback(StopTheWorldCallback);
+    JS_EXPORT_PRIVATE static void NODELETE setWasmDebuggerOnStop(StopTheWorldCallback);
+    JS_EXPORT_PRIVATE static void NODELETE setWasmDebuggerOnResume(PostResumeCallback);
+    JS_EXPORT_PRIVATE static void NODELETE setMemoryDebuggerCallback(StopTheWorldCallback);
 
     ALWAYS_INLINE CONCURRENT_SAFE static void requestStopAll(StopReason reason)
     {
@@ -284,7 +277,7 @@ public:
     void notifyVMDestruction(VM&);
     void notifyVMActivation(VM&);
     void notifyVMDeactivation(VM&);
-    void notifyVMStop(VM&, StopTheWorldEvent);
+    JS_EXPORT_PRIVATE void notifyVMStop(VM&, StopTheWorldEvent);
 
     void handleVMDestructionWhileWorldStopped(VM&);
 
@@ -319,8 +312,10 @@ private:
     JS_EXPORT_PRIVATE CONCURRENT_SAFE void requestResumeAllInternal(StopReason);
 
     void resumeTheWorld() WTF_REQUIRES_LOCK(m_worldLock);
-    void incrementActiveVMs(VM&) WTF_REQUIRES_LOCK(m_worldLock);
+    void NODELETE incrementActiveVMs(VM&) WTF_REQUIRES_LOCK(m_worldLock);
     void decrementActiveVMs(VM&) WTF_REQUIRES_LOCK(m_worldLock);
+
+    void dispatchStopHandler(VM&);
 
     JS_EXPORT_PRIVATE static bool isValidVMSlow(VM*);
     JS_EXPORT_PRIVATE VM* findMatchingVMImpl(const ScopedLambda<TestCallback>&);
@@ -382,9 +377,9 @@ private:
     //
     // The choice to not track a valid m_numberOfActiveVMs at all times is just an optimization so
     // that we can skip this work when not doing Stop the World.
-    unsigned m_numberOfActiveVMs { invalidNumberOfActiveVMs };
+    unsigned m_numberOfActiveVMs WTF_GUARDED_BY_LOCK(m_worldLock) { invalidNumberOfActiveVMs };
 
-    Atomic<unsigned> m_numberOfStoppedVMs { 0 };
+    unsigned m_numberOfStoppedVMs WTF_GUARDED_BY_LOCK(m_worldLock) { 0 };
 
     // === End of variables only relevant for StopTheWorld =================================
 

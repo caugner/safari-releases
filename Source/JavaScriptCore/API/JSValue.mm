@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2013-2024, 2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -36,7 +36,7 @@
 #import "JSValueInternal.h"
 #import "JSValuePrivate.h"
 #import "JSWrapperMap.h"
-#import "MarkedJSValueRefArray.h"
+#import "MarkedVector.h"
 #import "ObjcRuntimeExtras.h"
 #import "JSCInlines.h"
 #import "JSCJSValue.h"
@@ -405,7 +405,7 @@ inline Expected<Result, JSValueRef> performPropertyOperation(NSStringFunction st
     JSValueRef exception = nullptr;
     JSObjectRef object = JSValueToObject([context JSGlobalContextRef], [value JSValueRef], &exception);
     if (exception)
-        return Unexpected<JSValueRef>(exception);
+        return std::unexpected<JSValueRef>(exception);
 
     Result result;
     // If it's a NSString already, reduce indirection and just pass the NSString.
@@ -632,16 +632,17 @@ inline Expected<Result, JSValueRef> performPropertyOperation(NSStringFunction st
     JSC::JSLockHolder locker(vm);
 
     NSUInteger argumentCount = [argumentArray count];
-    JSC::MarkedJSValueRefArray arguments([_context JSGlobalContextRef], argumentCount);
-    for (unsigned i = 0; i < argumentCount; ++i)
-        arguments[i] = objectToValue(_context, [argumentArray objectAtIndex:i]);
+    JSC::MarkedVector<JSValueRef> arguments;
+    SUPPRESS_UNCOUNTED_LAMBDA_CAPTURE arguments.fillWith(vm, std::views::iota(0uz, argumentCount), [self, argumentArray] (size_t i) ALWAYS_INLINE_LAMBDA {
+        return objectToValue(_context, [argumentArray objectAtIndex:i]);
+    });
 
     JSValueRef exception = 0;
     JSObjectRef object = JSValueToObject([_context JSGlobalContextRef], m_value, &exception);
     if (exception)
         return [_context valueFromNotifyException:exception];
 
-    JSValueRef result = JSObjectCallAsFunction([_context JSGlobalContextRef], object, 0, argumentCount, arguments.data(), &exception);
+    JSValueRef result = JSObjectCallAsFunction([_context JSGlobalContextRef], object, 0, argumentCount, arguments.span().data(), &exception);
     if (exception)
         return [_context valueFromNotifyException:exception];
 
@@ -655,16 +656,17 @@ inline Expected<Result, JSValueRef> performPropertyOperation(NSStringFunction st
     JSC::JSLockHolder locker(vm);
 
     NSUInteger argumentCount = [argumentArray count];
-    JSC::MarkedJSValueRefArray arguments([_context JSGlobalContextRef], argumentCount);
-    for (unsigned i = 0; i < argumentCount; ++i)
-        arguments[i] = objectToValue(_context, [argumentArray objectAtIndex:i]);
+    JSC::MarkedVector<JSValueRef> arguments;
+    SUPPRESS_UNCOUNTED_LAMBDA_CAPTURE arguments.fillWith(vm, std::views::iota(0uz, argumentCount), [self, argumentArray] (size_t i) ALWAYS_INLINE_LAMBDA {
+        return objectToValue(_context, [argumentArray objectAtIndex:i]);
+    });
 
     JSValueRef exception = 0;
     JSObjectRef object = JSValueToObject([_context JSGlobalContextRef], m_value, &exception);
     if (exception)
         return [_context valueFromNotifyException:exception];
 
-    JSObjectRef result = JSObjectCallAsConstructor([_context JSGlobalContextRef], object, argumentCount, arguments.data(), &exception);
+    JSObjectRef result = JSObjectCallAsConstructor([_context JSGlobalContextRef], object, argumentCount, arguments.span().data(), &exception);
     if (exception)
         return [_context valueFromNotifyException:exception];
 
@@ -678,9 +680,10 @@ inline Expected<Result, JSValueRef> performPropertyOperation(NSStringFunction st
     JSC::JSLockHolder locker(vm);
 
     NSUInteger argumentCount = [arguments count];
-    JSC::MarkedJSValueRefArray argumentArray([_context JSGlobalContextRef], argumentCount);
-    for (unsigned i = 0; i < argumentCount; ++i)
-        argumentArray[i] = objectToValue(_context, [arguments objectAtIndex:i]);
+    JSC::MarkedVector<JSValueRef> argumentArray;
+    SUPPRESS_UNCOUNTED_LAMBDA_CAPTURE argumentArray.fillWith(vm, std::views::iota(0uz, argumentCount), [self, arguments] (size_t i) ALWAYS_INLINE_LAMBDA {
+        return objectToValue(_context, [arguments objectAtIndex:i]);
+    });
 
     JSValueRef exception = 0;
     JSObjectRef thisObject = JSValueToObject([_context JSGlobalContextRef], m_value, &exception);
@@ -696,7 +699,7 @@ inline Expected<Result, JSValueRef> performPropertyOperation(NSStringFunction st
     if (exception)
         return [_context valueFromNotifyException:exception];
 
-    JSValueRef result = JSObjectCallAsFunction([_context JSGlobalContextRef], object, thisObject, argumentCount, argumentArray.data(), &exception);
+    JSValueRef result = JSObjectCallAsFunction([_context JSGlobalContextRef], object, thisObject, argumentCount, argumentArray.span().data(), &exception);
     if (exception)
         return [_context valueFromNotifyException:exception];
 
@@ -882,7 +885,7 @@ static void reportExceptionToInspector(JSGlobalContextRef context, JSC::JSValue 
     JSC::JSGlobalObject* globalObject = toJS(context);
     JSC::VM& vm = globalObject->vm();
     JSC::Exception* exception = JSC::Exception::create(vm, exceptionValue);
-    globalObject->checkedInspectorController()->reportAPIException(globalObject, exception);
+    protect(globalObject->inspectorController())->reportAPIException(globalObject, exception);
 }
 #endif
 
@@ -938,18 +941,18 @@ static id containerValueToObject(JSGlobalContextRef context, JSContainerConverto
 
         if (current.type == ContainerArray) {
             ASSERT([current.objc isKindOfClass:[NSMutableArray class]]);
-            NSMutableArray *array = (NSMutableArray *)current.objc;
-        
+            RetainPtr array = dynamic_objc_cast<NSMutableArray>(current.objc);
+
             auto lengthString = OpaqueJSString::tryCreate("length"_s);
             unsigned length = JSC::toUInt32(JSValueToNumber(context, JSObjectGetProperty(context, js, lengthString.get(), 0), 0));
 
             for (unsigned i = 0; i < length; ++i) {
                 id objc = convertor.convert(JSObjectGetPropertyAtIndex(context, js, i, 0));
-                [array addObject:objc ? objc : [NSNull null]];
+                [array.get() addObject:objc ? objc : [NSNull null]];
             }
         } else {
             ASSERT([current.objc isKindOfClass:[NSMutableDictionary class]]);
-            NSMutableDictionary *dictionary = (NSMutableDictionary *)current.objc;
+            RetainPtr dictionary = dynamic_objc_cast<NSMutableDictionary>(current.objc);
 
             JSC::JSLockHolder locker(toJS(context));
 
@@ -959,7 +962,7 @@ static id containerValueToObject(JSGlobalContextRef context, JSContainerConverto
             for (size_t i = 0; i < length; ++i) {
                 JSStringRef propertyName = JSPropertyNameArrayGetNameAtIndex(propertyNameArray, i);
                 if (id objc = convertor.convert(JSObjectGetProperty(context, js, propertyName, 0)))
-                    dictionary[(__bridge NSString *)adoptCF(JSStringCopyCFString(kCFAllocatorDefault, propertyName)).get()] = objc;
+                    dictionary.get()[(__bridge NSString *)adoptCF(JSStringCopyCFString(kCFAllocatorDefault, propertyName)).get()] = objc;
             }
 
             JSPropertyNameArrayRelease(propertyNameArray);
@@ -1197,18 +1200,18 @@ JSValueRef objectToValue(JSContext *context, id object)
 
         if (current.type == ContainerArray) {
             ASSERT([current.objc isKindOfClass:[NSArray class]]);
-            NSArray *array = (NSArray *)current.objc;
-            NSUInteger count = [array count];
+            RetainPtr array = dynamic_objc_cast<NSArray>(current.objc);
+            NSUInteger count = [array.get() count];
             for (NSUInteger index = 0; index < count; ++index)
-                JSObjectSetPropertyAtIndex(contextRef, js, index, convertor.convert([array objectAtIndex:index]), 0);
+                JSObjectSetPropertyAtIndex(contextRef, js, index, convertor.convert([array.get() objectAtIndex:index]), 0);
         } else {
             ASSERT(current.type == ContainerDictionary);
             ASSERT([current.objc isKindOfClass:[NSDictionary class]]);
-            NSDictionary *dictionary = (NSDictionary *)current.objc;
-            for (id key in [dictionary keyEnumerator]) {
-                if (auto *keyString = dynamic_objc_cast<NSString>(key)) {
-                    auto propertyName = OpaqueJSString::tryCreate(keyString);
-                    JSObjectSetProperty(contextRef, js, propertyName.get(), convertor.convert([dictionary objectForKey:key]), 0, 0);
+            RetainPtr dictionary = dynamic_objc_cast<NSDictionary>(current.objc);
+            for (id key in [dictionary.get() keyEnumerator]) {
+                if (RetainPtr keyString = dynamic_objc_cast<NSString>(key)) {
+                    auto propertyName = OpaqueJSString::tryCreate(keyString.get());
+                    JSObjectSetProperty(contextRef, js, propertyName.get(), convertor.convert([dictionary.get() objectForKey:key]), 0, 0);
                 }
             }
         }

@@ -29,9 +29,11 @@
 #if ENABLE(USER_MESSAGE_HANDLERS)
 
 #include "Document.h"
+#include "JSDOMConvertAny.h"
 #include "JSDOMPromiseDeferred.h"
 #include "LocalFrameInlines.h"
 #include "SerializedScriptValue.h"
+#include <JavaScriptCore/HeapCellInlines.h>
 #include <JavaScriptCore/JSCJSValue.h>
 
 namespace WebCore {
@@ -54,7 +56,7 @@ static bool passesSameOriginCheck(JSC::JSGlobalObject& globalObject, RefPtr<Loca
     Ref frameSecurityOrigin = document->securityOrigin();
     if (!globalObject.inherits<JSDOMGlobalObject>())
         return false;
-    RefPtr scriptExecutionContext = jsCast<JSDOMGlobalObject*>(&globalObject)->scriptExecutionContext();
+    RefPtr scriptExecutionContext = downcast<JSDOMGlobalObject>(globalObject).scriptExecutionContext();
     if (!scriptExecutionContext)
         return false;
     RefPtr securityOrigin = scriptExecutionContext->securityOrigin();

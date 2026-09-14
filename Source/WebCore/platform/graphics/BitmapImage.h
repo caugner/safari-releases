@@ -60,7 +60,6 @@ public:
     unsigned currentFrameIndex() const { return m_source->currentFrameIndex(); }
     bool currentFrameHasAlpha() const { return m_source->currentImageFrame().hasAlpha(); }
     ImageOrientation currentFrameOrientation() const { return m_source->currentImageFrame().orientation(); }
-    Headroom currentFrameHeadroom(ShouldDecodeToHDR shouldDecodeToHDR) const { return m_source->currentImageFrame().headroom(shouldDecodeToHDR); }
     DecodingOptions currentFrameDecodingOptions() const { return m_source->currentImageFrame().decodingOptions(std::nullopt); }
 
     // Primary & current NativeImage
@@ -112,6 +111,9 @@ private:
     EncodedDataStatus dataChanged(bool allDataReceived) final;
     void destroyDecodedData(bool destroyAll = true) final;
 
+    bool canReplaceData() const final { return m_source->canReplaceData(); }
+    void dataReplaced() final;
+
     // Current ImageFrame
     bool currentFrameKnownToBeOpaque() const final { return !currentFrameHasAlpha(); }
     bool currentFrameIsComplete() const final { return m_source->currentImageFrame().isComplete(); }
@@ -125,6 +127,10 @@ private:
     String accessibilityDescription() const final { return m_source->accessibilityDescription(); }
     std::optional<IntPoint> hotSpot() const final { return m_source->hotSpot(); }
     std::optional<Color> singlePixelSolidColor() const final { return m_source->singlePixelSolidColor(); }
+
+#if ENABLE(QUICKLOOK_FULLSCREEN)
+    bool isPanorama() const final { return m_source->isPanorama(); }
+#endif
 
 #if ENABLE(SPATIAL_IMAGE_CONTROLS)
     bool isMaybePanoramic() const final { return m_source->isMaybePanoramic(); }
@@ -142,7 +148,7 @@ private:
 
     void dump(WTF::TextStream&) const final;
 
-    Ref<ImageSource> m_source;
+    const Ref<ImageSource> m_source;
 };
 
 } // namespace WebCore

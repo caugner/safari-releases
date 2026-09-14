@@ -25,7 +25,7 @@ window.setTimeout(async () => {
         return window.testRunner?.notifyDone();
     }
 
-    // Allow the bool discriminator in std::optional<CoreIPCCGColorSpace>.
+    // std::optional<CoreIPCCGColorSpace> needs its bool discriminator exposed.
     CoreIPC.typeInfo['WebCore::PlatformColorSpace'] = [
         { type: 'std::optional<WebKit::CoreIPCCGColorSpace>', name: 'alias' }
     ];
@@ -47,9 +47,8 @@ window.setTimeout(async () => {
         connectionHandle: sc
     });
     const rb = sc.newInterface('RemoteRenderingBackend', rbId);
-    try {
-        sc.connection.waitForMessage(rbId, IPC.messages.RemoteRenderingBackendProxy_DidInitialize.name, 1);
-    } catch (e) { }
+    const init = sc.connection.waitForMessage(rbId, IPC.messages.RemoteRenderingBackendProxy_DidInitialize.name);
+    sc.connection.setSemaphores(init[0].value, init[1].value);
 
     const bufId = Math.floor(Math.random() * 0x1000000);
     const ctxId = Math.floor(Math.random() * 0x1000000);
@@ -64,6 +63,9 @@ window.setTimeout(async () => {
         contextIdentifier: ctxId
     });
     const ib = sc.newInterface('RemoteImageBuffer', bufId);
+    // Drain the unsolicited DidCreateBackend in-turn; otherwise it reaches the stream
+    // connection's dummy receiver, which ASSERT_NOT_REACHED()s in debug builds.
+    sc.connection.waitForMessage(bufId, IPC.messages.RemoteImageBufferProxy_DidCreateBackend.name);
 
     // Seed the IOSurface with Float16 1.0 (00 3C) as a sentinel.
     const sentinel = new Uint8Array(NBYTES);
@@ -80,7 +82,7 @@ window.setTimeout(async () => {
         destFormat: 0
     });
 
-    // Install shared memory via a matching (SRGB) readback.
+    // Install the shared-memory destination via a matching (SRGB) readback.
     const shm = IPC.createSharedMemory(NBYTES);
     shm.writeBytes(new Uint8Array(NBYTES).fill(0xAA));
     ib.GetPixelBufferWithNewMemory({
@@ -88,33 +90,31 @@ window.setTimeout(async () => {
         outputFormat: { alphaFormat: 1, pixelFormat: PF.RGBA16F, colorSpace: SRGB_CS },
         srcPoint: { x: 0, y: 0 },
         srcSize: { width: W, height: H }
-    }, () => {});
+    });
 
-    // Trigger: mismatched-color-space readback. Pre-fill 0xAA so we can detect a no-op write.
+    // Trigger: mismatched-color-space readback. Pre-fill 0xAA to detect a no-op write.
     shm.writeBytes(new Uint8Array(NBYTES).fill(0xAA));
     ib.GetPixelBuffer({
         outputFormat: { alphaFormat: 1, pixelFormat: PF.RGBA16F, colorSpace: P3_CS },
         srcPoint: { x: 0, y: 0 },
         srcSize: { width: W, height: H }
-    }, () => {});
+    });
 
-    setTimeout(() => {
-        const u8 = new Uint8Array(shm.readBytes(0, NBYTES));
-        // Expect the destination to contain only the sentinel — not 0xAA (no write) or any other bytes (heap leak).
-        let allAA = true, sentinelPairs = 0;
-        for (let i = 0; i < NBYTES; ++i) {
-            if (u8[i] !== 0xAA) allAA = false;
-        }
-        for (let i = 0; i < NBYTES - 1; i += 2) {
-            if (u8[i] === 0x00 && u8[i + 1] === 0x3C) sentinelPairs++;
-        }
-        if (allAA)
-            log("FAIL: GPU process did not write destination");
-        else if (sentinelPairs === NBYTES / 2)
-            log("PASS");
-        else
-            log(`FAIL: destination contains non-sentinel bytes (sentinelPairs=${sentinelPairs}/${NBYTES / 2})`);
-        window.testRunner?.notifyDone();
-    }, 500);
+    // GetPixelBuffer is synchronous, so shm is populated once it returns.
+    const u8 = new Uint8Array(shm.readBytes(0, NBYTES));
+    let allAA = true, sentinelPairs = 0;
+    for (let i = 0; i < NBYTES; ++i) {
+        if (u8[i] !== 0xAA) allAA = false;
+    }
+    for (let i = 0; i < NBYTES - 1; i += 2) {
+        if (u8[i] === 0x00 && u8[i + 1] === 0x3C) sentinelPairs++;
+    }
+    if (allAA)
+        log("FAIL: GPU process did not write destination");
+    else if (sentinelPairs === NBYTES / 2)
+        log("PASS");
+    else
+        log(`FAIL: destination contains non-sentinel bytes (sentinelPairs=${sentinelPairs}/${NBYTES / 2})`);
+    window.testRunner?.notifyDone();
 }, 20);
 </script>

@@ -1,15 +1,8 @@
 include(platform/Adwaita.cmake)
-
-if (USE_CAIRO)
-    include(platform/Cairo.cmake)
-    include(platform/FreeType.cmake)
-elseif (USE_SKIA)
-    include(platform/Skia.cmake)
-endif ()
-
 include(platform/GCrypt.cmake)
 include(platform/GStreamer.cmake)
 include(platform/ImageDecoders.cmake)
+include(platform/Skia.cmake)
 include(platform/Soup.cmake)
 include(platform/TextureMapper.cmake)
 
@@ -56,6 +49,9 @@ list(APPEND WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/glib/SelectionData.h
     platform/glib/SystemSettings.h
 
+    platform/graphics/DMABufBuffer.h
+    platform/graphics/DMABufBufferAttributes.h
+
     platform/graphics/android/BufferFormatAndroid.h
     platform/graphics/android/GraphicsContextGLTextureMapperAndroid.h
     platform/graphics/android/PlatformDisplayAndroid.h
@@ -67,6 +63,8 @@ list(APPEND WebCore_PRIVATE_FRAMEWORK_HEADERS
     platform/graphics/gbm/PlatformDisplayGBM.h
 
     platform/graphics/libwpe/PlatformDisplayLibWPE.h
+
+    platform/text/enchant/TextCheckerEnchant.h
 )
 
 set(WebCore_USER_AGENT_SCRIPTS_DEPENDENCIES ${WEBCORE_DIR}/platform/wpe/RenderThemeWPE.cpp)
@@ -93,10 +91,14 @@ if (USE_OPENXR)
     list(APPEND WebCore_SYSTEM_INCLUDE_DIRECTORIES ${OPENXR_INCLUDE_DIRS})
 endif ()
 
-if (USE_SKIA AND ENABLE_DRAG_SUPPORT)
+if (ENABLE_DRAG_SUPPORT)
     list(APPEND WebCore_SOURCES
         platform/skia/DragImageSkia.cpp
     )
+endif ()
+
+if (ENABLE_SPELLCHECK)
+    list(APPEND WebCore_LIBRARIES Enchant::Enchant)
 endif ()
 
 if (USE_ATSPI)
@@ -143,6 +145,10 @@ elseif (USE_LIBDRM)
     list(APPEND WebCore_LIBRARIES LibDRM::LibDRM)
 endif ()
 
+if (USE_LIBHYPHEN)
+    list(APPEND WebCore_PRIVATE_LIBRARIES Hyphen::Hyphen)
+endif ()
+
 if (ENABLE_GAMEPAD)
     list(APPEND WebCore_PRIVATE_INCLUDE_DIRECTORIES
         "${WEBCORE_DIR}/platform/gamepad/libwpe"
@@ -150,6 +156,20 @@ if (ENABLE_GAMEPAD)
 
     list(APPEND WebCore_PRIVATE_FRAMEWORK_HEADERS
         platform/gamepad/libwpe/GamepadProviderLibWPE.h
+    )
+endif ()
+
+if (USE_VULKAN)
+    list(APPEND WebCore_PRIVATE_LIBRARIES volk::volk)
+    list(APPEND WebCore_PRIVATE_INCLUDE_DIRECTORIES
+        "${WEBCORE_DIR}/platform/graphics/vulkan"
+    )
+    list(APPEND WebCore_PRIVATE_FRAMEWORK_HEADERS
+        platform/graphics/vulkan/VulkanHandle.h
+        platform/graphics/vulkan/VulkanStructure.h
+        platform/graphics/vulkan/VulkanTypes.h
+        platform/graphics/vulkan/VulkanUtilities.h
+        platform/graphics/vulkan/VulkanVolk.h
     )
 endif ()
 

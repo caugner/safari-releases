@@ -71,14 +71,18 @@ void ModelProcessModelPlayerManagerProxy::createModelPlayer(WebCore::ModelPlayer
     ASSERT(m_modelConnectionToWebProcess);
     MESSAGE_CHECK(!m_proxies.contains(identifier));
 
-    auto proxy = ModelProcessModelPlayerProxy::create(*this, identifier, m_modelConnectionToWebProcess->protectedConnection(), m_modelConnectionToWebProcess->attributionTaskID(), m_modelConnectionToWebProcess->debugEntityMemoryLimit());
+    auto proxy = ModelProcessModelPlayerProxy::create(*this, identifier, protect(m_modelConnectionToWebProcess->connection()), m_modelConnectionToWebProcess->attributionTaskID(), m_modelConnectionToWebProcess->debugEntityMemoryLimit(), m_modelConnectionToWebProcess->debugImmersiveEntityMemoryLimit());
     m_proxies.add(identifier, WTF::move(proxy));
 }
 
 void ModelProcessModelPlayerManagerProxy::deleteModelPlayer(WebCore::ModelPlayerIdentifier identifier)
 {
     ASSERT(RunLoop::isMain());
-    MESSAGE_CHECK(m_proxies.contains(identifier));
+
+    // The unload model timer (ModelProcess) can race the model element suspension (WebProcess).
+    // So the model player might already be gone.
+    if (!m_proxies.contains(identifier))
+        return;
 
     if (auto proxy = m_proxies.take(identifier))
         proxy->invalidate();

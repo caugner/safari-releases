@@ -41,8 +41,13 @@ class Attachment;
 namespace WebCore {
 class AlternativeTextUIController;
 class Color;
+class FloatQuad;
+class FloatRect;
+class IntPoint;
+class IntSize;
 
 struct AppHighlight;
+struct TextEffectData;
 }
 
 namespace WebKit {
@@ -74,14 +79,9 @@ public:
     void themeColorWillChange() final;
     void themeColorDidChange() final;
 
-#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
-    void spatialBackdropSourceWillChange() final;
-    void spatialBackdropSourceDidChange() final;
-#endif
-
 #if ENABLE(MODEL_ELEMENT_IMMERSIVE)
-    void allowImmersiveElementFromURL(const URL&, CompletionHandler<void(bool)>&&) const final;
-    void presentImmersiveElement(const WebCore::LayerHostingContextIdentifier, CompletionHandler<void(bool)>&&) const final;
+    void allowImmersiveElement(Ref<API::FrameInfo>&&, CompletionHandler<void(bool)>&&) const final;
+    void presentImmersiveElement(const WebCore::LayerHostingContextIdentifier, Ref<API::FrameInfo>&&, CompletionHandler<void(bool)>&&) const final;
     void dismissImmersiveElement(CompletionHandler<void()>&&) const final;
 #endif
 
@@ -142,6 +142,11 @@ public:
 
     void addTextAnimationForAnimationID(const WTF::UUID&, const WebCore::TextAnimationData&) final;
     void removeTextAnimationForAnimationID(const WTF::UUID&) final;
+
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+    void addTextEffectForID(const WTF::UUID&, WebCore::TextEffectData&&) final;
+    void removeTextEffectForID(const WTF::UUID&) final;
+#endif
 #endif
 
 #if ENABLE(SCREEN_TIME)
@@ -164,6 +169,17 @@ public:
     void hasActiveNowPlayingSessionChanged(bool) final;
 
     void videoControlsManagerDidChange() override;
+
+#if ENABLE(TWO_PHASE_CLICKS)
+    void didNotHandleTapAsClick(const WebCore::IntPoint&) final;
+    void didHandleTapAsHover() final;
+    void didCompleteSyntheticClick() final;
+    void commitPotentialTapFailed() final;
+    void didGetTapHighlightGeometries(WebKit::TapIdentifier requestID, const WebCore::Color&, const Vector<WebCore::FloatQuad>& highlightedQuads, const WebCore::IntSize& topLeftRadius, const WebCore::IntSize& topRightRadius, const WebCore::IntSize& bottomLeftRadius, const WebCore::IntSize& bottomRightRadius, bool nodeHasBuiltInClickHandling) final;
+    bool isPotentialTapInProgress() const final;
+    void disableDoubleTapGesturesDuringTapIfNecessary(WebKit::TapIdentifier) final;
+    void handleSmartMagnificationInformationForPotentialTap(WebKit::TapIdentifier, const WebCore::FloatRect& renderRect, bool fitEntireRect, double viewportMinimumScale, double viewportMaximumScale, bool nodeIsRootLevel, bool nodeIsPluginElement) final;
+#endif
 
     CocoaWindow *platformWindow() const final;
 

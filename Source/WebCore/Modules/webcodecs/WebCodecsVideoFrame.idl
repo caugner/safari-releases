@@ -66,11 +66,12 @@ typedef (HTMLImageElement
     undefined close();
 };
 
-[Conditional=WEB_CODECS]
-dictionary VideoFrameInit {
+[
+    Conditional=WEB_CODECS,
+] dictionary VideoFrameInit {
     unsigned long long duration;
     long long timestamp;
-    WebCodecsAlphaOption alpha;
+    WebCodecsAlphaOption alpha = "keep";
 
     DOMRectInit visibleRect;
 
@@ -78,8 +79,9 @@ dictionary VideoFrameInit {
     [EnforceRange] unsigned long displayHeight;
 };
 
-[Conditional=WEB_CODECS]
-dictionary VideoFrameBufferInit {
+[
+    Conditional=WEB_CODECS,
+] dictionary VideoFrameBufferInit {
     required VideoPixelFormat format;
     required [EnforceRange] unsigned long codedWidth;
     required [EnforceRange] unsigned long codedHeight;
@@ -96,8 +98,9 @@ dictionary VideoFrameBufferInit {
     VideoColorSpaceInit colorSpace;
 };
 
-[Conditional=WEB_CODECS]
-dictionary VideoFrameCopyToOptions {
+[
+    Conditional=WEB_CODECS,
+] dictionary VideoFrameCopyToOptions {
   DOMRectInit rect;
   sequence<PlaneLayout> layout;
 };

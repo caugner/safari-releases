@@ -30,7 +30,7 @@
 
 #import "NetworkStorageSessionMap.h"
 #import <Foundation/NSURLAuthenticationChallenge.h>
-#import <WebCore/AuthenticationMac.h>
+#import <WebCore/AuthenticationCocoa.h>
 #import <WebCore/Credential.h>
 #import <WebCore/CredentialStorage.h>
 #import <WebCore/NetworkStorageSession.h>
@@ -72,7 +72,6 @@ static void callOnDelegateThreadAndWait(Callable&& work)
     }
 }
 
-using namespace WebCore;
 
 @interface WebDownloadInternal : NSObject <NSURLDownloadDelegate> {
     RetainPtr<id> realDelegate;
@@ -132,9 +131,9 @@ using namespace WebCore;
 #if !PLATFORM(IOS_FAMILY)
     // Try previously stored credential first.
     if (![challenge previousFailureCount]) {
-        NSURLCredential *credential = NetworkStorageSessionMap::defaultStorageSession().credentialStorage().get(emptyString(), ProtectionSpace([challenge protectionSpace])).nsCredential();
+        RetainPtr credential = NetworkStorageSessionMap::defaultStorageSession().credentialStorage().get(emptyString(), WebCore::ProtectionSpace([challenge protectionSpace])).nsCredential();
         if (credential) {
-            [[challenge sender] useCredential:credential forAuthenticationChallenge:challenge];
+            [[challenge sender] useCredential:credential.get() forAuthenticationChallenge:challenge];
             return;
         }
     }

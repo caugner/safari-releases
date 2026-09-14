@@ -188,16 +188,16 @@ public:
     void clearBufferfi(GCGLenum buffer, GCGLint drawbuffer, GCGLfloat depth, GCGLint stencil);
     
     // Query objects
-    RefPtr<WebGLQuery> createQuery();
+    Ref<WebGLQuery> createQuery();
     void deleteQuery(WebGLQuery*);
     GCGLboolean isQuery(WebGLQuery*);
     void beginQuery(GCGLenum target, WebGLQuery&);
-    void endQuery(GCGLenum target);
+    void endQuery(ScriptExecutionContext&, GCGLenum target);
     WebGLAny getQuery(GCGLenum target, GCGLenum pname);
     WebGLAny getQueryParameter(WebGLQuery&, GCGLenum pname);
     
     // Sampler objects
-    RefPtr<WebGLSampler> createSampler();
+    Ref<WebGLSampler> createSampler();
     void deleteSampler(WebGLSampler*);
     GCGLboolean isSampler(WebGLSampler*);
     void bindSampler(GCGLuint unit, WebGLSampler*);
@@ -207,14 +207,14 @@ public:
     
     // Sync objects
     RefPtr<WebGLSync> fenceSync(GCGLenum condition, GCGLbitfield flags);
-    GCGLboolean isSync(WebGLSync*);
+    GCGLboolean NODELETE isSync(WebGLSync*);
     void deleteSync(WebGLSync*);
     GCGLenum clientWaitSync(WebGLSync&, GCGLbitfield flags, GCGLuint64 timeout);
     void waitSync(WebGLSync&, GCGLbitfield flags, GCGLint64 timeout);
     WebGLAny getSyncParameter(WebGLSync&, GCGLenum pname);
     
     // Transform feedback
-    RefPtr<WebGLTransformFeedback> createTransformFeedback();
+    Ref<WebGLTransformFeedback> createTransformFeedback();
     void deleteTransformFeedback(WebGLTransformFeedback* id);
     GCGLboolean isTransformFeedback(WebGLTransformFeedback* id);
     void bindTransformFeedback(GCGLenum target, WebGLTransformFeedback* id);
@@ -237,7 +237,7 @@ public:
     void uniformBlockBinding(WebGLProgram&, GCGLuint uniformBlockIndex, GCGLuint uniformBlockBinding);
     
     // Vertex array objects
-    RefPtr<WebGLVertexArrayObject> createVertexArray();
+    Ref<WebGLVertexArrayObject> createVertexArray();
     void deleteVertexArray(WebGLVertexArrayObject* vertexArray);
     GCGLboolean isVertexArray(WebGLVertexArrayObject* vertexArray);
     void bindVertexArray(WebGLVertexArrayObject* vertexArray);
@@ -251,13 +251,13 @@ public:
     void readPixels(GCGLint x, GCGLint y, GCGLsizei width, GCGLsizei height, GCGLenum format, GCGLenum type, GCGLintptr offset);
     void readPixels(GCGLint x, GCGLint y, GCGLsizei width, GCGLsizei height, GCGLenum format, GCGLenum type, ArrayBufferView& dstData, GCGLuint dstOffset);
 
-    GCGLuint maxTransformFeedbackSeparateAttribs() const;
+    GCGLuint NODELETE maxTransformFeedbackSeparateAttribs() const;
 
     bool checkAndTranslateAttachments(ASCIILiteral functionName, GCGLenum, Vector<GCGLenum>&);
 
     void addMembersToOpaqueRoots(JSC::AbstractSlotVisitor&) override;
 
-    bool isTransformFeedbackActiveAndNotPaused();
+    bool NODELETE isTransformFeedbackActiveAndNotPaused();
 
 private:
     using WebGLRenderingContextBase::WebGLRenderingContextBase;
@@ -270,6 +270,7 @@ private:
     Vector<bool> getIndexedBooleanArrayParameter(GCGLenum pname, GCGLuint index);
 
     void initializeDefaultObjects() WTF_REQUIRES_LOCK(objectGraphLock()) final;
+    void detachAndRemoveAllObjects() WTF_REQUIRES_LOCK(objectGraphLock()) final;
     bool validateBufferTarget(ASCIILiteral functionName, GCGLenum target) final;
     bool validateBufferTargetCompatibility(ASCIILiteral, GCGLenum, WebGLBuffer*);
     RefPtr<WebGLBuffer> validateBufferDataParameters(ASCIILiteral functionName, GCGLenum target, GCGLenum usage) final;
@@ -290,7 +291,7 @@ private:
 
     bool setIndexedBufferBinding(ASCIILiteral functionName, GCGLenum target, GCGLuint index, WebGLBuffer*);
 
-    IntRect getTextureSourceSubRectangle(GCGLsizei width, GCGLsizei height);
+    IntRect NODELETE getTextureSourceSubRectangle(GCGLsizei width, GCGLsizei height);
 
     RefPtr<WebGLTexture> validateTexImageBinding(TexImageFunctionID, GCGLenum) final;
 
@@ -315,11 +316,7 @@ private:
         ClearBufferfv,
         ClearBufferfi
     };
-    void updateBuffersToAutoClear(ClearBufferCaller, GCGLenum buffer, GCGLint drawbuffer);
-
-    RefPtr<WebGLTransformFeedback> protectedBoundTransformFeedback() const { return m_boundTransformFeedback; }
-    RefPtr<WebGLVertexArrayObjectBase> protectedBoundVertexArrayObject() const { return m_boundVertexArrayObject; }
-    RefPtr<WebGLFramebuffer> protectedFramebufferBinding() const { return m_framebufferBinding; }
+    void NODELETE updateBuffersToAutoClear(ClearBufferCaller, GCGLenum buffer, GCGLint drawbuffer);
 
     WebGLBindingPoint<WebGLFramebuffer> m_readFramebufferBinding;
     WebGLBindingPoint<WebGLTransformFeedback> m_boundTransformFeedback;

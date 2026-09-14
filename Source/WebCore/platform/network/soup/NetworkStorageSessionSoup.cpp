@@ -591,7 +591,7 @@ void NetworkStorageSession::deleteAllCookiesModifiedSince(WallTime timestamp, Co
     }
 }
 
-void NetworkStorageSession::deleteCookiesForHostnames(const Vector<String>& hostnames, IncludeHttpOnlyCookies includeHttpOnlyCookies, ScriptWrittenCookiesOnly, CompletionHandler<void()>&& completionHandler)
+void NetworkStorageSession::deleteCookiesForHostnames(std::span<const String> hostnames, IncludeHttpOnlyCookies includeHttpOnlyCookies, ScriptWrittenCookiesOnly, CompletionHandler<void()>&& completionHandler)
 {
     SoupCookieJar* cookieJar = cookieStorage();
     for (const auto& hostname : hostnames) {
@@ -770,6 +770,8 @@ Vector<Cookie> NetworkStorageSession::domCookiesForHost(const URL& url)
     Vector<Cookie> cookies;
     for (GSList* iter = soupCookies.get(); iter; iter = g_slist_next(iter)) {
         auto* soupCookie = static_cast<SoupCookie*>(iter->data);
+        if (soup_cookie_get_http_only(soupCookie))
+            continue;
         if (soup_cookie_domain_matches(soupCookie, host.data())) {
             // soup_cookie_jar_all_cookies() always returns a reversed list.
             cookies.insert(0, Cookie(soupCookie));
@@ -876,7 +878,8 @@ void NetworkStorageSession::stopListeningForCookieChangeNotifications(CookieChan
 {
     for (auto& host : hosts) {
         auto it = m_cookieChangeObservers.find(host);
-        ASSERT(it != m_cookieChangeObservers.end());
+        if (it == m_cookieChangeObservers.end())
+            continue;
 
         auto& observers = it->value;
         ASSERT(observers.contains(observer));

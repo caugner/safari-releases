@@ -29,6 +29,10 @@
 #import "NotificationDirection.h"
 #import <wtf/cocoa/VectorCocoa.h>
 
+namespace WebCore {
+
+namespace NotificationDataKeys {
+
 static NSString * const WebNotificationDefaultActionURLKey = @"WebNotificationDefaultActionURLKey";
 static NSString * const WebNotificationTitleKey = @"WebNotificationTitleKey";
 static NSString * const WebNotificationBodyKey = @"WebNotificationBodyKey";
@@ -45,7 +49,7 @@ static NSString * const WebNotificationCreationTimeKey = @"WebNotificationCreati
 static NSString * const WebNotificationDataKey = @"WebNotificationDataKey";
 static NSString * const WebNotificationSilentKey = @"WebNotificationSilentKey";
 
-namespace WebCore {
+}
 
 static std::optional<bool> nsValueToOptionalBool(id value)
 {
@@ -57,6 +61,8 @@ static std::optional<bool> nsValueToOptionalBool(id value)
 
 std::optional<NotificationData> NotificationData::fromDictionary(NSDictionary *dictionary)
 {
+    using namespace NotificationDataKeys;
+
     RetainPtr<NSString> defaultActionURL = dictionary[WebNotificationDefaultActionURLKey];
     RetainPtr<NSString> title = dictionary[WebNotificationTitleKey];
     RetainPtr<NSString> body = dictionary[WebNotificationBodyKey];
@@ -102,6 +108,8 @@ std::optional<NotificationData> NotificationData::fromDictionary(NSDictionary *d
 
 NSDictionary *NotificationData::dictionaryRepresentation() const
 {
+    using namespace NotificationDataKeys;
+
     RetainPtr result = adoptNS(@{
         WebNotificationDefaultActionURLKey : navigateURL.string().createNSString().get(),
         WebNotificationTitleKey : title.createNSString().get(),
@@ -125,11 +133,6 @@ NSDictionary *NotificationData::dictionaryRepresentation() const
         result.get()[WebNotificationSilentKey] = @(*silent);
 
     return result.autorelease();
-}
-
-RetainPtr<NSDictionary> NotificationData::protectedDictionaryRepresentation() const
-{
-    return dictionaryRepresentation();
 }
 
 } // namespace WebKit

@@ -56,7 +56,9 @@ RemoteAnimationStack::RemoteAnimationStack(RemoteAnimations&& animations, WebCor
         affectsFilter = affectsFilter || properties.containsAny({ WebCore::AcceleratedEffectProperty::Filter, WebCore::AcceleratedEffectProperty::BackdropFilter });
         affectsOpacity = affectsOpacity || properties.contains(WebCore::AcceleratedEffectProperty::Opacity);
         affectsTransform = affectsTransform || properties.containsAny(WebCore::transformRelatedAcceleratedProperties);
-        if (affectsFilter && affectsOpacity && affectsTransform)
+        m_hasProgressBasedAnimations = m_hasProgressBasedAnimations || animation->timeline().isProgressBased();
+        m_hasTimeBasedAnimations = m_hasTimeBasedAnimations || animation->timeline().isMonotonic();
+        if (affectsFilter && affectsOpacity && affectsTransform && m_hasProgressBasedAnimations && m_hasTimeBasedAnimations)
             break;
     }
 
@@ -127,6 +129,12 @@ void RemoteAnimationStack::initEffectsFromMainThread(PlatformLayer *layer)
     // use this alone to determine whether this stack interpolates `filter`.
     auto* canonicalFilters = longestFilterList();
 
+    // FIXME: If we're only animating a filter property and we haven't found a filter, then
+    // we won't have anything to animate. Ideally, we wouldn't end up in this state where we
+    // have a no-op animation stack. See https://bugs.webkit.org/show_bug.cgi?id=309658.
+    if (!canonicalFilters && m_affectedLayerProperties.containsOnly({ LayerProperty::Filter }))
+        return;
+
     auto numberOfPresentationModifiers = [&]() {
         size_t count = 0;
         if (canonicalFilters)
@@ -164,7 +172,8 @@ void RemoteAnimationStack::initEffectsFromMainThread(PlatformLayer *layer)
 
 void RemoteAnimationStack::applyEffects() const
 {
-    ASSERT(m_presentationModifierGroup);
+    if (!m_presentationModifierGroup)
+        return;
 
     auto computedValues = computeValues();
 
@@ -216,7 +225,8 @@ WebCore::AcceleratedEffectValues RemoteAnimationStack::computeValues() const
 void RemoteAnimationStack::clear(PlatformLayer *layer)
 {
 #if PLATFORM(MAC)
-    ASSERT(m_presentationModifierGroup);
+    if (!m_presentationModifierGroup)
+        return;
 
     for (auto& filterPresentationModifier : m_filterPresentationModifiers)
         [layer removePresentationModifier:filterPresentationModifier.second.get()];
@@ -239,13 +249,6 @@ bool RemoteAnimationStack::isDependentOnScrollingNodeWithID(WebCore::ScrollingNo
     return m_animations.containsIf([scrollingNodeID](auto& animation) {
         RefPtr progressBasedTimeline = dynamicDowncast<RemoteProgressBasedTimeline>(animation->timeline());
         return progressBasedTimeline && progressBasedTimeline->source() == scrollingNodeID;
-    });
-}
-
-bool RemoteAnimationStack::isTimeDependent() const
-{
-    return m_animations.containsIf([](auto& animation) {
-        return animation->timeline().isMonotonic();
     });
 }
 

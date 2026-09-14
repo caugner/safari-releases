@@ -59,7 +59,7 @@ Ref<WebAuthenticatorCoordinatorProxy> WebAuthenticatorCoordinatorProxy::create(W
 WebAuthenticatorCoordinatorProxy::WebAuthenticatorCoordinatorProxy(WebPageProxy& webPageProxy)
     : m_webPageProxy(webPageProxy)
 {
-    webPageProxy.protectedLegacyMainFrameProcess()->addMessageReceiver(Messages::WebAuthenticatorCoordinatorProxy::messageReceiverName(), webPageProxy.webPageIDInMainFrameProcess(), *this);
+    protect(webPageProxy.legacyMainFrameProcess())->addMessageReceiver(Messages::WebAuthenticatorCoordinatorProxy::messageReceiverName(), webPageProxy.webPageIDInMainFrameProcess(), *this);
 }
 
 WebAuthenticatorCoordinatorProxy::~WebAuthenticatorCoordinatorProxy()
@@ -68,13 +68,13 @@ WebAuthenticatorCoordinatorProxy::~WebAuthenticatorCoordinatorProxy()
     cancel([]() { });
 #endif // HAVE(UNIFIED_ASC_AUTH_UI)
     if (RefPtr webPageProxy = m_webPageProxy.get())
-        webPageProxy->protectedLegacyMainFrameProcess()->removeMessageReceiver(Messages::WebAuthenticatorCoordinatorProxy::messageReceiverName(), webPageProxy->webPageIDInMainFrameProcess());
+        protect(webPageProxy->legacyMainFrameProcess())->removeMessageReceiver(Messages::WebAuthenticatorCoordinatorProxy::messageReceiverName(), webPageProxy->webPageIDInMainFrameProcess());
 }
 
 std::optional<SharedPreferencesForWebProcess> WebAuthenticatorCoordinatorProxy::sharedPreferencesForWebProcess() const
 {
-    RefPtr webPageProxy = m_webPageProxy.get();
-    return webPageProxy ? webPageProxy->protectedLegacyMainFrameProcess()->sharedPreferencesForWebProcess() : std::nullopt;
+    auto* webPageProxy = m_webPageProxy.get();
+    return webPageProxy ? webPageProxy->legacyMainFrameProcess().sharedPreferencesForWebProcess() : std::nullopt;
 }
 
 void WebAuthenticatorCoordinatorProxy::makeCredential(IPC::Connection& connection, FrameIdentifier frameId, FrameInfoData&& frameInfo, PublicKeyCredentialCreationOptions&& options, MediationRequirement mediation, RequestCompletionHandler&& handler)
@@ -123,7 +123,7 @@ void WebAuthenticatorCoordinatorProxy::getAssertion(IPC::Connection& connection,
     if (parentOrigin) {
         bool foundMatchingAncestor = false;
         bool hasHTTPAncestor = false;
-        for (auto* ancestor = frame->parentFrame(); ancestor; ancestor = ancestor->parentFrame()) {
+        for (RefPtr ancestor = frame->parentFrame(); ancestor; ancestor = ancestor->parentFrame()) {
             if (!ancestor->url().protocolIsInHTTPFamily())
                 continue;
             hasHTTPAncestor = true;
@@ -218,7 +218,7 @@ void WebAuthenticatorCoordinatorProxy::handleRequest(WebAuthenticationRequestDat
 #if HAVE(WEB_AUTHN_AS_MODERN)
             afterConsent(consented ? *consented : protectedThis->removeMatchingAutofillEventForUsername(username, origin));
 #else
-            afterConsent(consented ? *consented : false);
+            afterConsent(consented && *consented);
 #endif
         });
         return;

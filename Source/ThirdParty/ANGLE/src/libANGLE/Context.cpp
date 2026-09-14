@@ -2698,7 +2698,7 @@ void Context::getInteger64i_vRobust(GLenum target,
     const bool paramFound = getIndexedQueryParameterInfo(target, &nativeType, &numParams);
     ASSERT(paramFound);
 
-    if (nativeType == GL_INT_64_ANGLEX)
+    if (nativeType == GL_INT64)
     {
         mState.getInteger64i_v(target, index, data);
     }
@@ -4670,6 +4670,13 @@ void Context::updateCaps()
     caps->compressedTextureFormats.clear();
     textureCaps->clear();
 
+    // Workaround for dEQP bug
+    // https://gitlab.khronos.org/Tracker/vk-gl-cts/-/issues/6138
+    // . Put paletted formats at the end of the compressed texture
+    // format list. If these tests are fixed, remove this vector and
+    // simplify the code below.
+    std::vector<GLenum> palettedFormats;
+
     for (GLenum sizedInternalFormat : GetAllSizedInternalFormats())
     {
         TextureCaps formatCaps = mImplementation->getNativeTextureCaps().get(sizedInternalFormat);
@@ -4748,13 +4755,23 @@ void Context::updateCaps()
             }
         }
 
-        if (formatCaps.texturable && (formatInfo.compressed || formatInfo.paletted))
+        if (formatCaps.texturable)
         {
-            caps->compressedTextureFormats.push_back(sizedInternalFormat);
+            if (formatInfo.compressed)
+            {
+                caps->compressedTextureFormats.push_back(sizedInternalFormat);
+            }
+            else if (formatInfo.paletted)
+            {
+                palettedFormats.push_back(sizedInternalFormat);
+            }
         }
 
         textureCaps->insert(sizedInternalFormat, formatCaps);
     }
+
+    caps->compressedTextureFormats.insert(caps->compressedTextureFormats.end(),
+                                          palettedFormats.begin(), palettedFormats.end());
 
     // If program binary is disabled, blank out the memory cache pointer.
     if (!mSupportedExtensions.getProgramBinaryOES)
@@ -5377,6 +5394,9 @@ void Context::copyImageSubData(GLuint srcName,
         return;
     }
 
+    ASSERT(srcTarget != GL_RENDERER || (srcLevel == 0 && srcZ == 0 && srcDepth == 1));
+    ASSERT(dstTarget != GL_RENDERER || (dstLevel == 0 && dstZ == 0 && srcDepth == 1));
+
     if (srcTarget == GL_RENDERBUFFER)
     {
         // Source target is a Renderbuffer
@@ -5388,8 +5408,7 @@ void Context::copyImageSubData(GLuint srcName,
 
             // Copy Renderbuffer to Renderbuffer
             ANGLE_CONTEXT_TRY(writeBuffer->copyRenderbufferSubData(
-                this, readBuffer, srcLevel, srcX, srcY, srcZ, dstLevel, dstX, dstY, dstZ, srcWidth,
-                srcHeight, srcDepth));
+                this, readBuffer, srcX, srcY, dstX, dstY, srcWidth, srcHeight));
         }
         else
         {
@@ -5403,8 +5422,7 @@ void Context::copyImageSubData(GLuint srcName,
 
             // Copy Renderbuffer to Texture
             ANGLE_CONTEXT_TRY(writeTexture->copyRenderbufferSubData(
-                this, readBuffer, srcLevel, srcX, srcY, srcZ, dstLevel, dstX, dstY, dstZ, srcWidth,
-                srcHeight, srcDepth));
+                this, readBuffer, srcX, srcY, dstLevel, dstX, dstY, dstZ, srcWidth, srcHeight));
         }
     }
     else
@@ -5425,9 +5443,8 @@ void Context::copyImageSubData(GLuint srcName,
             Renderbuffer *writeBuffer = getRenderbuffer(PackParam<RenderbufferID>(dstName));
 
             // Copy Texture to Renderbuffer
-            ANGLE_CONTEXT_TRY(writeBuffer->copyTextureSubData(this, readTexture, srcLevel, srcX,
-                                                              srcY, srcZ, dstLevel, dstX, dstY,
-                                                              dstZ, srcWidth, srcHeight, srcDepth));
+            ANGLE_CONTEXT_TRY(writeBuffer->copyTextureSubData(
+                this, readTexture, srcLevel, srcX, srcY, srcZ, dstX, dstY, srcWidth, srcHeight));
         }
         else
         {
@@ -7119,11 +7136,8 @@ GLenum Context::checkFramebufferStatus(GLenum target)
 
 void Context::compileShader(ShaderProgramID shader)
 {
-    Shader *shaderObject = GetValidShader(this, angle::EntryPoint::GLCompileShader, shader);
-    if (!shaderObject)
-    {
-        return;
-    }
+    Shader *shaderObject = getShaderNoResolveCompile(shader);
+    ASSERT(shaderObject != nullptr);
     shaderObject->compile(this, angle::JobResultExpectancy::Future);
 }
 
@@ -8124,7 +8138,7 @@ void Context::uniformBlockBinding(ShaderProgramID program,
 GLsync Context::fenceSync(GLenum condition, GLbitfield flags)
 {
     SyncID syncHandle;
-    if (!mState.mSyncManager->createSync(mImplementation.get(), this, &syncHandle))
+    if (!mState.mSyncManager->createSync(mImplementation.get(), &syncHandle))
     {
         handleExhaustionError(angle::EntryPoint::GLFenceSync);
         return nullptr;
@@ -8178,7 +8192,7 @@ void Context::getInteger64vRobust(GLenum pname, GLsizei paramCount, GLsizei *len
         return;  // Avoid crashing with invalid apps running with no validation.
     }
 
-    if (nativeType == GL_INT_64_ANGLEX)
+    if (nativeType == GL_INT64)
     {
         getInteger64vImpl(pname, data);
     }

@@ -21,10 +21,9 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 // THE POSSIBILITY OF SUCH DAMAGE.
 
-#if ENABLE_SWIFTUI && compiler(>=6.0)
+#if ENABLE_SWIFTUI
 
-import Foundation
-internal import WebKit_Internal
+public import Foundation
 
 extension WebPage {
     /// A type that specifies the behaviors to use when loading and rendering page content.
@@ -129,6 +128,34 @@ extension WebPage {
             get { backingSecurityRestrictionMode ?? .none }
             set { backingSecurityRestrictionMode = newValue }
         }
+
+        /// Used to make changes to the network request that will be used for this navigation's main resource load.
+        @available(anyAppleOSAndDownlevels 27.0, *)
+        @available(watchOS, unavailable)
+        @available(tvOS, unavailable)
+        public var alternateRequest: URLRequest? = nil
+
+        /// Used to apply a custom `referer` header to all resource loads in the frame of this navigation.
+        @available(anyAppleOSAndDownlevels 27.0, *)
+        @available(watchOS, unavailable)
+        @available(tvOS, unavailable)
+        public var overrideReferrer: Swift.String? = nil
+
+        /// Whether the Global Privacy Control (GPC) signal is enabled for the navigation.
+        ///
+        /// The default value of this property is `false`. When enabled, both `navigator.globalPrivacyControl`
+        /// and the `Sec-GPC: 1` request header are active for the main frame, its subframes, and their subresources.
+        @available(anyAppleOSAndDownlevels 27.0, *)
+        @available(watchOS, unavailable)
+        @available(tvOS, unavailable)
+        public var isGlobalPrivacyControlEnabled: Bool = false
+
+        /// Indicates whether `window.webkit.createJSHandle` will be available in `WKContentWorld.page`
+        /// The default value of this property is `false`.
+        @available(anyAppleOSAndDownlevels 27.0, *)
+        @available(watchOS, unavailable)
+        @available(tvOS, unavailable)
+        public var allowsJSHandleCreationInPageWorld: Bool = false
     }
 }
 
@@ -186,6 +213,11 @@ extension WebPage.NavigationPreferences {
         self.allowsContentJavaScript = wrapped.allowsContentJavaScript
         self.isLockdownModeEnabled = wrapped.isLockdownModeEnabled
         self.securityRestrictionMode = .init(wrapped.securityRestrictionMode)
+
+        self.alternateRequest = wrapped.alternateRequest
+        self.overrideReferrer = wrapped.overrideReferrer
+        self.isGlobalPrivacyControlEnabled = wrapped.globalPrivacyControlEnabled
+        self.allowsJSHandleCreationInPageWorld = wrapped.allowsJSHandleCreationInPageWorld
     }
 }
 

@@ -1,7 +1,7 @@
 /*
  * (C) 1999-2003 Lars Knoll (knoll@kde.org)
  * (C) 2002-2003 Dirk Mueller (mueller@kde.org)
- * Copyright (C) 2002-2021 Apple Inc. All rights reserved.
+ * Copyright (C) 2002-2026 Apple Inc. All rights reserved.
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
@@ -71,7 +71,7 @@ public:
     bool isStyleRule() const { return type() == StyleRuleType::Style || type() == StyleRuleType::StyleWithNesting || type() == StyleRuleType::NestedDeclarations; }
     bool isStyleRuleWithNesting() const { return type() == StyleRuleType::StyleWithNesting; }
     bool isNestedDeclarationsRule() const { return type() == StyleRuleType::NestedDeclarations; }
-    bool isGroupRule() const { return type() == StyleRuleType::Media || type() == StyleRuleType::Supports || type() == StyleRuleType::LayerBlock || type() == StyleRuleType::Container || type() == StyleRuleType::Scope || type() == StyleRuleType::StartingStyle || type() == StyleRuleType::Function || type() == StyleRuleType::InternalBaseAppearance; }
+    bool isGroupRule() const { return type() == StyleRuleType::Media || type() == StyleRuleType::Supports || type() == StyleRuleType::LayerBlock || type() == StyleRuleType::Container || type() == StyleRuleType::Scope || type() == StyleRuleType::StartingStyle || type() == StyleRuleType::Function; }
     bool isSupportsRule() const { return type() == StyleRuleType::Supports; }
     bool isImportRule() const { return type() == StyleRuleType::Import; }
     bool isLayerRule() const { return type() == StyleRuleType::LayerBlock || type() == StyleRuleType::LayerStatement; }
@@ -81,7 +81,6 @@ public:
     bool isStartingStyleRule() const { return type() == StyleRuleType::StartingStyle; }
     bool isViewTransitionRule() const { return type() == StyleRuleType::ViewTransition; }
     bool isPositionTryRule() const { return type() == StyleRuleType::PositionTry; }
-    bool isInternalBaseAppearanceRule() const { return type() == StyleRuleType::InternalBaseAppearance; }
 
     Ref<StyleRuleBase> copy() const;
 
@@ -124,9 +123,8 @@ public:
     Ref<StyleRule> copy() const;
     ~StyleRule();
 
-    const CSSSelectorList& selectorList() const { return m_selectorList; }
+    const CSSSelectorList& selectorList() const LIFETIME_BOUND { return m_selectorList; }
     const StyleProperties& properties() const { return m_properties.get(); }
-    Ref<const StyleProperties> protectedProperties() const;
     MutableStyleProperties& mutableProperties();
 
     bool isSplitRule() const { return m_isSplitRule; }
@@ -147,7 +145,7 @@ public:
     void releaseCompiledSelectors() const { m_compiledSelectors = { }; }
 #endif
 
-    static unsigned averageSizeInBytes();
+    static unsigned NODELETE averageSizeInBytes();
     void setProperties(Ref<StyleProperties>&&);
 
     String debugDescription() const;
@@ -172,14 +170,14 @@ DECLARE_ALLOCATOR_WITH_HEAP_IDENTIFIER(StyleRuleWithNesting);
 class StyleRuleWithNesting final : public StyleRule {
     WTF_DEPRECATED_MAKE_STRUCT_FAST_COMPACT_ALLOCATED_WITH_HEAP_IDENTIFIER(StyleRuleWithNesting, StyleRuleWithNesting);
 public:
-    static Ref<StyleRuleWithNesting> create(Ref<StyleProperties>&&, bool hasDocumentSecurityOrigin, CSSSelectorList&&, Vector<Ref<StyleRuleBase>>&& nestedRules);
+    static Ref<StyleRuleWithNesting> NODELETE create(Ref<StyleProperties>&&, bool hasDocumentSecurityOrigin, CSSSelectorList&&, Vector<Ref<StyleRuleBase>>&& nestedRules);
     static Ref<StyleRuleWithNesting> create(StyleRule&&);
-    Ref<StyleRuleWithNesting> copy() const;
+    Ref<StyleRuleWithNesting> NODELETE copy() const;
     ~StyleRuleWithNesting();
 
-    const Vector<Ref<StyleRuleBase>>& nestedRules() const { return m_nestedRules; }
-    Vector<Ref<StyleRuleBase>>& nestedRules() { return m_nestedRules; }
-    const CSSSelectorList& originalSelectorList() const { return m_originalSelectorList; }
+    const Vector<Ref<StyleRuleBase>>& nestedRules() const LIFETIME_BOUND { return m_nestedRules; }
+    Vector<Ref<StyleRuleBase>>& nestedRules() LIFETIME_BOUND { return m_nestedRules; }
+    const CSSSelectorList& originalSelectorList() const LIFETIME_BOUND { return m_originalSelectorList; }
 
     // Used by CSSOM.
     void wrapperAdoptOriginalSelectorList(CSSSelectorList&&);
@@ -228,13 +226,13 @@ private:
 
 class StyleRuleFontPaletteValues final : public StyleRuleBase {
 public:
-    static Ref<StyleRuleFontPaletteValues> create(const AtomString& name, Vector<AtomString>&& fontFamilies, std::optional<FontPaletteIndex> basePalette, Vector<FontPaletteValues::OverriddenColor>&&);
+    static Ref<StyleRuleFontPaletteValues> NODELETE create(const AtomString& name, Vector<AtomString>&& fontFamilies, std::optional<FontPaletteIndex> basePalette, Vector<FontPaletteValues::OverriddenColor>&&);
 
-    const AtomString& name() const { return m_name; }
-    const Vector<AtomString>& fontFamilies() const { return m_fontFamilies; }
-    const FontPaletteValues& fontPaletteValues() const { return m_fontPaletteValues; }
+    const AtomString& name() const LIFETIME_BOUND { return m_name; }
+    const Vector<AtomString>& fontFamilies() const LIFETIME_BOUND { return m_fontFamilies; }
+    const FontPaletteValues& fontPaletteValues() const LIFETIME_BOUND { return m_fontPaletteValues; }
     std::optional<FontPaletteIndex> basePalette() const { return m_fontPaletteValues.basePalette(); }
-    const Vector<FontPaletteValues::OverriddenColor>& overrideColors() const { return m_fontPaletteValues.overrideColors(); }
+    const Vector<FontPaletteValues::OverriddenColor>& overrideColors() const LIFETIME_BOUND { return m_fontPaletteValues.overrideColors(); }
 
     Ref<StyleRuleFontPaletteValues> copy() const { return adoptRef(*new StyleRuleFontPaletteValues(*this)); }
 
@@ -256,7 +254,7 @@ public:
 
     FontFeatureValuesType fontFeatureValuesType() const { return m_type; }
 
-    const Vector<FontFeatureValuesTag>& tags() const { return m_tags; }
+    const Vector<FontFeatureValuesTag>& tags() const LIFETIME_BOUND { return m_tags; }
 
     Ref<StyleRuleFontFeatureValuesBlock> copy() const { return adoptRef(*new StyleRuleFontFeatureValuesBlock(*this)); }
 private:
@@ -271,7 +269,8 @@ class StyleRuleFontFeatureValues final : public StyleRuleBase {
 public:
     static Ref<StyleRuleFontFeatureValues> create(const Vector<AtomString>& fontFamilies, Ref<FontFeatureValues>&&);
 
-    const Vector<AtomString>& fontFamilies() const { return m_fontFamilies; }
+    const Vector<AtomString>& fontFamilies() const LIFETIME_BOUND { return m_fontFamilies; }
+    void setFontFamilies(Vector<AtomString>&& fontFamilies) { m_fontFamilies = WTF::move(fontFamilies); }
 
     Ref<FontFeatureValues> value() const { return m_value; }
 
@@ -291,7 +290,7 @@ public:
 
     ~StyleRulePage();
 
-    const CSSSelector& selector() const { return m_selectorList.first(); }
+    const CSSSelector& selector() const LIFETIME_BOUND { return m_selectorList.first(); }
     const StyleProperties& properties() const { return m_properties; }
     MutableStyleProperties& mutableProperties();
 
@@ -309,7 +308,7 @@ private:
 
 class StyleRuleGroup : public StyleRuleBase {
 public:
-    const Vector<Ref<StyleRuleBase>>& childRules() const;
+    const Vector<Ref<StyleRuleBase>>& NODELETE childRules() const;
 
     void wrapperInsertRule(unsigned, Ref<StyleRuleBase>&&);
     void wrapperRemoveRule(unsigned);
@@ -331,7 +330,7 @@ public:
     static Ref<StyleRuleMedia> create(MQ::MediaQueryList&&, Vector<Ref<StyleRuleBase>>&&);
     Ref<StyleRuleMedia> copy() const;
 
-    const MQ::MediaQueryList& mediaQueries() const { return m_mediaQueries; }
+    const MQ::MediaQueryList& mediaQueries() const LIFETIME_BOUND { return m_mediaQueries; }
     void setMediaQueries(MQ::MediaQueryList&& queries) { m_mediaQueries = WTF::move(queries); }
 
     String debugDescription() const;
@@ -366,8 +365,8 @@ public:
 
     bool isStatement() const { return type() == StyleRuleType::LayerStatement; }
 
-    auto& name() const { return std::get<CascadeLayerName>(m_nameVariant); }
-    auto& nameList() const { return std::get<Vector<CascadeLayerName>>(m_nameVariant); }
+    auto& name() const LIFETIME_BOUND { return std::get<CascadeLayerName>(m_nameVariant); }
+    auto& nameList() const LIFETIME_BOUND { return std::get<Vector<CascadeLayerName>>(m_nameVariant); }
 
 private:
     StyleRuleLayer(Vector<CascadeLayerName>&&);
@@ -382,7 +381,7 @@ public:
     static Ref<StyleRuleContainer> create(CQ::ContainerQuery&&, Vector<Ref<StyleRuleBase>>&&);
     Ref<StyleRuleContainer> copy() const { return adoptRef(*new StyleRuleContainer(*this)); }
 
-    const CQ::ContainerQuery& containerQuery() const { return m_containerQuery; }
+    const CQ::ContainerQuery& containerQuery() const LIFETIME_BOUND { return m_containerQuery; }
 
 private:
     StyleRuleContainer(CQ::ContainerQuery&&, Vector<Ref<StyleRuleBase>>&&);
@@ -399,10 +398,10 @@ public:
         std::optional<bool> inherits { };
         RefPtr<const CSSVariableData> initialValue { };
     };
-    static Ref<StyleRuleProperty> create(Descriptor&&);
+    static Ref<StyleRuleProperty> NODELETE create(Descriptor&&);
     Ref<StyleRuleProperty> copy() const { return adoptRef(*new StyleRuleProperty(*this)); }
 
-    const Descriptor& descriptor() const { return m_descriptor; }
+    const Descriptor& descriptor() const LIFETIME_BOUND { return m_descriptor; }
 
 private:
     StyleRuleProperty(Descriptor&&);
@@ -413,18 +412,18 @@ private:
 
 class StyleRuleScope final : public StyleRuleGroup {
 public:
-    static Ref<StyleRuleScope> create(CSSSelectorList&&, CSSSelectorList&&, Vector<Ref<StyleRuleBase>>&&);
+    static Ref<StyleRuleScope> NODELETE create(CSSSelectorList&&, CSSSelectorList&&, Vector<Ref<StyleRuleBase>>&&);
     ~StyleRuleScope();
-    Ref<StyleRuleScope> copy() const;
+    Ref<StyleRuleScope> NODELETE copy() const;
 
-    const CSSSelectorList& scopeStart() const { return m_scopeStart; }
-    const CSSSelectorList& scopeEnd() const { return m_scopeEnd; }
-    const CSSSelectorList& originalScopeStart() const { return m_originalScopeStart; }
-    const CSSSelectorList& originalScopeEnd() const { return m_originalScopeEnd; }
+    const CSSSelectorList& scopeStart() const LIFETIME_BOUND { return m_scopeStart; }
+    const CSSSelectorList& scopeEnd() const LIFETIME_BOUND { return m_scopeEnd; }
+    const CSSSelectorList& originalScopeStart() const LIFETIME_BOUND { return m_originalScopeStart; }
+    const CSSSelectorList& originalScopeEnd() const LIFETIME_BOUND { return m_originalScopeEnd; }
     void setScopeStart(CSSSelectorList&& scopeStart) { m_scopeStart = WTF::move(scopeStart); }
     void setScopeEnd(CSSSelectorList&& scopeEnd) { m_scopeEnd = WTF::move(scopeEnd); }
-    WeakPtr<const StyleSheetContents> styleSheetContents() const;
-    void setStyleSheetContents(const StyleSheetContents&);
+    WeakPtr<const StyleSheetContents> NODELETE styleSheetContents() const;
+    void NODELETE setStyleSheetContents(const StyleSheetContents&);
 
 private:
     StyleRuleScope(CSSSelectorList&&, CSSSelectorList&&, Vector<Ref<StyleRuleBase>>&&);
@@ -442,7 +441,7 @@ private:
 
 class StyleRuleStartingStyle final : public StyleRuleGroup {
 public:
-    static Ref<StyleRuleStartingStyle> create(Vector<Ref<StyleRuleBase>>&&);
+    static Ref<StyleRuleStartingStyle> NODELETE create(Vector<Ref<StyleRuleBase>>&&);
     Ref<StyleRuleStartingStyle> copy() const { return adoptRef(*new StyleRuleStartingStyle(*this)); }
 
 private:
@@ -461,19 +460,9 @@ private:
     StyleRuleCharset(const StyleRuleCharset&) = default;
 };
 
-class StyleRuleInternalBaseAppearance final : public StyleRuleGroup {
-public:
-    static Ref<StyleRuleInternalBaseAppearance> create(Vector<Ref<StyleRuleBase>>&&);
-    Ref<StyleRuleInternalBaseAppearance> copy() const { return adoptRef(*new StyleRuleInternalBaseAppearance(*this)); }
-
-private:
-    StyleRuleInternalBaseAppearance(Vector<Ref<StyleRuleBase>>&&);
-    StyleRuleInternalBaseAppearance(const StyleRuleInternalBaseAppearance&) = default;
-};
-
 class StyleRuleNamespace final : public StyleRuleBase {
 public:
-    static Ref<StyleRuleNamespace> create(const AtomString& prefix, const AtomString& uri);
+    static Ref<StyleRuleNamespace> NODELETE create(const AtomString& prefix, const AtomString& uri);
 
     Ref<StyleRuleNamespace> copy() const { return adoptRef(*new StyleRuleNamespace(*this)); }
 
@@ -600,8 +589,4 @@ SPECIALIZE_TYPE_TRAITS_END()
 
 SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::StyleRuleStartingStyle)
     static bool isType(const WebCore::StyleRuleBase& rule) { return rule.isStartingStyleRule(); }
-SPECIALIZE_TYPE_TRAITS_END()
-
-SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::StyleRuleInternalBaseAppearance)
-    static bool isType(const WebCore::StyleRuleBase& rule) { return rule.isInternalBaseAppearanceRule(); }
 SPECIALIZE_TYPE_TRAITS_END()

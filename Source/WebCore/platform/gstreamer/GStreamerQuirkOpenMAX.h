@@ -30,9 +30,11 @@ class GStreamerQuirkOpenMAX final : public GStreamerQuirk {
 public:
     GStreamerQuirkOpenMAX();
     const ASCIILiteral identifier() const final { return "OpenMAX"_s; }
+    bool isPlatformSupported() const final;
     unsigned getAdditionalPlaybinFlags() const final { return getGstPlayFlag("text") | getGstPlayFlag("native-video"); }
 
     bool processWebAudioSilentBuffer(GstBuffer*) const final;
+    std::optional<GstState> eosMediaPlayerState() const final { return GST_STATE_PAUSED; }
 };
 
 } // namespace WebCore

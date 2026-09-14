@@ -32,6 +32,7 @@
 #include "CGUtilities.h"
 #include "GraphicsContextCG.h"
 #include "PathStream.h"
+#include <array>
 #include <mutex>
 #include <pal/spi/cg/CoreGraphicsSPI.h>
 #include <wtf/NeverDestroyed.h>
@@ -577,7 +578,7 @@ bool PathCG::contains(const FloatPoint &point, WindRule rule) const
     return CGPathContainsPoint(path.get(), nullptr, point, rule == WindRule::EvenOdd);
 }
 
-static size_t putBytesNowhere(void*, const void*, size_t count)
+static size_t NODELETE putBytesNowhere(void*, const void*, size_t count)
 {
     return count;
 }
@@ -588,27 +589,25 @@ static RetainPtr<CGContextRef> createScratchContext()
     auto consumer = adoptCF(CGDataConsumerCreate(0, &callbacks));
     auto context = adoptCF(CGPDFContextCreate(consumer.get(), 0, 0));
 
-    CGFloat black[4] = { 0, 0, 0, 1 };
-    CGContextSetFillColor(context.get(), black);
-    CGContextSetStrokeColor(context.get(), black);
+    constexpr std::array<CGFloat, 4> black { 0, 0, 0, 1 };
+    CGContextSetFillColor(context.get(), black.data());
+    CGContextSetStrokeColor(context.get(), black.data());
 
     return context;
 }
 
 static inline CGContextRef scratchContext()
 {
-    static NeverDestroyed<ThreadSpecific<RetainPtr<CGContextRef>>> context;
-
-    auto& result = *context.get();
-    if (!result)
-        result = createScratchContext();
-
-    return result.get();
+    static NeverDestroyed<RetainPtr<CGContextRef>> context = createScratchContext();
+    return context.get().get();
 }
 
 bool PathCG::strokeContains(const FloatPoint& point, NOESCAPE const Function<void(GraphicsContext&)>& strokeStyleApplier) const
 {
     ASSERT(strokeStyleApplier);
+
+    static Lock scratchContextLock;
+    Locker locker { scratchContextLock };
 
     CGContextRef context = scratchContext();
 
@@ -645,6 +644,9 @@ FloatRect PathCG::boundingRect() const
 
 FloatRect PathCG::strokeBoundingRect(NOESCAPE const Function<void(GraphicsContext&)>& strokeStyleApplier) const
 {
+    static Lock scratchContextLock;
+    Locker locker { scratchContextLock };
+
     CGContextRef context = scratchContext();
 
     CGContextSaveGState(context);

@@ -25,9 +25,7 @@
 
 #pragma once
 
-#include <JavaScriptCore/JSExportMacros.h>
 #include <cstddef>
-#include <wtf/Atomics.h>
 #include <wtf/GetPtr.h>
 #include <wtf/HashTraits.h>
 #include <wtf/Noncopyable.h>
@@ -81,7 +79,7 @@ public:
 
     inline explicit operator bool() const;
 
-    WARN_UNUSED_RETURN inline WeakImpl* leakImpl();
+    [[nodiscard]] inline WeakImpl* leakImpl();
     WeakImpl* unsafeImpl() const { return impl(); }
     void clear();
 

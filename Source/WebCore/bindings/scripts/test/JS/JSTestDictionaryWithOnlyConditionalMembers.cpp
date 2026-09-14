@@ -21,11 +21,14 @@
 #include "config.h"
 #include "JSTestDictionaryWithOnlyConditionalMembers.h"
 
+#include "JSDOMBindingFacade.h"
 #include "JSDOMGlobalObject.h"
-#include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/ObjectConstructor.h>
+#include <type_traits>
+#include <wtf/IsIncreasing.h>
 
 #if ENABLE(TEST_CONDITIONAL)
+#include "JSDOMConvertOptional.h"
 #include "JSTestDictionary.h"
 #endif
 
@@ -33,6 +36,18 @@
 
 namespace WebCore {
 using namespace JSC;
+
+IGNORE_WARNINGS_BEGIN("invalid-offsetof")
+
+static_assert(std::is_aggregate_v<TestDictionaryWithOnlyConditionalMembers>);
+static_assert(IsIncreasing<
+      0
+#if ENABLE(TEST_CONDITIONAL)
+    , offsetof(TestDictionaryWithOnlyConditionalMembers, conditionalMember)
+#endif
+>);
+
+IGNORE_WARNINGS_END
 
 template<> ConversionResult<IDLDictionary<TestDictionaryWithOnlyConditionalMembers>> convertDictionary<TestDictionaryWithOnlyConditionalMembers>(JSGlobalObject& lexicalGlobalObject, JSValue value)
 {
@@ -44,23 +59,23 @@ template<> ConversionResult<IDLDictionary<TestDictionaryWithOnlyConditionalMembe
         throwTypeError(&lexicalGlobalObject, throwScope);
         return ConversionResultException { };
     }
-    TestDictionaryWithOnlyConditionalMembers result;
 #if ENABLE(TEST_CONDITIONAL)
     JSValue conditionalMemberValue;
     if (isNullOrUndefined)
         conditionalMemberValue = jsUndefined();
     else {
-        conditionalMemberValue = object->get(&lexicalGlobalObject, Identifier::fromString(vm, "conditionalMember"_s));
+        conditionalMemberValue = WebCore::get(object, &lexicalGlobalObject, Identifier::fromString(vm, "conditionalMember"_s));
         RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });
     }
-    if (!conditionalMemberValue.isUndefined()) {
-        auto conditionalMemberConversionResult = convert<IDLDictionary<TestDictionary>>(lexicalGlobalObject, conditionalMemberValue);
-        if (conditionalMemberConversionResult.hasException(throwScope)) [[unlikely]]
-            return ConversionResultException { };
-        result.conditionalMember = conditionalMemberConversionResult.releaseReturnValue();
-    }
+    auto conditionalMemberConversionResult = convert<IDLOptional<IDLDictionary<TestDictionary>>>(lexicalGlobalObject, conditionalMemberValue);
+    if (conditionalMemberConversionResult.hasException(throwScope)) [[unlikely]]
+        return ConversionResultException { };
 #endif
-    return result;
+    return TestDictionaryWithOnlyConditionalMembers {
+#if ENABLE(TEST_CONDITIONAL)
+        conditionalMemberConversionResult.releaseReturnValue(),
+#endif
+    };
 }
 
 JSC::JSObject* convertDictionaryToJS(JSC::JSGlobalObject& lexicalGlobalObject, JSDOMGlobalObject& globalObject, const TestDictionaryWithOnlyConditionalMembers& dictionary)
@@ -68,7 +83,7 @@ JSC::JSObject* convertDictionaryToJS(JSC::JSGlobalObject& lexicalGlobalObject, J
     SUPPRESS_UNCOUNTED_LOCAL auto& vm = JSC::getVM(&lexicalGlobalObject);
     auto throwScope = DECLARE_THROW_SCOPE(vm);
 
-    auto result = constructEmptyObject(&lexicalGlobalObject, globalObject.objectPrototype());
+    auto result = WebCore::constructEmptyObject(&lexicalGlobalObject, globalObject.objectPrototype());
 
 #if ENABLE(TEST_CONDITIONAL)
     if (!IDLDictionary<TestDictionary>::isNullValue(dictionary.conditionalMember)) {

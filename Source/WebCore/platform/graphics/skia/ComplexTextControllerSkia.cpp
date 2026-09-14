@@ -25,12 +25,13 @@
 #include "config.h"
 #include "ComplexTextController.h"
 
-#include "FontCascade.h"
+#include "FontCascadeInlines.h"
 #include "FontFeatureValues.h"
 #include "FontTaggedSettings.h"
 #include "HbUniquePtr.h"
 #include "SurrogatePairAwareTextIterator.h"
-#include "text/TextFlags.h"
+#include "TextFlags.h"
+#include "TextRun.h"
 #include <hb-icu.h>
 #include <hb-ot.h>
 #include <hb.h>
@@ -64,7 +65,6 @@ ComplexTextController::ComplexTextRun::ComplexTextRun(hb_buffer_t* buffer, const
     WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // GLib/Win port
     hb_glyph_info_t* glyphInfos = hb_buffer_get_glyph_infos(buffer, nullptr);
     hb_glyph_position_t* glyphPositions = hb_buffer_get_glyph_positions(buffer, nullptr);
-    WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
     // HarfBuzz returns the shaping result in visual order. We don't need to flip for RTL.
     for (unsigned i = 0; i < m_glyphCount; ++i) {
@@ -87,6 +87,7 @@ ComplexTextController::ComplexTextRun::ComplexTextRun(hb_buffer_t* buffer, const
         m_baseAdvances[i] = { advanceX, advanceY };
         m_glyphOrigins[i] = { offsetX, offsetY };
     }
+    WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
     m_initialAdvance = toFloatSize(m_glyphOrigins[0]);
 }
 
@@ -219,6 +220,7 @@ void ComplexTextController::collectComplexTextRunsForCharacters(std::span<const 
     auto language = hb_language_from_string(m_fontCascade->fontDescription().computedLocale().string().utf8().data(), -1);
 
     auto shapeFunction = [&](const HBRun& run) {
+        hb_buffer_set_cluster_level(buffer.get(), HB_BUFFER_CLUSTER_LEVEL_CHARACTERS);
         hb_buffer_set_language(buffer.get(), language);
 
         hb_buffer_set_script(buffer.get(), hb_icu_script_to_script(run.script));

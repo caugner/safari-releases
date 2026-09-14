@@ -43,6 +43,7 @@
 #include <wtf/TZoneMalloc.h>
 #include <wtf/WeakPtr.h>
 
+OBJC_CLASS WKAVContentSource;
 OBJC_CLASS WKSLinearMediaPlayer;
 OBJC_CLASS WebAVPlayerController;
 
@@ -66,7 +67,10 @@ public:
 
     virtual WebAVPlayerController *playerController() const = 0;
     virtual WKSLinearMediaPlayer *linearMediaPlayer() const = 0;
-    PlaybackSessionModel* playbackSessionModel() const;
+#if HAVE(AVEXPERIENCECONTROLLER)
+    virtual WKAVContentSource *contentSource() const;
+#endif
+    PlaybackSessionModel* NODELETE playbackSessionModel() const;
     void durationChanged(double) override = 0;
     void currentTimeChanged(double currentTime, double anchorTime) override = 0;
     void bufferedTimeChanged(double) override = 0;
@@ -81,9 +85,9 @@ public:
     void volumeChanged(double) override = 0;
     void modelDestroyed() override;
 
-    std::optional<MediaPlayerIdentifier> playerIdentifier() const;
+    std::optional<MediaPlayerIdentifier> NODELETE playerIdentifier() const;
     virtual void setPlayerIdentifier(std::optional<MediaPlayerIdentifier>);
-    void setVideoPresentationInterface(WeakPtr<VideoPresentationInterfaceIOS>);
+    void NODELETE setVideoPresentationInterface(WeakPtr<VideoPresentationInterfaceIOS>);
 
     virtual void startObservingNowPlayingMetadata();
     virtual void stopObservingNowPlayingMetadata();
@@ -94,7 +98,7 @@ public:
     uint64_t logIdentifier() const;
     const Logger* loggerPtr() const;
     virtual ASCIILiteral logClassName() const = 0;
-    WTFLogChannel& logChannel() const;
+    WTFLogChannel& NODELETE logChannel() const;
 #endif
 
 protected:

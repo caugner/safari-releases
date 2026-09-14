@@ -30,6 +30,7 @@
 #if USE(CF)
 
 #include <CoreFoundation/CoreFoundation.h>
+#include <concepts>
 #include <type_traits>
 
 namespace WTF {
@@ -46,6 +47,14 @@ struct WTF::CFTypeTrait<ClassName##Ref> { \
     static inline CFTypeID typeID() { return ClassName##GetTypeID(); } \
 };
 
+// Macro for CF types that don't have a GetTypeID function but are still CF types.
+// This enables IsCFType / CFType and protect() but dynamic_cf_cast / checked_cf_cast will not work.
+#define WTF_DECLARE_CF_TYPE_TRAIT_WITHOUT_TYPE_ID(ClassName) \
+template <> \
+struct WTF::CFTypeTrait<ClassName##Ref> { \
+    static inline CFTypeID typeID() { RELEASE_ASSERT_NOT_REACHED(); } \
+};
+
 #define WTF_DECLARE_CF_MUTABLE_TYPE_TRAIT(ClassName, MutableClassName) \
 template <> \
 struct WTF::CFTypeTrait<MutableClassName##Ref> { \
@@ -57,6 +66,7 @@ WTF_DECLARE_CF_TYPE_TRAIT(CFArray);
 WTF_DECLARE_CF_TYPE_TRAIT(CFBoolean);
 WTF_DECLARE_CF_TYPE_TRAIT(CFData);
 WTF_DECLARE_CF_TYPE_TRAIT(CFDictionary);
+WTF_DECLARE_CF_TYPE_TRAIT(CFError);
 WTF_DECLARE_CF_TYPE_TRAIT(CFNumber);
 WTF_DECLARE_CF_TYPE_TRAIT(CFRunLoop);
 WTF_DECLARE_CF_TYPE_TRAIT(CFRunLoopSource);
@@ -69,6 +79,16 @@ WTF_DECLARE_CF_MUTABLE_TYPE_TRAIT(CFArray, CFMutableArray);
 WTF_DECLARE_CF_MUTABLE_TYPE_TRAIT(CFData, CFMutableData);
 WTF_DECLARE_CF_MUTABLE_TYPE_TRAIT(CFDictionary, CFMutableDictionary);
 WTF_DECLARE_CF_MUTABLE_TYPE_TRAIT(CFString, CFMutableString);
+
+#if USE(CG)
+#include <CoreGraphics/CGColor.h>
+#include <CoreGraphics/CGImage.h>
+#include <CoreGraphics/CGPath.h>
+WTF_DECLARE_CF_TYPE_TRAIT(CGColor);
+WTF_DECLARE_CF_TYPE_TRAIT(CGImage);
+WTF_DECLARE_CF_TYPE_TRAIT(CGPath);
+WTF_DECLARE_CF_MUTABLE_TYPE_TRAIT(CGPath, CGMutablePath);
+#endif
 
 namespace WTF {
 
@@ -85,14 +105,16 @@ inline constexpr bool HasCFTypeTraitHelper<T, std::void_t<decltype(CFTypeTrait<T
 template<typename T>
 inline constexpr bool HasCFTypeTrait = detail::HasCFTypeTraitHelper<T>;
 
-// IsCFType: true for CFTypeRef or any type with a CFTypeTrait specialization.
+// IsCFType / CFType: true for CFTypeRef or any type with a CFTypeTrait specialization.
 template<typename T>
-concept IsCFType = std::is_pointer_v<T> && (
-    std::is_same_v<std::remove_cv_t<T>, CFTypeRef> || HasCFTypeTrait<T>
+inline constexpr bool IsCFType = std::is_pointer_v<T> && (
+    std::same_as<std::remove_cv_t<T>, CFTypeRef> || HasCFTypeTrait<T>
 );
+template<typename T> concept CFType = IsCFType<T>;
 
 } // namespace WTF
 
+using WTF::CFType;
 using WTF::HasCFTypeTrait;
 using WTF::IsCFType;
 

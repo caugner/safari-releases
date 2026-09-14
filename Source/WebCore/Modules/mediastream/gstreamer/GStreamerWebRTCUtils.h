@@ -116,6 +116,7 @@ inline GstWebRTCRTPTransceiverDirection fromRTCRtpTransceiverDirection(RTCRtpTra
 {
     switch (direction) {
     case RTCRtpTransceiverDirection::Inactive:
+    case RTCRtpTransceiverDirection::Stopped:
         return GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_INACTIVE;
     case RTCRtpTransceiverDirection::Sendonly:
         return GST_WEBRTC_RTP_TRANSCEIVER_DIRECTION_SENDONLY;
@@ -305,6 +306,22 @@ static inline std::optional<RTCErrorDetailType> toRTCErrorDetailType(GstWebRTCEr
     };
 }
 
+static inline GstWebRTCPriorityType fromRTCPriorityType(RTCPriorityType priority)
+{
+    switch (priority) {
+    case RTCPriorityType::VeryLow:
+        return GST_WEBRTC_PRIORITY_TYPE_VERY_LOW;
+    case RTCPriorityType::Low:
+        return GST_WEBRTC_PRIORITY_TYPE_LOW;
+    case RTCPriorityType::Medium:
+        return GST_WEBRTC_PRIORITY_TYPE_MEDIUM;
+    case RTCPriorityType::High:
+        return GST_WEBRTC_PRIORITY_TYPE_HIGH;
+    }
+    ASSERT_NOT_REACHED();
+    return GST_WEBRTC_PRIORITY_TYPE_MEDIUM;
+}
+
 RefPtr<RTCError> toRTCError(GError*);
 
 ExceptionOr<GUniquePtr<GstStructure>> fromRTCEncodingParameters(const RTCRtpEncodingParameters&, const String& kind);
@@ -332,10 +349,10 @@ std::optional<int> payloadTypeForEncodingName(const String& encodingName);
 
 using RTPHeaderExtensionMapping = HashMap<String, uint8_t>;
 
-WARN_UNUSED_RETURN GRefPtr<GstCaps> capsFromRtpCapabilities(const RTPHeaderExtensionMapping&, const RTCRtpCapabilities&, Function<void(GstStructure*)> supplementCapsCallback);
+[[nodiscard]] GRefPtr<GstCaps> capsFromRtpCapabilities(const RTPHeaderExtensionMapping&, const RTCRtpCapabilities&, Function<void(GstStructure*)> supplementCapsCallback);
 
 GstWebRTCRTPTransceiverDirection getDirectionFromSDPMedia(const GstSDPMedia*);
-WARN_UNUSED_RETURN GRefPtr<GstCaps> capsFromSDPMedia(const GstSDPMedia*);
+[[nodiscard]] GRefPtr<GstCaps> capsFromSDPMedia(const GstSDPMedia*);
 
 void setSsrcAudioLevelVadOn(GstStructure*);
 
@@ -360,7 +377,7 @@ class StatsTimestampConverter {
 public:
     static StatsTimestampConverter& singleton();
 
-    Seconds convertFromMonotonicTime(Seconds value) const;
+    ReducedResolutionSeconds convertFromMonotonicTime(Seconds value) const;
 
 private:
     explicit StatsTimestampConverter() = default;
@@ -393,7 +410,7 @@ String sdpAsString(const GstSDPMessage*);
 
 bool sdpMediaHasRTPHeaderExtension(const GstSDPMedia*, const String&);
 
-WARN_UNUSED_RETURN GRefPtr<GstCaps> extractMidAndRidFromRTPBuffer(const GstMappedRtpBuffer&, const GstSDPMessage*);
+[[nodiscard]] GRefPtr<GstCaps> extractMidAndRidFromRTPBuffer(const GstMappedRtpBuffer&, const GstSDPMessage*);
 
 bool validateRTPHeaderExtensions(const GstSDPMessage* previousSDP, const GstSDPMessage* newSDP);
 

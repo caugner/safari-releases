@@ -34,6 +34,7 @@
 #include <WebCore/StyleBoxData.h>
 #include <WebCore/StyleCustomPropertyData.h>
 #include <WebCore/StyleDeprecatedFlexibleBoxData.h>
+#include <WebCore/StyleDisplay.h>
 #include <WebCore/StyleFillLayers.h>
 #include <WebCore/StyleFilterData.h>
 #include <WebCore/StyleFlexibleBoxData.h>
@@ -103,9 +104,9 @@ inline bool ComputedStyleBase::usesViewportUnits() const
     return m_nonInheritedFlags.usesViewportUnits;
 }
 
-inline bool ComputedStyleBase::usesContainerUnits() const
+inline bool ComputedStyleBase::isContainerDependent() const
 {
-    return m_nonInheritedFlags.usesContainerUnits;
+    return m_nonInheritedFlags.isContainerDependent;
 }
 
 inline bool ComputedStyleBase::useTreeCountingFunctions() const
@@ -121,11 +122,6 @@ inline InsideLink ComputedStyleBase::insideLink() const
 inline bool ComputedStyleBase::isLink() const
 {
     return m_nonInheritedFlags.isLink;
-}
-
-inline bool ComputedStyleBase::emptyState() const
-{
-    return m_nonInheritedFlags.emptyState;
 }
 
 inline bool ComputedStyleBase::firstChildState() const
@@ -228,14 +224,9 @@ inline std::optional<size_t> ComputedStyleBase::usedPositionOptionIndex() const
     return m_nonInheritedData->rareData->usedPositionOptionIndex;
 }
 
-inline constexpr DisplayType ComputedStyleBase::originalDisplay() const
+inline constexpr Display ComputedStyleBase::originalDisplay() const
 {
-    return static_cast<DisplayType>(m_nonInheritedFlags.originalDisplay);
-}
-
-inline DisplayType ComputedStyleBase::effectiveDisplay() const
-{
-    return static_cast<DisplayType>(m_nonInheritedFlags.effectiveDisplay);
+    return Display::fromRaw(m_nonInheritedFlags.originalDisplay);
 }
 
 inline StyleAppearance ComputedStyleBase::usedAppearance() const
@@ -272,6 +263,11 @@ inline std::optional<PseudoElementType> ComputedStyleBase::pseudoElementType() c
     return m_nonInheritedFlags.pseudoElementType ? std::make_optional(static_cast<PseudoElementType>(m_nonInheritedFlags.pseudoElementType - 1)) : std::nullopt;
 }
 
+inline std::optional<PseudoElementType> pseudoElementType(const ComputedStyleBase& style)
+{
+    return style.pseudoElementType();
+}
+
 inline const AtomString& ComputedStyleBase::pseudoElementNameArgument() const
 {
     return m_nonInheritedData->rareData->pseudoElementNameArgument;
@@ -306,11 +302,6 @@ inline bool ComputedStyleBase::evaluationTimeZoomEnabled() const
     return m_inheritedRareData->evaluationTimeZoomEnabled;
 }
 
-inline float ComputedStyleBase::deviceScaleFactor() const
-{
-    return m_inheritedRareData->deviceScaleFactor;
-}
-
 inline bool ComputedStyleBase::useSVGZoomRulesForLength() const
 {
     return m_nonInheritedData->rareData->useSVGZoomRulesForLength;
@@ -319,6 +310,11 @@ inline bool ComputedStyleBase::useSVGZoomRulesForLength() const
 inline float ComputedStyleBase::usedZoom() const
 {
     return m_inheritedRareData->usedZoom;
+}
+
+inline float ComputedStyleBase::deviceScaleFactor() const
+{
+    return m_inheritedRareData->deviceScaleFactor;
 }
 
 inline ZoomFactor ComputedStyleBase::usedZoomForLength() const

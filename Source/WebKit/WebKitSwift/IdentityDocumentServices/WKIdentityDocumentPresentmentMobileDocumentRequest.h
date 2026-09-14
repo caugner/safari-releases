@@ -25,6 +25,8 @@
 
 #pragma once
 
+#if ENABLE(WEB_AUTHN)
+
 #import <Foundation/Foundation.h>
 #import <Security/Security.h>
 
@@ -54,7 +56,9 @@ NS_ASSUME_NONNULL_BEGIN
 
 @property (nonatomic, strong) NSDictionary<NSString *, NSDictionary<NSString *, WKIdentityDocumentPresentmentMobileDocumentElementInfo *> *> *namespaces;
 
-- (instancetype)initWithDocumentType:(NSString *)documentType namespaces:(NSDictionary<NSString *, NSDictionary<NSString *, WKIdentityDocumentPresentmentMobileDocumentElementInfo *> *> *)namespaces NS_DESIGNATED_INITIALIZER;
+@property (nonatomic, strong, nullable) NSArray<NSData *> *issuerIdentifiers;
+
+- (instancetype)initWithDocumentType:(NSString *)documentType namespaces:(NSDictionary<NSString *, NSDictionary<NSString *, WKIdentityDocumentPresentmentMobileDocumentElementInfo *> *> *)namespaces issuerIdentifiers:(nullable NSArray<NSData *> *)issuerIdentifiers NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;
 
 @end
@@ -82,3 +86,5 @@ NS_ASSUME_NONNULL_BEGIN
 @end
 
 NS_ASSUME_NONNULL_END
+
+#endif // ENABLE(WEB_AUTHN)

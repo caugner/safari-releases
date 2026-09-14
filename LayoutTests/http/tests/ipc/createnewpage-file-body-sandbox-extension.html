@@ -40,7 +40,7 @@ if (!window.IPC) {
                         m_wasSchemeOptimisticallyUpgraded: false, m_targetAddressSpace: 0,
                     }
                 },
-                cachePartition: '', hiddenFromInspector: false,
+                shouldBlockThirdPartyStorage: false, hiddenFromInspector: false,
             };
         }
         function makeOrigin() {
@@ -53,7 +53,7 @@ if (!window.IPC) {
             return {
                 isMainFrame: true, frameType: 0, request: makeRequest(url),
                 securityOrigin: makeOrigin(), topOrigin: makeOrigin(), frameName: '', frameID: frameID,
-                webPageProxyID: { optionalValue: IPC.webPageProxyID },
+                webPageProxyID: NULLOPT,
                 parentFrameID: NULLOPT, documentID: NULLOPT,
                 certificateInfo: { trust: NULLOPT },
                 processID: { alias: 0 }, isFocused: false, errorOccurred: false,

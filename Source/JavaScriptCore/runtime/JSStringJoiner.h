@@ -147,13 +147,13 @@ ALWAYS_INLINE bool JSStringJoiner::appendWithoutSideEffects(JSGlobalObject* glob
     if (value.isCell()) {
         // FIXME: Support JSBigInt in side-effect-free append.
         // https://bugs.webkit.org/show_bug.cgi?id=211173
-        if (JSString* jsString = jsDynamicCast<JSString*>(value)) {
+        if (JSString* jsString = dynamicDowncast<JSString>(value)) {
             auto view = jsString->view(globalObject);
             RETURN_IF_EXCEPTION(scope, false);
             // Since getting the view didn't OOM, we know that the underlying String exists and isn't
             // a rope. Thus, `tryGetValue` on the owner JSString will succeed. Since jsString could be
             // a substring we make sure to get the owner's String not jsString's.
-            append(jsString, StringViewWithUnderlyingString(view, jsCast<const JSString*>(view.owner)->tryGetValue()));
+            append(jsString, StringViewWithUnderlyingString(view, uncheckedDowncast<JSString>(view.owner)->tryGetValue()));
             return true;
         }
         return false;
@@ -203,7 +203,7 @@ ALWAYS_INLINE bool JSStringJoiner::append(JSGlobalObject* globalObject, JSValue 
         auto view = jsString->view(globalObject);
         RETURN_IF_EXCEPTION(scope, false);
         scope.release();
-        append(jsString, StringViewWithUnderlyingString(view, jsCast<const JSString*>(view.owner)->tryGetValue()));
+        append(jsString, StringViewWithUnderlyingString(view, uncheckedDowncast<JSString>(view.owner)->tryGetValue()));
         return false;
     }
     return true;
@@ -216,8 +216,8 @@ ALWAYS_INLINE void JSStringJoiner::appendNumber(VM& vm, int32_t value)
 
 ALWAYS_INLINE void JSStringJoiner::appendNumber(VM& vm, double value)
 {
-    if (canBeStrictInt32(value))
-        appendNumber(vm, static_cast<int32_t>(value));
+    if (auto int32Value = tryConvertToStrictInt32(value))
+        appendNumber(vm, int32Value.value());
     else
         append8Bit(vm.numericStrings.add(value));
 }

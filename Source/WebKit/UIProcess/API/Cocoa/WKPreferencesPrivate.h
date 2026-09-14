@@ -61,6 +61,12 @@ typedef NS_ENUM(NSInteger, _WKPitchCorrectionAlgorithm) {
     _WKPitchCorrectionAlgorithmBestForSpeech,
 } WK_API_AVAILABLE(macos(12.0), ios(15.0));
 
+typedef NS_ENUM(NSInteger, _WKNavigatorWebDriverActivePolicy) {
+    _WKNavigatorWebDriverActivePolicyAuto,
+    _WKNavigatorWebDriverActivePolicyEnabled,
+    _WKNavigatorWebDriverActivePolicyDisabled,
+} WK_API_AVAILABLE(macos(27.0), ios(27.0));
+
 @class _WKFeature;
 @class _WKExperimentalFeature;
 @class _WKInternalDebugFeature;
@@ -86,6 +92,8 @@ typedef NS_ENUM(NSInteger, _WKPitchCorrectionAlgorithm) {
 @property (nonatomic, setter=_setNeedsInAppBrowserPrivacyQuirks:) BOOL _needsInAppBrowserPrivacyQuirks WK_API_AVAILABLE(macos(11.0), ios(14.0));
 @property (nonatomic, setter=_setAnimatedImageAsyncDecodingEnabled:) BOOL _animatedImageAsyncDecodingEnabled WK_API_AVAILABLE(macos(10.12.4), ios(10.3));
 @property (nonatomic, setter=_setTextAutosizingEnabled:) BOOL _textAutosizingEnabled WK_API_AVAILABLE(macos(10.12), ios(10.0));
+
+@property (nonatomic, setter=_setUseUIProcessForBackForwardItemLoading:) BOOL _useUIProcessForBackForwardItemLoading WK_API_AVAILABLE(macos(27.0), ios(27.0));
 
 @property (nonatomic, setter=_setDeveloperExtrasEnabled:) BOOL _developerExtrasEnabled WK_API_AVAILABLE(macos(10.11), ios(9.0));
 
@@ -176,6 +184,7 @@ typedef NS_ENUM(NSInteger, _WKPitchCorrectionAlgorithm) {
 @property (nonatomic, setter=_setPrivateClickMeasurementDebugModeEnabled:) BOOL _privateClickMeasurementDebugModeEnabled WK_API_AVAILABLE(macos(14.0), ios(17.0));
 @property (nonatomic, setter=_setPitchCorrectionAlgorithm:) _WKPitchCorrectionAlgorithm _pitchCorrectionAlgorithm WK_API_AVAILABLE(macos(12.0), ios(15.0));
 @property (nonatomic, setter=_setMediaSessionEnabled:) BOOL _mediaSessionEnabled WK_API_AVAILABLE(macos(12.0), ios(15.0));
+@property (nonatomic, setter=_setNavigatorWebDriverActivePolicy:) _WKNavigatorWebDriverActivePolicy _navigatorWebDriverActivePolicy WK_API_AVAILABLE(macos(27.0), ios(27.0));
 @property (nonatomic, getter=_isExtensibleSSOEnabled, setter=_setExtensibleSSOEnabled:) BOOL _extensibleSSOEnabled WK_API_AVAILABLE(macos(12.0), ios(15.0));
 @property (nonatomic, setter=_setRequiresPageVisibilityToPlayAudio:) BOOL _requiresPageVisibilityToPlayAudio WK_API_AVAILABLE(macos(12.0), ios(15.0));
 @property (nonatomic, setter=_setFileSystemAccessEnabled:) BOOL _fileSystemAccessEnabled WK_API_AVAILABLE(macos(13.0), ios(16.0));
@@ -205,6 +214,7 @@ typedef NS_ENUM(NSInteger, _WKPitchCorrectionAlgorithm) {
 @property (nonatomic, setter=_setUpdateSceneGeometryEnabled:) BOOL _updateSceneGeometryEnabled WK_API_AVAILABLE(visionos(26.4));
 @property (nonatomic, setter=_setRequiresPageVisibilityForVideoToBeNowPlayingForTesting:) BOOL _requiresPageVisibilityForVideoToBeNowPlayingForTesting WK_API_AVAILABLE(macos(15.4), ios(18.4), visionos(2.4));
 @property (nonatomic, setter=_setSiteIsolationEnabled:) BOOL _siteIsolationEnabled WK_API_AVAILABLE(macos(26.0), ios(26.0), visionos(26.0));
+@property (nonatomic, setter=_setUsesPageCache:) BOOL _usesPageCache WK_API_AVAILABLE(macos(10.13.4), ios(27.0), visionos(27.0));
 
 #if !TARGET_OS_IPHONE
 @property (nonatomic, setter=_setWebGLEnabled:) BOOL _webGLEnabled WK_API_AVAILABLE(macos(10.13.4));
@@ -214,7 +224,6 @@ typedef NS_ENUM(NSInteger, _WKPitchCorrectionAlgorithm) {
 @property (nonatomic, setter=_setDOMTimersThrottlingEnabled:) BOOL _domTimersThrottlingEnabled WK_API_AVAILABLE(macos(10.13.4));
 @property (nonatomic, setter=_setWebArchiveDebugModeEnabled:) BOOL _webArchiveDebugModeEnabled WK_API_AVAILABLE(macos(10.13.4));
 @property (nonatomic, setter=_setLocalFileContentSniffingEnabled:) BOOL _localFileContentSniffingEnabled WK_API_AVAILABLE(macos(10.13.4));
-@property (nonatomic, setter=_setUsesPageCache:) BOOL _usesPageCache WK_API_AVAILABLE(macos(10.13.4));
 @property (nonatomic, setter=_setShouldPrintBackgrounds:) BOOL _shouldPrintBackgrounds WK_API_AVAILABLE(macos(10.13.4));
 @property (nonatomic, setter=_setWebSecurityEnabled:) BOOL _webSecurityEnabled WK_API_AVAILABLE(macos(10.13.4));
 @property (nonatomic, setter=_setUniversalAccessFromFileURLsAllowed:) BOOL _universalAccessFromFileURLsAllowed WK_API_AVAILABLE(macos(10.13.4));
@@ -244,6 +253,16 @@ typedef NS_ENUM(NSInteger, _WKPitchCorrectionAlgorithm) {
 #endif
 
 @end
+
+#if TARGET_OS_IPHONE
+
+@interface WKPreferences ()
+
+@property (nonatomic) BOOL tabFocusesLinks WK_API_AVAILABLE(ios(26.0), visionos(26.0));
+
+@end
+
+#endif // TARGET_OS_IPHONE
 
 @interface WKPreferences (WKPrivateDeprecated)
 

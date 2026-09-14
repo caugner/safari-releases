@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <WebCore/CrossOriginEmbedderPolicyValue.h>
 #include <wtf/text/WTFString.h>
 
 namespace WTF {
@@ -53,12 +54,6 @@ class SecurityOriginData;
 
 enum class FetchOptionsDestination : uint8_t;
 
-// https://html.spec.whatwg.org/multipage/origin.html#embedder-policy-value
-enum class CrossOriginEmbedderPolicyValue : bool {
-    UnsafeNone,
-    RequireCORP
-};
-
 // https://html.spec.whatwg.org/multipage/origin.html#embedder-policy
 struct CrossOriginEmbedderPolicy {
     CrossOriginEmbedderPolicyValue value { CrossOriginEmbedderPolicyValue::UnsafeNone };
@@ -67,7 +62,7 @@ struct CrossOriginEmbedderPolicy {
     String reportOnlyReportingEndpoint;
 
     CrossOriginEmbedderPolicy isolatedCopy() const &;
-    CrossOriginEmbedderPolicy isolatedCopy() &&;
+    WEBCORE_EXPORT CrossOriginEmbedderPolicy isolatedCopy() &&;
     void encode(WTF::Persistence::Encoder&) const;
     static std::optional<CrossOriginEmbedderPolicy> decode(WTF::Persistence::Decoder &);
 

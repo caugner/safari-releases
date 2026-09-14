@@ -36,6 +36,9 @@
 
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
 
+// FIXME: Modularize WebRTC
+IGNORE_CLANG_WARNINGS_BEGIN("non-modular-include-in-module")
+
 // See Bug 274508: Disable thread-safety-reference-return warnings in libwebrtc
 IGNORE_CLANG_WARNINGS_BEGIN("thread-safety-reference-return")
 IGNORE_CLANG_WARNINGS_BEGIN("nullability-completeness")
@@ -45,6 +48,8 @@ IGNORE_CLANG_WARNINGS_END
 #include <webrtc/api/scoped_refptr.h>
 #include <webrtc/api/video_codecs/video_decoder_factory.h>
 #include <webrtc/api/video_codecs/video_encoder_factory.h>
+
+IGNORE_CLANG_WARNINGS_END
 
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
 
@@ -104,10 +109,12 @@ public:
     WEBCORE_EXPORT virtual void setVP9HardwareSupportForTesting(std::optional<bool> value) { m_supportsVP9VTBForTesting = value; }
     virtual bool isSupportingVP9HardwareDecoder() const { return m_supportsVP9VTBForTesting.value_or(false); }
 
-    WEBCORE_EXPORT void disableEnumeratingAllNetworkInterfaces();
-    WEBCORE_EXPORT void enableEnumeratingAllNetworkInterfaces();
-    bool isEnumeratingAllNetworkInterfacesEnabled() const;
-    WEBCORE_EXPORT void enableEnumeratingVisibleNetworkInterfaces();
+    virtual bool isSupportingAV1HardwareDecoder() const { return false; }
+
+    WEBCORE_EXPORT void NODELETE disableEnumeratingAllNetworkInterfaces();
+    WEBCORE_EXPORT void NODELETE enableEnumeratingAllNetworkInterfaces();
+    bool NODELETE isEnumeratingAllNetworkInterfacesEnabled() const;
+    WEBCORE_EXPORT void NODELETE enableEnumeratingVisibleNetworkInterfaces();
     bool isEnumeratingVisibleNetworkInterfacesEnabled() const { return m_enableEnumeratingVisibleNetworkInterfaces; }
 
     class SuspendableSocketFactory : public webrtc::PacketSocketFactory {
@@ -116,8 +123,9 @@ public:
         virtual void suspend() { };
         virtual void resume() { };
         virtual void disableRelay() { };
+        virtual bool shouldEnableServiceClass() { return true; }
     };
-    virtual std::unique_ptr<SuspendableSocketFactory> createSocketFactory(String&& /* userAgent */, ScriptExecutionContextIdentifier, bool /* isFirstParty */, RegistrableDomain&&);
+    virtual std::unique_ptr<SuspendableSocketFactory> createSocketFactory(String&& /* userAgent */, ScriptExecutionContextIdentifier, bool /* isFirstParty */, RegistrableDomain&&, bool /* enableServiceClass */);
 
     virtual void clearCodecsConnectionForTesting() { }
 
@@ -149,8 +157,8 @@ private:
 
     virtual void willCreatePeerConnectionFactory();
 
-    std::optional<MediaCapabilitiesDecodingInfo> videoDecodingCapabilitiesOverride(const VideoConfiguration&) final;
-    std::optional<MediaCapabilitiesEncodingInfo> videoEncodingCapabilitiesOverride(const VideoConfiguration&) final;
+    std::optional<PlatformMediaCapabilitiesDecodingInfo> videoDecodingCapabilitiesOverride(const PlatformMediaCapabilitiesVideoConfiguration&) final;
+    std::optional<PlatformMediaCapabilitiesEncodingInfo> videoEncodingCapabilitiesOverride(const PlatformMediaCapabilitiesVideoConfiguration&) final;
 
     bool m_useL4S { false };
     std::optional<bool> m_supportsVP9VTBForTesting { false };

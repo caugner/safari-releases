@@ -28,15 +28,22 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import logging
 import os
+import re
 import uuid
 
+from webkitpy.common.memoized import memoized
+from webkitpy.layout_tests.models.test_configuration import TestConfiguration
 from webkitpy.port.base import Port
 from webkitpy.port.leakdetector_valgrind import LeakDetectorValgrind
-from webkitpy.port.linux_get_crash_log import GDBCrashLogGenerator
+
+_log = logging.getLogger(__name__)
 
 
 class GLibPort(Port):
+
+    ARCHITECTURES = ['x86_64', 'arm64']
 
     def __init__(self, *args, **kwargs):
         super(GLibPort, self).__init__(*args, **kwargs)
@@ -63,6 +70,19 @@ class GLibPort(Port):
         if self.get_option('configuration') == 'Debug':
             multiplier *= 2
         return multiplier * default_timeout
+
+    def architecture(self):
+        result = self.get_option('architecture') or self.host.platform.architecture()
+        if result == 'aarch64':
+            return 'arm64'
+        return result
+
+    def _generate_all_test_configurations(self):
+        configurations = []
+        for build_type in self.ALL_BUILD_TYPES:
+            for architecture in self.ARCHITECTURES:
+                configurations.append(TestConfiguration(version=self.version_name(), architecture=architecture, build_type=build_type))
+        return configurations
 
     @classmethod
     def determine_full_port_name(cls, host, options, port_name):
@@ -133,11 +153,12 @@ class GLibPort(Port):
         # actual sound card.
         environment['WEBKIT_GST_MAX_NUMBER_OF_AUDIO_OUTPUT_CHANNELS'] = '2'
 
-        # Disable SIMD optimization in GStreamer's ORC. Some bots (WPE release) crash in ORC's optimizations.
-        environment['ORC_CODE'] = 'backup'
+        # LibRice logging, example: RICE_LOG=trace. If unspecified, silence all errors because they might appear in tests output.
+        if 'RICE_LOG' not in os.environ.keys():
+            environment['RICE_LOG'] = 'none'
 
-        # Workaround for bots not using latest SDK version.
-        environment['RICE_LOG'] = 'none'
+        # For GDB debuginfod support.
+        self._copy_values_from_environ_with_prefix(environment, 'DEBUGINFOD_')
 
         if self.get_option("leaks"):
             # Turn off GLib memory optimisations https://wiki.gnome.org/Valgrind.
@@ -166,7 +187,7 @@ class GLibPort(Port):
                 "--suppressions=%s" % (xmlfile, suppressionsfile)
 
         # WTF_DateMath.calculateLocalTimeOffset test only pass in Pacific Time Zone
-        environment['TZ'] = 'PST8PDT'
+        environment['TZ'] = 'America/Los_Angeles'
 
         return environment
 
@@ -195,6 +216,9 @@ class GLibPort(Port):
         return env, pass_fds
 
     def _get_crash_log(self, name, pid, stdout, stderr, newer_than, target_host=None):
+        # linux_get_crash_log requires POSIX-only modules (fcntl, resource)
+        # importing it at module load breaks port-factory enumeration on Windows.
+        from webkitpy.port.linux_get_crash_log import GDBCrashLogGenerator
         return GDBCrashLogGenerator(self._executive, name, pid, newer_than,
                                     self._filesystem, self._path_to_driver, self.port_name, self.get_option('configuration')).generate_crash_log(stdout, stderr)
 
@@ -218,6 +242,26 @@ class GLibPort(Port):
 
     def environment_for_api_tests(self):
         environment = super(GLibPort, self).environment_for_api_tests()
-        environment['TEST_WEBKIT_API_WEBKIT2_RESOURCES_PATH'] = self.path_from_webkit_base('Tools', 'TestWebKitAPI', 'Tests', 'WebKit')
+        environment['TEST_WEBKIT_API_WEBKIT2_RESOURCES_PATH'] = self.path_from_webkit_base('Tools', 'TestWebKitAPI', 'Resources')
         environment['TEST_WEBKIT_API_WEBKIT2_INJECTED_BUNDLE_PATH'] = self._build_path('lib')
         return environment
+
+    @memoized
+    def _webkit_version(self):
+        options_filename = 'Options{}.cmake'.format(self.port_name.upper())
+        options_file = self.path_from_webkit_base('Source', 'cmake', options_filename)
+        try:
+            contents = self._filesystem.read_text_file(options_file)
+            match = re.search(r'SET_PROJECT_VERSION\((\d+)\s+(\d+)\s+(\d+)\)', contents)
+            if match:
+                return '{}.{}'.format(match.group(1), match.group(2))
+        except IOError:
+            _log.warning('Could not read %s to determine WebKit version' % options_file)
+        return None
+
+    def configuration_for_upload(self, host=None):
+        configuration = super(GLibPort, self).configuration_for_upload(host=host)
+        webkit_version = self._webkit_version()
+        if webkit_version:
+            configuration['version'] = webkit_version
+        return configuration

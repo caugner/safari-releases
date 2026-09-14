@@ -71,7 +71,7 @@ public:
     GStreamerQuirk() = default;
     virtual ~GStreamerQuirk() = default;
 
-    virtual bool isPlatformSupported() const { return true; }
+    virtual bool isPlatformSupported() const = 0;
     virtual GstElement* createAudioSink() { return nullptr; }
     virtual GstElement* createWebAudioSink() { return nullptr; }
     virtual void configureElement(GstElement*, const OptionSet<ElementRuntimeCharacteristics>&) { }
@@ -105,6 +105,12 @@ public:
         GST_BUFFER_FLAG_SET(buffer, GST_BUFFER_FLAG_DROPPABLE);
         return false;
     }
+
+    [[nodiscard]] virtual GRefPtr<GstCaps> videoSinkGLCapsFormat() const { return nullptr; }
+    virtual bool isVideoCapsGLCompatible(const GRefPtr<GstCaps>&) const { return true; }
+
+    virtual std::optional<GstState> eosMediaPlayerState() const { return { }; }
+
 };
 
 class GStreamerHolePunchQuirk : public GStreamerQuirkBase {
@@ -138,6 +144,11 @@ public:
     std::optional<bool> isHardwareAccelerated(GstElementFactory*) const;
     GstElementFactoryListType audioVideoDecoderFactoryListType() const;
     Vector<String> disallowedWebAudioDecoders() const;
+
+    [[nodiscard]] GRefPtr<GstCaps> videoSinkGLCapsFormat() const;
+    bool isVideoCapsGLCompatible(const GRefPtr<GstCaps>&) const;
+
+    GstState eosMediaPlayerState() const;
 
     bool supportsVideoHolePunchRendering() const;
     GstElement* createHolePunchVideoSink(bool isLegacyPlaybin, const MediaPlayer*);

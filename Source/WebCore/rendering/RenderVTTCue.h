@@ -42,7 +42,7 @@ class RenderVTTCue final : public RenderBlockFlow {
     WTF_MAKE_TZONE_ALLOCATED(RenderVTTCue);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderVTTCue);
 public:
-    RenderVTTCue(VTTCueBox&, RenderStyle&&);
+    RenderVTTCue(VTTCueBox&, Style::ComputedStyle&&);
     virtual ~RenderVTTCue();
 
 private:
@@ -55,13 +55,13 @@ private:
     RenderVTTCue* overlappingObjectForRect(const IntRect&) const;
     bool shouldSwitchDirection(const InlineIterator::InlineBox&, LayoutUnit) const;
 
-    void moveBoxesByStep(LayoutUnit);
-    bool switchDirection(bool&, LayoutUnit&);
+    void NODELETE moveBoxesByStep(LayoutUnit);
+    bool NODELETE switchDirection(bool&, LayoutUnit&);
     void moveIfNecessaryToKeepWithinContainer();
     bool findNonOverlappingPosition(int& x, int& y) const;
 
     bool initializeLayoutParameters(LayoutUnit&, LayoutUnit&);
-    void placeBoxInDefaultPosition(LayoutUnit, bool&);
+    void NODELETE placeBoxInDefaultPosition(LayoutUnit, bool&);
     void repositionCueSnapToLinesSet();
     void repositionCueSnapToLinesNotSet();
     void repositionGenericCue();

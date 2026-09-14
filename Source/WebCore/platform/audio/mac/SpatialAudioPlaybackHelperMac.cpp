@@ -28,13 +28,15 @@
 
 #if PLATFORM(MAC)
 
-#include "MediaConfiguration.h"
+#include "PlatformMediaConfiguration.h"
 #include <pal/spi/cocoa/AudioToolboxSPI.h>
 #include <span>
 
+#include <pal/cf/AudioToolboxSoftLink.h>
+
 namespace WebCore {
 
-bool SpatialAudioPlaybackHelper::supportsSpatialAudioPlaybackForConfiguration(const MediaConfiguration& configuration)
+bool SpatialAudioPlaybackHelper::supportsSpatialAudioPlaybackForConfiguration(const PlatformMediaConfiguration& configuration)
 {
     ASSERT(configuration.audio);
     if (!configuration.audio)

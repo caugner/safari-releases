@@ -26,7 +26,6 @@
 #pragma once
 
 #include <JavaScriptCore/Strong.h>
-#include <JavaScriptCore/StrongInlines.h>
 
 namespace JSC {
 class RegExp;
@@ -47,12 +46,12 @@ struct URLPatternStringOptions;
 class URLPatternComponent {
 public:
     static ExceptionOr<URLPatternComponent> compile(Ref<JSC::VM>, StringView, EncodingCallbackType, const URLPatternStringOptions&);
-    const String& patternString() const { return m_patternString; }
+    const String& patternString() const LIFETIME_BOUND { return m_patternString; }
     bool hasRegexGroupsFromPartList() const { return m_hasRegexGroupsFromPartList; }
     bool matchSpecialSchemeProtocol(ScriptExecutionContext&) const;
     JSC::JSValue componentExec(ScriptExecutionContext&, StringView) const;
     URLPatternComponentResult createComponentMatchResult(JSC::JSGlobalObject*, String&& input, const JSC::JSValue& execResult) const;
-    URLPatternComponent() = default;
+    URLPatternComponent();
 
 private:
     URLPatternComponent(String&&, JSC::Strong<JSC::RegExp>&&, Vector<String>&&, bool);

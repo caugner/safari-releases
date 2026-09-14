@@ -68,6 +68,16 @@ ScrollingTreeScrollingNodeDelegateMac& ScrollingTreeFrameScrollingNodeMac::deleg
     return *static_cast<ScrollingTreeScrollingNodeDelegateMac*>(m_delegate.get());
 }
 
+void ScrollingTreeFrameScrollingNodeMac::startRubberBandSnapBack()
+{
+    delegate().startRubberBandSnapBack();
+}
+
+void ScrollingTreeFrameScrollingNodeMac::rubberBandTargetOffsetDidChange()
+{
+    delegate().rubberBandTargetOffsetDidChange();
+}
+
 void ScrollingTreeFrameScrollingNodeMac::willBeDestroyed()
 {
     delegate().nodeWillBeDestroyed();
@@ -136,6 +146,14 @@ WheelEventHandlingResult ScrollingTreeFrameScrollingNodeMac::handleWheelEvent(co
     if (!canHandleWheelEvent(wheelEvent, eventTargeting))
         return WheelEventHandlingResult::unhandled();
 
+#if HAVE(RUBBER_BANDING)
+    // FIXME: <https://webkit.org/b/310912> Stale momentum events from scroll gestures continue
+    // to dispatch across page reloads. Until this problem is solved, absorb wheel events during
+    // rubberband restoration to prevent interference.
+    if (restoredRubberbandingInProgress())
+        return WheelEventHandlingResult::handled();
+#endif
+
     bool handled = delegate().handleWheelEvent(wheelEvent);
     delegate().updateSnapScrollState();
     return WheelEventHandlingResult::result(handled);
@@ -198,7 +216,7 @@ void ScrollingTreeFrameScrollingNodeMac::repositionRelatedLayers()
 
     auto obscuredContentInsets = this->obscuredContentInsets();
     if (m_insetClipLayer && m_rootContentsLayer) {
-        auto insetClipLayerRect = LocalFrameView::insetClipLayerRect(scrollPosition, obscuredContentInsets, sizeForVisibleContent());
+        auto insetClipLayerRect = LocalFrameView::insetClipLayerRect(scrollPosition, totalContentsSize(), obscuredContentInsets, sizeForVisibleContent());
         [m_insetClipLayer setPosition:[&] {
             auto position = insetClipLayerRect.location();
             if (!obscuredContentInsets.left())

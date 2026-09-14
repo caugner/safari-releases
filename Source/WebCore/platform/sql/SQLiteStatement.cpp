@@ -193,10 +193,6 @@ bool SQLiteStatement::isColumnDeclaredAsBlob(int col)
 String SQLiteStatement::columnName(int col)
 {
     ASSERT(col >= 0);
-    if (!hasStartedStepping() && step() != SQLITE_ROW)
-        return String();
-    if (columnCount() <= col)
-        return String();
     return sqliteColumnName(m_statement, col);
 }
 
@@ -289,7 +285,7 @@ Vector<uint8_t> SQLiteStatement::columnBlob(int col)
     return { columnBlobAsSpan(col) };
 }
 
-std::span<const uint8_t> SQLiteStatement::columnBlobAsSpan(int col)
+std::span<const uint8_t> SQLiteStatement::columnBlobAsSpan(int col) LIFETIME_BOUND
 {
     ASSERT(col >= 0);
 

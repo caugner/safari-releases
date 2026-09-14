@@ -30,6 +30,7 @@
 
 #include "AudioSampleBufferConverter.h"
 #include "AudioSampleFormat.h"
+#include "AudioUtilitiesCocoa.h"
 #include "CAAudioStreamDescription.h"
 #include "Logging.h"
 #include "MediaSampleAVFObjC.h"
@@ -83,7 +84,6 @@ private:
     InternalAudioDecoderCocoa(AudioDecoder::OutputCallback&&);
 
     static WorkQueue& queueSingleton() { return AudioDecoderCocoa::queueSingleton(); }
-    static void decompressedAudioOutputBufferCallback(void*, CMBufferQueueTriggerToken);
     Ref<AudioSampleBufferConverter> converter() const
     {
         assertIsCurrent(queueSingleton());
@@ -172,16 +172,16 @@ Expected<std::pair<FourCharCode, std::optional<AudioStreamDescription::PCMFormat
     auto components = codecName.toString().split('-');
     if (components.size() != 2)
         return makeUnexpected(makeString("Invalid LPCM codec string:"_s, codecName));
-    auto pcmFormat = components[1].convertToASCIILowercase();
-    if (pcmFormat == "u8"_s)
+    auto& pcmFormat = components[1];
+    if (equalLettersIgnoringASCIICase(pcmFormat, "u8"_s))
         format = AudioStreamDescription::Uint8;
-    else if (pcmFormat == "s16"_s)
+    else if (equalLettersIgnoringASCIICase(pcmFormat, "s16"_s))
         format = AudioStreamDescription::Int16;
-    else if (pcmFormat == "s24"_s)
+    else if (equalLettersIgnoringASCIICase(pcmFormat, "s24"_s))
         format = AudioStreamDescription::Int24;
-    else if (pcmFormat == "s32"_s)
+    else if (equalLettersIgnoringASCIICase(pcmFormat, "s32"_s))
         format = AudioStreamDescription::Int32;
-    else if (pcmFormat == "f32"_s)
+    else if (equalLettersIgnoringASCIICase(pcmFormat, "f32"_s))
         format = AudioStreamDescription::Float32;
     else
         return makeUnexpected(makeString("Invalid LPCM codec format:"_s, pcmFormat));
@@ -217,17 +217,6 @@ void AudioDecoderCocoa::close()
     });
 }
 
-void InternalAudioDecoderCocoa::decompressedAudioOutputBufferCallback(void* object, CMBufferQueueTriggerToken)
-{
-    // We can only be called from the CoreMedia callback if we are still alive.
-    RefPtr decoder = static_cast<class InternalAudioDecoderCocoa*>(object);
-
-    queueSingleton().dispatch([weakDecoder = ThreadSafeWeakPtr { *decoder }] {
-        if (RefPtr protectedDecoder = weakDecoder.get())
-            protectedDecoder->processedDecodedOutputs();
-    });
-}
-
 void InternalAudioDecoderCocoa::processedDecodedOutputs()
 {
     assertIsCurrent(queueSingleton());
@@ -253,6 +242,7 @@ String InternalAudioDecoderCocoa::initialize(const String& codecName, const Audi
     if (!result)
         return result.error();
 
+    std::span<const uint8_t> description = config.description.span();
     unsigned preSkip = 0;
     auto [codec, format] = *result;
     if (!format) {
@@ -271,25 +261,35 @@ String InternalAudioDecoderCocoa::initialize(const String& codecName, const Audi
         asbd.mFormatID = codec;
         // Attempt to create description with provided cookie.
         bool succeeded = false;
-        if (config.description.size()) {
+        Vector<uint8_t> codecDescription;
+        if (description.size()) {
+            // For MPEG-4 audio codecs, we need to wrap the AudioSpecificConfig in an ES_Descriptor
+            // for CoreMedia tools to properly handle it
+            if (mIsAAC) {
+                codecDescription = createESDescriptor(description);
+                description = codecDescription.span();
+            }
+
             UInt32 size = sizeof(asbd);
-            succeeded = PAL::AudioFormatGetProperty(kAudioFormatProperty_FormatInfo, config.description.size(), config.description.span().data(), &size, &asbd) == noErr;
+            succeeded = PAL::AudioFormatGetProperty(kAudioFormatProperty_FormatInfo, description.size(), description.data(), &size, &asbd) == noErr;
             if (codec == kAudioFormatOpus) {
                 if (auto cookie = parseOpusPrivateData(config.description, { }))
                     preSkip = cookie->preSkip;
             }
         }
-        if (!succeeded) {
+        if (!succeeded || !asbd.mSampleRate || !asbd.mChannelsPerFrame) {
             asbd.mSampleRate = double(config.sampleRate);
             asbd.mChannelsPerFrame = uint32_t(config.numberOfChannels);
         } else
-            m_codecDescription = config.description;
+            m_codecDescription = description;
 
         m_inputDescription = asbd;
     } else
         m_inputDescription = CAAudioStreamDescription { double(config.sampleRate), uint32_t(config.numberOfChannels), *format, CAAudioStreamDescription::IsInterleaved::Yes };
 
     lazyInitialize(m_inputFormatDescription, createAudioFormatDescription(*m_inputDescription, m_codecDescription.span()));
+    if (!m_inputFormatDescription)
+        return description.empty() ? "Invalid configuration"_s : "Invalid AudioDecoderConfig's description (extradata)"_s;
 
     // FIXME: we choose to create interleaved AudioData as tests incorrectly requires it (planar is more compatible with WebAudio)
     // https://github.com/w3c/webcodecs/issues/859
@@ -302,7 +302,12 @@ String InternalAudioDecoderCocoa::initialize(const String& codecName, const Audi
         .preSkip = preSkip
     };
 
-    m_converter = AudioSampleBufferConverter::create(decompressedAudioOutputBufferCallback, this, options);
+    m_converter = AudioSampleBufferConverter::create([weakThis = ThreadSafeWeakPtr { *this }] {
+        queueSingleton().dispatch([weakThis] {
+            if (RefPtr protectedThis = weakThis.get())
+                protectedThis->processedDecodedOutputs();
+        });
+    }, options);
     if (!m_converter)
         return "Couldn't create AudioSampleBufferConverter"_s;
 
@@ -385,12 +390,8 @@ void InternalAudioDecoderCocoa::close()
         return;
     m_isClosed = true;
 
-    RefPtr converter = std::exchange(m_converter, { });
-    if (!converter)
-        return;
-    // We keep a reference to ourselves until the converter has been marked as finished. This guarantees that no
-    // callback will occur after we are .
-    converter->finish()->whenSettled(queueSingleton(), [protectedThis = Ref { *this }] { });
+    if (RefPtr converter = std::exchange(m_converter, { }))
+        converter->finish();
 }
 
 } // namespace WebCore

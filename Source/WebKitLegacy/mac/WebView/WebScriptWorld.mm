@@ -25,6 +25,7 @@
 #import "WebScriptWorld.h"
 
 #import "WebScriptWorldInternal.h"
+#import <WebCore/DOMWrapperWorld.h>
 #import <WebCore/JSDOMBinding.h>
 #import <WebCore/ScriptController.h>
 #import <JavaScriptCore/APICast.h>
@@ -41,7 +42,7 @@
 @end
 
 using WorldMap = HashMap<SingleThreadWeakRef<WebCore::DOMWrapperWorld>, WebScriptWorld*>;
-static WorldMap& allWorlds()
+static WorldMap& NODELETE allWorlds()
 {
     static WorldMap& map = *new WorldMap;
     return map;
@@ -86,8 +87,8 @@ static WorldMap& allWorlds()
 
 + (WebScriptWorld *)standardWorld
 {
-    static WebScriptWorld *world = [[WebScriptWorld alloc] initWithWorld:WebCore::mainThreadNormalWorldSingleton()];
-    return world;
+    static NeverDestroyed<RetainPtr<WebScriptWorld>> world = adoptNS([[WebScriptWorld alloc] initWithWorld:WebCore::mainThreadNormalWorldSingleton()]);
+    return world->get();
 }
 
 + (WebScriptWorld *)world

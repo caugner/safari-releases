@@ -31,6 +31,11 @@
 /**
  * WPEToplevelHeadless:
  *
+ * A headless [class@WPEPlatform.Toplevel] implementation.
+ *
+ * [class@ToplevelHeadless] is the [class@WPEPlatform.Toplevel] implementation
+ * used by [class@DisplayHeadless]. It has no native window and only tracks its
+ * state, since there is no compositor or display to manage it.
  */
 struct _WPEToplevelHeadlessPrivate {
 };
@@ -74,17 +79,4 @@ static void wpe_toplevel_headless_class_init(WPEToplevelHeadlessClass* toplevelH
     WPEToplevelClass* toplevelClass = WPE_TOPLEVEL_CLASS(toplevelHeadlessClass);
     toplevelClass->resize = wpeToplevelHeadlessResize;
     toplevelClass->set_fullscreen = wpeToplevelHeadlessSetFullscreen;
-}
-
-/**
- * wpe_toplevel_headless_new:
- * @display: a #WPEDisplayHeadless
- *
- * Create a new #WPEToplevel on @display.
- *
- * Returns: (transfer full): a #WPEToplevel
- */
-WPEToplevel* wpe_toplevel_headless_new(WPEDisplayHeadless* display)
-{
-    return WPE_TOPLEVEL(g_object_new(WPE_TYPE_TOPLEVEL_HEADLESS, "display", display, nullptr));
 }

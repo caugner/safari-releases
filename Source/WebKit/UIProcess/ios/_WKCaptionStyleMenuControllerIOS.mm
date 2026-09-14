@@ -77,7 +77,7 @@ static const UIMenuIdentifier WKCaptionStyleMenuSystemSettingsIdentifier = @"WKC
     if (!(self = [super init]))
         return nil;
 
-    self.savedActiveProfileID = CaptionUserPreferencesMediaAF::platformActiveProfileID().createNSString().autorelease();
+    self.savedActiveProfileID = protect(CaptionUserPreferencesMediaAF::platformActiveProfileID().createNSString().autorelease()).get();
     [self rebuildMenu];
 
     return self;
@@ -101,13 +101,13 @@ static const UIMenuIdentifier WKCaptionStyleMenuSystemSettingsIdentifier = @"WKC
             if (auto strongSelf = weakSelf.get())
                 [strongSelf profileActionSelected:profileID];
         });
-        UIAction *profileAction = [UIAction actionWithTitle:title.createNSString().get() image:nil identifier:profileID.createNSString().get() handler:profileSelectedHandler.get()];
-        profileAction.attributes = UIMenuElementAttributesKeepsMenuPresented;
+        RetainPtr profileAction = [UIAction actionWithTitle:title.createNSString().get() image:nil identifier:profileID.createNSString().get() handler:profileSelectedHandler.get()];
+        profileAction.get().attributes = UIMenuElementAttributesKeepsMenuPresented;
 
-        if ([profileID.createNSString().autorelease() isEqualToString:self.savedActiveProfileID])
-            profileAction.state = UIMenuElementStateOn;
+        if ([protect(profileID.createNSString().autorelease()) isEqualToString:self.savedActiveProfileID])
+            profileAction.get().state = UIMenuElementStateOn;
 
-        [profileElements addObject:profileAction];
+        [profileElements addObject:profileAction.get()];
     }
     auto *profileGroup = [UIMenu menuWithTitle:@"" image:nil identifier:WKCaptionStyleMenuProfileGroupIdentifier options:UIMenuOptionsDisplayInline children:profileElements];
 
@@ -194,15 +194,15 @@ static bool menuHasMenuAncestor(UIMenu *targetMenu, UIMenu *ancestorMenu)
 - (void)profileActionSelected:(const WTF::String&)profileID
 {
     for (UIMenuElement *childMenu in [_menu children]) {
-        auto *childAction = dynamic_objc_cast<UIAction>(childMenu);
+        RetainPtr childAction = dynamic_objc_cast<UIAction>(childMenu);
         if (!childAction)
             continue;
 
-        String childActionIdentifier = childAction.identifier;
-        childAction.state = profileID == childActionIdentifier ? UIMenuElementStateOn : UIMenuElementStateOff;
+        String childActionIdentifier = childAction.get().identifier;
+        childAction.get().state = profileID == childActionIdentifier ? UIMenuElementStateOn : UIMenuElementStateOff;
     }
 
-    self.savedActiveProfileID = profileID.createNSString().autorelease();
+    self.savedActiveProfileID = protect(profileID.createNSString().autorelease()).get();
     CaptionUserPreferencesMediaAF::setActiveProfileID(WTF::String(self.savedActiveProfileID));
 
     // UIMenu does not have the ability to notify clients when a submenu opens or closes.
@@ -214,13 +214,16 @@ static bool menuHasMenuAncestor(UIMenu *targetMenu, UIMenu *ancestorMenu)
 - (void)systemCaptionStyleSettingsActionSelected:(UIAction *)action
 {
     NSURL *settingsURL = [NSURL URLWithString:@"App-prefs:ACCESSIBILITY"];
+    // FIXME: rdar://182141876 ([ Build-Failure ] [ safari-7625-branch iOS27 visionOS27 Debug ] error: 'canOpenURL:' is deprecated: first deprecated in iOS 27.0)
+ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     if ([[UIApplication sharedApplication] canOpenURL:settingsURL])
         [[UIApplication sharedApplication] openURL:settingsURL options:@{ } completionHandler:nil];
+ALLOW_DEPRECATED_DECLARATIONS_END
 }
 
 - (void)notifyMenuWillOpen
 {
-    self.savedActiveProfileID = CaptionUserPreferencesMediaAF::platformActiveProfileID().createNSString().autorelease();
+    self.savedActiveProfileID = protect(CaptionUserPreferencesMediaAF::platformActiveProfileID().createNSString().autorelease()).get();
 
     if (auto delegate = self.delegate)
         [delegate captionStyleMenuWillOpen:self.menu];

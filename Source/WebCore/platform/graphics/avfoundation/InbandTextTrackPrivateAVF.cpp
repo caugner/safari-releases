@@ -78,12 +78,12 @@ static std::optional<SRGBA<uint8_t>> makeSimpleColorFromARGBCFArray(CFArrayRef c
 
     std::array<float, 4> componentArray;
     for (int i = 0; i < 4; ++i) {
-        auto value = dynamic_cf_cast<CFNumberRef>(CFArrayGetValueAtIndex(colorArray, i));
+        RetainPtr value = dynamic_cf_cast<CFNumberRef>(CFArrayGetValueAtIndex(colorArray, i));
         if (!value)
             return std::nullopt;
 
         float component;
-        CFNumberGetValue(value, kCFNumberFloatType, &component);
+        CFNumberGetValue(value.get(), kCFNumberFloatType, &component);
         componentArray[i] = component;
     }
 
@@ -114,36 +114,39 @@ Ref<InbandGenericCue> InbandTextTrackPrivateAVF::processCueAttributes(CFAttribut
     CFRange effectiveRange = CFRangeMake(0, 0);
     while ((effectiveRange.location + effectiveRange.length) < length) {
 
-        CFDictionaryRef attributes = CFAttributedStringGetAttributes(attributedString, effectiveRange.location + effectiveRange.length, &effectiveRange);
+        RetainPtr<CFDictionaryRef> attributes = CFAttributedStringGetAttributes(attributedString, effectiveRange.location + effectiveRange.length, &effectiveRange);
         if (!attributes)
             continue;
 
         StringBuilder tagStart;
         String tagEnd;
-        CFIndex attributeCount = CFDictionaryGetCount(attributes);
+        CFIndex attributeCount = CFDictionaryGetCount(attributes.get());
         Vector<const void*> keys(attributeCount);
         Vector<const void*> values(attributeCount);
-        CFDictionaryGetKeysAndValues(attributes, keys.mutableSpan().data(), values.mutableSpan().data());
+        CFDictionaryGetKeysAndValues(attributes.get(), keys.mutableSpan().data(), values.mutableSpan().data());
 
         for (CFIndex i = 0; i < attributeCount; ++i) {
-            auto key = dynamic_cf_cast<CFStringRef>(keys[i]);
-            CFTypeRef value = values[i];
-            if (!key || !CFStringGetLength(key))
+            RetainPtr key = dynamic_cf_cast<CFStringRef>(keys[i]);
+            RetainPtr<CFTypeRef> value = values[i];
+            if (!key || !CFStringGetLength(key.get()))
                 continue;
 
-            if (CFStringCompare(key, PAL::kCMTextMarkupAttribute_Alignment, 0) == kCFCompareEqualTo) {
-                auto valueString = dynamic_cf_cast<CFStringRef>(value);
-                if (!valueString || !CFStringGetLength(valueString))
+            if (PAL::canLoad_CoreMedia_kCMTextMarkupAttribute_PreventLineWrapping() && (CFStringCompare(key.get(), PAL::kCMTextMarkupAttribute_PreventLineWrapping, 0) == kCFCompareEqualTo))
+                cueData->setPreventLineWrapping(value.get() == kCFBooleanTrue);
+
+            if (CFStringCompare(key.get(), PAL::kCMTextMarkupAttribute_Alignment, 0) == kCFCompareEqualTo) {
+                RetainPtr valueString = dynamic_cf_cast<CFStringRef>(value.get());
+                if (!valueString || !CFStringGetLength(valueString.get()))
                     continue;
                 if (processed & Align)
                     continue;
                 processed |= Align;
 
-                if (CFStringCompare(valueString, PAL::kCMTextMarkupAlignmentType_Start, 0) == kCFCompareEqualTo)
+                if (CFStringCompare(valueString.get(), PAL::kCMTextMarkupAlignmentType_Start, 0) == kCFCompareEqualTo)
                     cueData->setAlign(GenericCueData::Alignment::Start);
-                else if (CFStringCompare(valueString, PAL::kCMTextMarkupAlignmentType_Middle, 0) == kCFCompareEqualTo)
+                else if (CFStringCompare(valueString.get(), PAL::kCMTextMarkupAlignmentType_Middle, 0) == kCFCompareEqualTo)
                     cueData->setAlign(GenericCueData::Alignment::Middle);
-                else if (CFStringCompare(valueString, PAL::kCMTextMarkupAlignmentType_End, 0) == kCFCompareEqualTo)
+                else if (CFStringCompare(valueString.get(), PAL::kCMTextMarkupAlignmentType_End, 0) == kCFCompareEqualTo)
                     cueData->setAlign(GenericCueData::Alignment::End);
                 else
                     ASSERT_NOT_REACHED();
@@ -151,8 +154,8 @@ Ref<InbandGenericCue> InbandTextTrackPrivateAVF::processCueAttributes(CFAttribut
                 continue;
             }
 
-            if (CFStringCompare(key, PAL::kCMTextMarkupAttribute_BoldStyle, 0) == kCFCompareEqualTo) {
-                if (value != kCFBooleanTrue)
+            if (CFStringCompare(key.get(), PAL::kCMTextMarkupAttribute_BoldStyle, 0) == kCFCompareEqualTo) {
+                if (value.get() != kCFBooleanTrue)
                     continue;
 
                 tagStart.append("<b>"_s);
@@ -160,8 +163,8 @@ Ref<InbandGenericCue> InbandTextTrackPrivateAVF::processCueAttributes(CFAttribut
                 continue;
             }
 
-            if (CFStringCompare(key, PAL::kCMTextMarkupAttribute_ItalicStyle, 0) == kCFCompareEqualTo) {
-                if (value != kCFBooleanTrue)
+            if (CFStringCompare(key.get(), PAL::kCMTextMarkupAttribute_ItalicStyle, 0) == kCFCompareEqualTo) {
+                if (value.get() != kCFBooleanTrue)
                     continue;
 
                 tagStart.append("<i>"_s);
@@ -169,8 +172,8 @@ Ref<InbandGenericCue> InbandTextTrackPrivateAVF::processCueAttributes(CFAttribut
                 continue;
             }
 
-            if (CFStringCompare(key, PAL::kCMTextMarkupAttribute_UnderlineStyle, 0) == kCFCompareEqualTo) {
-                if (value != kCFBooleanTrue)
+            if (CFStringCompare(key.get(), PAL::kCMTextMarkupAttribute_UnderlineStyle, 0) == kCFCompareEqualTo) {
+                if (value.get() != kCFBooleanTrue)
                     continue;
 
                 tagStart.append("<u>"_s);
@@ -178,8 +181,8 @@ Ref<InbandGenericCue> InbandTextTrackPrivateAVF::processCueAttributes(CFAttribut
                 continue;
             }
 
-            if (CFStringCompare(key, PAL::kCMTextMarkupAttribute_OrthogonalLinePositionPercentageRelativeToWritingDirection, 0) == kCFCompareEqualTo) {
-                auto valueNumber = dynamic_cf_cast<CFNumberRef>(value);
+            if (CFStringCompare(key.get(), PAL::kCMTextMarkupAttribute_OrthogonalLinePositionPercentageRelativeToWritingDirection, 0) == kCFCompareEqualTo) {
+                RetainPtr valueNumber = dynamic_cf_cast<CFNumberRef>(value.get());
                 if (!valueNumber)
                     continue;
                 if (processed & Line)
@@ -187,13 +190,13 @@ Ref<InbandGenericCue> InbandTextTrackPrivateAVF::processCueAttributes(CFAttribut
                 processed |= Line;
 
                 double line;
-                CFNumberGetValue(valueNumber, kCFNumberFloat64Type, &line);
+                CFNumberGetValue(valueNumber.get(), kCFNumberFloat64Type, &line);
                 cueData->setLine(line);
                 continue;
             }
 
-            if (CFStringCompare(key, PAL::kCMTextMarkupAttribute_TextPositionPercentageRelativeToWritingDirection, 0) == kCFCompareEqualTo) {
-                auto valueNumber = dynamic_cf_cast<CFNumberRef>(value);
+            if (CFStringCompare(key.get(), PAL::kCMTextMarkupAttribute_TextPositionPercentageRelativeToWritingDirection, 0) == kCFCompareEqualTo) {
+                RetainPtr valueNumber = dynamic_cf_cast<CFNumberRef>(value.get());
                 if (!valueNumber)
                     continue;
                 if (processed & Position)
@@ -201,13 +204,13 @@ Ref<InbandGenericCue> InbandTextTrackPrivateAVF::processCueAttributes(CFAttribut
                 processed |= Position;
 
                 double position;
-                CFNumberGetValue(valueNumber, kCFNumberFloat64Type, &position);
+                CFNumberGetValue(valueNumber.get(), kCFNumberFloat64Type, &position);
                 cueData->setPosition(position);
                 continue;
             }
 
-            if (CFStringCompare(key, PAL::kCMTextMarkupAttribute_WritingDirectionSizePercentage, 0) == kCFCompareEqualTo) {
-                auto valueNumber = dynamic_cf_cast<CFNumberRef>(value);
+            if (CFStringCompare(key.get(), PAL::kCMTextMarkupAttribute_WritingDirectionSizePercentage, 0) == kCFCompareEqualTo) {
+                RetainPtr valueNumber = dynamic_cf_cast<CFNumberRef>(value.get());
                 if (!valueNumber)
                     continue;
                 if (processed & Size)
@@ -215,90 +218,80 @@ Ref<InbandGenericCue> InbandTextTrackPrivateAVF::processCueAttributes(CFAttribut
                 processed |= Size;
 
                 double size;
-                CFNumberGetValue(valueNumber, kCFNumberFloat64Type, &size);
+                CFNumberGetValue(valueNumber.get(), kCFNumberFloat64Type, &size);
                 cueData->setSize(size);
                 continue;
             }
 
-            if (CFStringCompare(key, PAL::kCMTextMarkupAttribute_VerticalLayout, 0) == kCFCompareEqualTo) {
-                auto valueString = dynamic_cf_cast<CFStringRef>(value);
-                if (!valueString || !CFStringGetLength(valueString))
+            if (CFStringCompare(key.get(), PAL::kCMTextMarkupAttribute_VerticalLayout, 0) == kCFCompareEqualTo) {
+                RetainPtr valueString = dynamic_cf_cast<CFStringRef>(value.get());
+                if (!valueString || !CFStringGetLength(valueString.get()))
                     continue;
-                
-                if (CFStringCompare(valueString, PAL::kCMTextVerticalLayout_LeftToRight, 0) == kCFCompareEqualTo)
+
+                if (CFStringCompare(valueString.get(), PAL::kCMTextVerticalLayout_LeftToRight, 0) == kCFCompareEqualTo)
                     tagStart.append(leftToRightMark);
-                else if (CFStringCompare(valueString, PAL::kCMTextVerticalLayout_RightToLeft, 0) == kCFCompareEqualTo)
+                else if (CFStringCompare(valueString.get(), PAL::kCMTextVerticalLayout_RightToLeft, 0) == kCFCompareEqualTo)
                     tagStart.append(rightToLeftMark);
                 continue;
             }
 
-            if (CFStringCompare(key, PAL::kCMTextMarkupAttribute_BaseFontSizePercentageRelativeToVideoHeight, 0) == kCFCompareEqualTo) {
-                auto valueNumber = dynamic_cf_cast<CFNumberRef>(value);
+            if (CFStringCompare(key.get(), PAL::kCMTextMarkupAttribute_BaseFontSizePercentageRelativeToVideoHeight, 0) == kCFCompareEqualTo) {
+                RetainPtr valueNumber = dynamic_cf_cast<CFNumberRef>(value.get());
                 if (!valueNumber)
                     continue;
 
                 double baseFontSize;
-                CFNumberGetValue(valueNumber, kCFNumberFloat64Type, &baseFontSize);
+                CFNumberGetValue(valueNumber.get(), kCFNumberFloat64Type, &baseFontSize);
                 cueData->setBaseFontSize(baseFontSize);
                 continue;
             }
 
-            if (CFStringCompare(key, PAL::kCMTextMarkupAttribute_RelativeFontSize, 0) == kCFCompareEqualTo) {
-                auto valueNumber = dynamic_cf_cast<CFNumberRef>(value);
+            if (CFStringCompare(key.get(), PAL::kCMTextMarkupAttribute_RelativeFontSize, 0) == kCFCompareEqualTo) {
+                RetainPtr valueNumber = dynamic_cf_cast<CFNumberRef>(value.get());
                 if (!valueNumber)
                     continue;
 
                 double relativeFontSize;
-                CFNumberGetValue(valueNumber, kCFNumberFloat64Type, &relativeFontSize);
+                CFNumberGetValue(valueNumber.get(), kCFNumberFloat64Type, &relativeFontSize);
                 cueData->setRelativeFontSize(relativeFontSize);
                 continue;
             }
 
-            if (CFStringCompare(key, PAL::kCMTextMarkupAttribute_FontFamilyName, 0) == kCFCompareEqualTo) {
-                auto valueString = dynamic_cf_cast<CFStringRef>(value);
-                if (!valueString || !CFStringGetLength(valueString))
+            if (CFStringCompare(key.get(), PAL::kCMTextMarkupAttribute_FontFamilyName, 0) == kCFCompareEqualTo) {
+                RetainPtr valueString = dynamic_cf_cast<CFStringRef>(value.get());
+                if (!valueString || !CFStringGetLength(valueString.get()))
                     continue;
                 if (processed & FontName)
                     continue;
                 processed |= FontName;
-                
-                cueData->setFontName(valueString);
+
+                cueData->setFontName(valueString.get());
                 continue;
             }
 
-            if (CFStringCompare(key, PAL::kCMTextMarkupAttribute_ForegroundColorARGB, 0) == kCFCompareEqualTo) {
-                auto arrayValue = dynamic_cf_cast<CFArrayRef>(value);
+            auto applyColorAttribute = [&](void (InbandGenericCue::*setter)(const Color&)) {
+                RetainPtr arrayValue = dynamic_cf_cast<CFArrayRef>(value.get());
                 if (!arrayValue)
-                    continue;
+                    return;
 
-                auto color = makeSimpleColorFromARGBCFArray(arrayValue);
+                auto color = makeSimpleColorFromARGBCFArray(arrayValue.get());
                 if (!color)
-                    continue;
-                cueData->setForegroundColor(*color);
+                    return;
+                (cueData.get().*setter)(*color);
+            };
+
+            if (CFStringCompare(key.get(), PAL::kCMTextMarkupAttribute_ForegroundColorARGB, 0) == kCFCompareEqualTo) {
+                applyColorAttribute(&InbandGenericCue::setForegroundColor);
                 continue;
             }
 
-            if (CFStringCompare(key, PAL::kCMTextMarkupAttribute_BackgroundColorARGB, 0) == kCFCompareEqualTo) {
-                auto arrayValue = dynamic_cf_cast<CFArrayRef>(value);
-                if (!arrayValue)
-                    continue;
-
-                auto color = makeSimpleColorFromARGBCFArray(arrayValue);
-                if (!color)
-                    continue;
-                cueData->setBackgroundColor(*color);
+            if (CFStringCompare(key.get(), PAL::kCMTextMarkupAttribute_BackgroundColorARGB, 0) == kCFCompareEqualTo) {
+                applyColorAttribute(&InbandGenericCue::setBackgroundColor);
                 continue;
             }
 
-            if (CFStringCompare(key, PAL::kCMTextMarkupAttribute_CharacterBackgroundColorARGB, 0) == kCFCompareEqualTo) {
-                auto arrayValue = dynamic_cf_cast<CFArrayRef>(value);
-                if (!arrayValue)
-                    continue;
-
-                auto color = makeSimpleColorFromARGBCFArray(arrayValue);
-                if (!color)
-                    continue;
-                cueData->setHighlightColor(*color);
+            if (CFStringCompare(key.get(), PAL::kCMTextMarkupAttribute_CharacterBackgroundColorARGB, 0) == kCFCompareEqualTo) {
+                applyColorAttribute(&InbandGenericCue::setHighlightColor);
                 continue;
             }
         }
@@ -341,8 +334,7 @@ void InbandTextTrackPrivateAVF::processCue(CFArrayRef attributedStrings, CFArray
     if (!hasClients())
         return;
 
-    if (attributedStrings && CFArrayGetCount(attributedStrings))
-        processAttributedStrings(attributedStrings, time);
+    processAttributedStrings(attributedStrings, time);
     if (nativeSamples && CFArrayGetCount(nativeSamples))
         processVTTSamples(nativeSamples, time);
 }
@@ -358,12 +350,12 @@ void InbandTextTrackPrivateAVF::processAttributedStrings(CFArrayRef attributedSt
     Vector<Ref<InbandGenericCue>> arrivingCues;
     if (count) {
         for (CFIndex i = 0; i < count; i++) {
-            CFAttributedStringRef attributedString = static_cast<CFAttributedStringRef>(CFArrayGetValueAtIndex(attributedStrings, i));
+            RetainPtr attributedString = static_cast<CFAttributedStringRef>(CFArrayGetValueAtIndex(attributedStrings, i));
 
-            if (!attributedString || !CFAttributedStringGetLength(attributedString))
+            if (!attributedString || !CFAttributedStringGetLength(attributedString.get()))
                 continue;
 
-            auto cueData = processCueAttributes(attributedString);
+            auto cueData = processCueAttributes(attributedString.get());
             if (!cueData->content().length())
                 continue;
 
@@ -393,7 +385,7 @@ void InbandTextTrackPrivateAVF::processAttributedStrings(CFArrayRef attributedSt
                 bool currentCueIsExtended = (arrivingCues.size() != nonExtensionCues.size());
 
                 arrivingCues = WTF::move(nonExtensionCues);
-                
+
                 if (currentCueIsExtended)
                     continue;
 
@@ -499,15 +491,15 @@ bool InbandTextTrackPrivateAVF::processVTTFileHeader(CMFormatDescriptionRef form
 
     RefPtr<ArrayBuffer> buffer;
 
-    auto extensions = PAL::CMFormatDescriptionGetExtensions(formatDescription);
+    RetainPtr extensions = PAL::CMFormatDescriptionGetExtensions(formatDescription);
     if (!extensions)
         return false;
 
-    auto sampleDescriptionExtensions = static_cast<CFDictionaryRef>(CFDictionaryGetValue(extensions, PAL::kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms));
+    RetainPtr sampleDescriptionExtensions = static_cast<CFDictionaryRef>(CFDictionaryGetValue(extensions.get(), PAL::kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms));
     if (!sampleDescriptionExtensions)
         return false;
 
-    RetainPtr webvttHeaderData = static_cast<CFDataRef>(CFDictionaryGetValue(sampleDescriptionExtensions, CFSTR("vttC")));
+    RetainPtr webvttHeaderData = static_cast<CFDataRef>(CFDictionaryGetValue(sampleDescriptionExtensions.get(), CFSTR("vttC")));
     if (!webvttHeaderData)
         return false;
 
@@ -588,9 +580,9 @@ void InbandTextTrackPrivateAVF::processVTTSamples(CFArrayRef nativeSamples, cons
     ALWAYS_LOG(LOGIDENTIFIER, count, " sample buffers at time ", presentationTime);
 
     for (CFIndex i = 0; i < count; i++) {
-        auto sampleBuffer = reinterpret_cast<CMSampleBufferRef>(const_cast<void*>(CFArrayGetValueAtIndex(nativeSamples, i)));
+        RetainPtr sampleBuffer = reinterpret_cast<CMSampleBufferRef>(const_cast<void*>(CFArrayGetValueAtIndex(nativeSamples, i)));
         if (sampleBuffer)
-            processVTTSample(sampleBuffer, presentationTime);
+            processVTTSample(sampleBuffer.get(), presentationTime);
     }
 }
 
@@ -599,15 +591,15 @@ bool InbandTextTrackPrivateAVF::readVTTSampleBuffer(CMSampleBufferRef sampleBuff
 #if OS(WINDOWS) && HAVE(AVCFPLAYERITEM_CALLBACK_VERSION_2)
     return false;
 #else
-    auto blockBuffer = PAL::CMSampleBufferGetDataBuffer(sampleBuffer);
-    auto bufferLength = PAL::CMBlockBufferGetDataLength(blockBuffer);
+    RetainPtr blockBuffer = PAL::CMSampleBufferGetDataBuffer(sampleBuffer);
+    auto bufferLength = PAL::CMBlockBufferGetDataLength(blockBuffer.get());
     if (bufferLength < ISOBox::minimumBoxSize()) {
         ERROR_LOG(LOGIDENTIFIER, "CMSampleBuffer size length unexpectedly small ", bufferLength);
         return false;
     }
 
     m_sampleInputBuffer.grow(m_sampleInputBuffer.size() + bufferLength);
-    PAL::CMBlockBufferCopyDataBytes(blockBuffer, 0, bufferLength, m_sampleInputBuffer.mutableSpan().last(bufferLength).data());
+    PAL::CMBlockBufferCopyDataBytes(blockBuffer.get(), 0, bufferLength, m_sampleInputBuffer.mutableSpan().last(bufferLength).data());
 
     formatDescription = PAL::CMSampleBufferGetFormatDescription(sampleBuffer);
 

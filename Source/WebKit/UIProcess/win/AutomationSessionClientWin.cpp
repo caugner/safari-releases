@@ -47,7 +47,7 @@ AutomationSessionClient::AutomationSessionClient(const String& sessionIdentifier
 
 void AutomationSessionClient::requestNewPageWithOptions(WebKit::WebAutomationSession& session, API::AutomationSessionBrowsingContextOptions options, CompletionHandler<void(WebKit::WebPageProxy*)>&& completionHandler)
 {
-    RefPtr<WebProcessPool> processPool = session.protectedProcessPool();
+    RefPtr<WebProcessPool> processPool = protect(session.processPool());
     if (processPool && processPool->processes().size()) {
         auto& processProxy = processPool->processes()[0];
         if (processProxy->pageCount()) {
@@ -147,7 +147,7 @@ void AutomationSessionClient::didDisconnectFromRemote(WebKit::WebAutomationSessi
     session.setClient(nullptr);
 
     RunLoop::mainSingleton().dispatch([&session] {
-        auto processPool = session.protectedProcessPool();
+        auto processPool = protect(session.processPool());
         if (processPool) {
             processPool->setAutomationSession(nullptr);
             processPool->setPagesControlledByAutomation(false);

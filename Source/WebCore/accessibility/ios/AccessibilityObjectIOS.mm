@@ -33,13 +33,15 @@
 #import "AXUtilities.h"
 #import "AccessibilityRenderObject.h"
 #import "EventNames.h"
-#import "EventTargetInlines.h"
 #import "HTMLInputElement.h"
 #import "HTMLNames.h"
 #import "LocalFrameView.h"
 #import "RenderObject.h"
+#import "RenderObjectStyle.h"
+#import "StyleTextDecorationLine.h"
 #import "WAKView.h"
 #import "WebAccessibilityObjectWrapperIOS.h"
+#import <pal/ios/UIKitSoftLink.h>
 #import <pal/spi/ios/AXRuntimeSPI.h>
 #import <wtf/SoftLinking.h>
 #import <wtf/cocoa/SpanCocoa.h>
@@ -76,13 +78,10 @@ void AccessibilityObject::detachFromParent()
 
 FloatRect AccessibilityObject::convertRectToPlatformSpace(const FloatRect& rect, AccessibilityConversionSpace space) const
 {
-    auto* frameView = documentFrameView();
+    RefPtr frameView = documentFrameView();
     WAKView *documentView = frameView ? frameView->documentView() : nullptr;
     if (documentView) {
-        CGPoint point = CGPointMake(rect.x(), rect.y());
-        CGSize size = CGSizeMake(rect.size().width(), rect.size().height());
-        CGRect cgRect = CGRectMake(point.x, point.y, size.width, size.height);
-
+        CGRect cgRect = CGRectMake(rect.x(), rect.y(), rect.width(), rect.height());
         cgRect = [documentView convertRect:cgRect toView:nil];
 
         // we need the web document view to give us our final screen coordinates
@@ -104,7 +103,7 @@ unsigned AccessibilityObject::accessibilitySecureFieldLength()
     if (!renderer || !isSecureField())
         return 0;
 
-    auto* inputElement = dynamicDowncast<HTMLInputElement>(renderer->node());
+    RefPtr inputElement = dynamicDowncast<HTMLInputElement>(renderer->node());
     return inputElement ? inputElement->value()->length() : 0;
 }
 
@@ -131,7 +130,7 @@ bool AccessibilityObject::hasTouchEventListener() const
     auto& eventNames = WebCore::eventNames();
     // If the node is in a shadowRoot, going up the node parent tree will stop and
     // not check the entire chain of ancestors. Thus, use the parentInComposedTree instead.
-    for (auto* node = this->node(); node; node = node->parentInComposedTree()) {
+    for (RefPtr node = this->node(); node; node = node->parentInComposedTree()) {
         if (node->containsMatchingEventListener([&](const AtomString& name, auto&) {
             return eventNames.typeInfoForEvent(name).isInCategory(EventCategory::TouchRelated);
         }))
@@ -250,9 +249,9 @@ static void attributeStringSetStyle(NSMutableAttributedString *attrString, Rende
     auto& style = renderer->style();
 
     // Set basic font info.
-    attributedStringSetFont(attrString, style.fontCascade().primaryFont()->ctFont(), range);
+    attributedStringSetFont(attrString, Style::fontCascade(style).primaryFont().ctFont(), range);
 
-    if (style.textDecorationLineInEffect().hasUnderline())
+    if (Style::textDecorationLineInEffect(style).hasUnderline())
         attributedStringSetNumber(attrString, AccessibilityTokenUnderline, @YES, range);
 
     // Add code context if this node is within a <code> block.
@@ -262,7 +261,7 @@ static void attributeStringSetStyle(NSMutableAttributedString *attrString, Rende
     };
 
     if (Accessibility::findAncestor<AccessibilityObject>(*object, true, WTF::move(matchFunc)))
-        [attrString addAttribute:UIAccessibilityTextAttributeContext value:UIAccessibilityTextualContextSourceCode range:range];
+        [attrString addAttribute:PAL::get_UIKit_UIAccessibilityTextAttributeContextSingleton() value:PAL::get_UIKit_UIAccessibilityTextualContextSourceCodeSingleton() range:range];
 }
 
 static void attributedStringSetCompositionAttributes(NSMutableAttributedString *attributedString, RenderObject* renderer)

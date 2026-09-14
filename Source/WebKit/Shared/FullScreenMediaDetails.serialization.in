@@ -33,5 +33,6 @@
     WebCore::FloatSize mediaDimensions;
 #if ENABLE(QUICKLOOK_FULLSCREEN)
     WebKit::FullScreenMediaDetails::ImageData imageData;
+    bool launchInImmersive;
 #endif
 };

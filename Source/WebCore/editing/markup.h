@@ -30,6 +30,7 @@
 #include <WebCore/FloatSize.h>
 #include <WebCore/HTMLInterchange.h>
 #include <WebCore/MarkupExclusionRule.h>
+#include <WebCore/PageConfiguration.h>
 #include <WebCore/ParserContentPolicy.h>
 #include <WebCore/ShadowRoot.h>
 #include <wtf/Forward.h>
@@ -59,7 +60,7 @@ template<typename> class ExceptionOr;
 void replaceSubresourceURLs(Ref<DocumentFragment>&&, HashMap<AtomString, AtomString>&&);
 void removeSubresourceURLAttributes(Ref<DocumentFragment>&&, Function<bool(const URL&)> shouldRemoveURL);
 
-Ref<Page> createPageForSanitizingWebContent(Document* destinationDocument);
+Ref<Page> createPageForSanitizingWebContent(Document* destinationDocument, std::optional<PageConfiguration>&& = { });
 enum class MSOListQuirks : bool { CheckIfNeeded, Disabled };
 String sanitizeMarkup(const String&, Document* destinationDocument, MSOListQuirks = MSOListQuirks::Disabled, std::optional<Function<void(DocumentFragment&)>> fragmentSanitizer = std::nullopt);
 String sanitizedMarkupForFragmentInDocument(Ref<DocumentFragment>&&, Document&, MSOListQuirks, const String& originalMarkup);
@@ -71,7 +72,7 @@ public:
     bool nodeOnlyContainsUserSelectNone(Node& node) { return computeState(node) == State::OnlyUserSelectNone; }
 
 private:
-    ContainerNode* parentNode(Node&);
+    ContainerNode* NODELETE parentNode(Node&);
     Node* firstChild(Node&);
     Node* nextSibling(Node&);
 
@@ -104,7 +105,7 @@ String serializePreservingVisualAppearance(const VisibleSelection&, ResolveURLs 
     IgnoreUserSelectNone = IgnoreUserSelectNone::Yes, PreserveBaseElement = PreserveBaseElement::No, PreserveDirectionForInlineText = PreserveDirectionForInlineText::No, Vector<Ref<Node>>* = nullptr);
 
 enum class SerializedNodes : uint8_t { SubtreeIncludingNode, SubtreesOfChildren };
-enum class SerializationSyntax : uint8_t { HTML, XML, HTMLLegacyAttributeValue };
+enum class SerializationSyntax : bool { HTML, XML };
 enum class SerializeShadowRoots : uint8_t { Explicit, Serializable, AllForInterchange };
 WEBCORE_EXPORT String serializeFragment(const Node&, SerializedNodes, Vector<Ref<Node>>* = nullptr, ResolveURLs = ResolveURLs::NoExcludingURLsForPrivacy, std::optional<SerializationSyntax> = std::nullopt, SerializeShadowRoots = SerializeShadowRoots::Explicit, Vector<Ref<ShadowRoot>>&& explicitShadowRoots = { }, const Vector<MarkupExclusionRule>& exclusionRules = { });
 WEBCORE_EXPORT String serializeFragmentWithURLReplacement(const Node&, SerializedNodes, Vector<Ref<Node>>*, ResolveURLs, std::optional<SerializationSyntax>, HashMap<String, String>&& replacementURLStrings, HashMap<Ref<CSSStyleSheet>, String>&& replacementURLStringsForCSSStyleSheet, SerializeShadowRoots = SerializeShadowRoots::Explicit, Vector<Ref<ShadowRoot>>&& explicitShadowRoots = { }, const Vector<MarkupExclusionRule>& exclusionRules = { });

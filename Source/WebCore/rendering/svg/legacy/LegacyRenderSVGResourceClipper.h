@@ -24,6 +24,7 @@
 #include "SVGUnitTypes.h"
 #include <wtf/EnumeratedArray.h>
 #include <wtf/HashMap.h>
+#include <wtf/WeakHashMap.h>
 
 namespace WebCore {
 
@@ -60,16 +61,15 @@ class LegacyRenderSVGResourceClipper final : public LegacyRenderSVGResourceConta
     WTF_MAKE_TZONE_ALLOCATED(LegacyRenderSVGResourceClipper);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(LegacyRenderSVGResourceClipper);
 public:
-    LegacyRenderSVGResourceClipper(SVGClipPathElement&, RenderStyle&&);
+    LegacyRenderSVGResourceClipper(SVGClipPathElement&, Style::ComputedStyle&&);
     virtual ~LegacyRenderSVGResourceClipper();
 
     inline SVGClipPathElement& clipPathElement() const;
-    inline Ref<SVGClipPathElement> protectedClipPathElement() const;
 
     void removeAllClientsFromCache() override;
     void removeClientFromCache(RenderElement&) override;
 
-    OptionSet<ApplyResult> applyResource(RenderElement&, const RenderStyle&, GraphicsContext*&, OptionSet<RenderSVGResourceMode>) override;
+    OptionSet<ApplyResult> applyResource(RenderElement&, const Style::ComputedStyle&, GraphicsContext*&, OptionSet<RenderSVGResourceMode>) override;
 
     // clipPath can be clipped too, but don't have a boundingBox or repaintRect. So we can't call
     // applyResource directly and use the rects from the object, since they are empty for RenderSVGResources
@@ -106,4 +106,5 @@ private:
 SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::LegacyRenderSVGResourceClipper)
 static bool isType(const WebCore::RenderObject& renderer) { return renderer.isLegacyRenderSVGResourceClipper(); }
 static bool isType(const WebCore::LegacyRenderSVGResource& resource) { return resource.resourceType() == WebCore::ClipperResourceType; }
+static bool isType(const WebCore::LegacyRenderSVGResourceContainer& resource) { return resource.resourceType() == WebCore::ClipperResourceType; }
 SPECIALIZE_TYPE_TRAITS_END()

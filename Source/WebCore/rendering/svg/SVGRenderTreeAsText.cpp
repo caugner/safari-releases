@@ -36,6 +36,7 @@
 #include "InlineIteratorSVGTextBox.h"
 #include "LegacyRenderSVGImage.h"
 #include "LegacyRenderSVGResourceClipperInlines.h"
+#include "LegacyRenderSVGResourceContainerInlines.h"
 #include "LegacyRenderSVGResourceFilterInlines.h"
 #include "LegacyRenderSVGResourceLinearGradientInlines.h"
 #include "LegacyRenderSVGResourceMarkerInlines.h"
@@ -48,7 +49,6 @@
 #include "NodeRenderStyle.h"
 #include "NullGraphicsContext.h"
 #include "PathOperation.h"
-#include "ReferenceFilterOperation.h"
 #include "RenderElementInlines.h"
 #include "RenderImage.h"
 #include "RenderIterator.h"
@@ -59,7 +59,6 @@
 #include "RenderSVGRoot.h"
 #include "RenderSVGShapeInlines.h"
 #include "RenderSVGText.h"
-#include "RenderStyle+GettersInlines.h"
 #include "SVGCircleElement.h"
 #include "SVGElementTypeHelpers.h"
 #include "SVGEllipseElement.h"
@@ -73,7 +72,9 @@
 #include "SVGStopElement.h"
 #include "Settings.h"
 #include "StyleCachedImage.h"
+#include "StyleComputedStyle+GettersInlines.h"
 #include "StyleComputedStyle+InitialInlines.h"
+#include "StylePrimitiveNumericTypes+Evaluation.h"
 #include <math.h>
 
 namespace WebCore {
@@ -180,8 +181,7 @@ static void writeSVGPaintingResource(TextStream& ts, const LegacyRenderSVGResour
         ts << "[type=RADIAL-GRADIENT]"_s;
 
     // All other resources derive from LegacyRenderSVGResourceContainer.
-    // FIXME: This should use a safe cast.
-    const auto& container = static_cast<const LegacyRenderSVGResourceContainer&>(resource);
+    auto& container = downcast<LegacyRenderSVGResourceContainer>(resource);
     ts << " [id=\""_s << container.element().getIdAttribute() << "\"]"_s;
 }
 
@@ -192,7 +192,7 @@ static void writeSVGFillPaintingResource(TextStream& ts, const RenderElement& re
     writeSVGPaintingResource(ts, fillPaintingResource);
 
     auto& style = renderer.style();
-    writeIfNotDefault(ts, "opacity"_s, style.fillOpacity().value.value, 1.0f);
+    writeIfNotDefault(ts, "opacity"_s, Style::evaluate<float>(style.fillOpacity()), 1.0f);
     writeIfNotDefault(ts, "fill rule"_s, style.fillRule(), WindRule::NonZero);
     ts << "}]"_s;
 }
@@ -212,9 +212,9 @@ static void writeSVGStrokePaintingResource(TextStream& ts, const RenderElement& 
         return lengthContext.valueForLength(length, Style::ZoomNeeded { });
     });
 
-    writeIfNotDefault(ts, "opacity"_s, style.strokeOpacity().value.value, 1.0f);
+    writeIfNotDefault(ts, "opacity"_s, Style::evaluate<float>(style.strokeOpacity()), 1.0f);
     writeIfNotDefault(ts, "stroke width"_s, strokeWidth, 1.0);
-    writeIfNotDefault(ts, "miter limit"_s, style.strokeMiterLimit().value.value, 4.0f);
+    writeIfNotDefault(ts, "miter limit"_s, Style::evaluate<float>(style.strokeMiterLimit()), 4.0f);
     writeIfNotDefault(ts, "line cap"_s, style.capStyle(), LineCap::Butt);
     writeIfNotDefault(ts, "line join"_s, style.joinStyle(), LineJoin::Miter);
     writeIfNotDefault(ts, "dash offset"_s, dashOffset, 0.0);
@@ -233,15 +233,15 @@ void writeSVGPaintingFeatures(TextStream& ts, const RenderElement& renderer, Opt
 {
     auto& style = renderer.style();
 
-    if (!renderer.localTransform().isIdentity())
+    if (!renderer.localTransform().isIdentity() && !renderer.document().settings().layerBasedSVGEngineEnabled())
         writeNameValuePair(ts, "transform"_s, renderer.localTransform());
     writeIfNotDefault(ts, "image rendering"_s, style.imageRendering(), Style::ComputedStyle::initialImageRendering());
-    writeIfNotDefault(ts, "opacity"_s, style.opacity().value.value, 1.0f);
+    writeIfNotDefault(ts, "opacity"_s, Style::evaluate<float>(style.opacity()), 1.0f);
 
     if (auto* shape = dynamicDowncast<LegacyRenderSVGShape>(renderer)) {
         Color fallbackColor;
         if (auto* strokePaintingResource = LegacyRenderSVGResource::strokePaintingResource(const_cast<LegacyRenderSVGShape&>(*shape), shape->style(), fallbackColor))
-            writeSVGStrokePaintingResource(ts, renderer, *strokePaintingResource, shape->protectedGraphicsElement());
+            writeSVGStrokePaintingResource(ts, renderer, *strokePaintingResource, protect(shape->graphicsElement()));
 
         if (auto* fillPaintingResource = LegacyRenderSVGResource::fillPaintingResource(const_cast<LegacyRenderSVGShape&>(*shape), shape->style(), fallbackColor))
             writeSVGFillPaintingResource(ts, renderer, *fillPaintingResource);
@@ -250,7 +250,7 @@ void writeSVGPaintingFeatures(TextStream& ts, const RenderElement& renderer, Opt
     } else if (auto* shape = dynamicDowncast<RenderSVGShape>(renderer)) {
         Color fallbackColor;
         if (auto* strokePaintingResource = LegacyRenderSVGResource::strokePaintingResource(const_cast<RenderSVGShape&>(*shape), shape->style(), fallbackColor))
-            writeSVGStrokePaintingResource(ts, renderer, *strokePaintingResource, shape->protectedGraphicsElement());
+            writeSVGStrokePaintingResource(ts, renderer, *strokePaintingResource, protect(shape->graphicsElement()));
 
         if (auto* fillPaintingResource = LegacyRenderSVGResource::fillPaintingResource(const_cast<RenderSVGShape&>(*shape), shape->style(), fallbackColor))
             writeSVGFillPaintingResource(ts, renderer, *fillPaintingResource);
@@ -263,7 +263,7 @@ void writeSVGPaintingFeatures(TextStream& ts, const RenderElement& renderer, Opt
         if (!element)
             return;
 
-        auto fragment = SVGURIReference::fragmentIdentifierFromIRIString(value, element->protectedDocument());
+        auto fragment = SVGURIReference::fragmentIdentifierFromIRIString(value, protect(element->document()));
         writeIfNotEmpty(ts, name, fragment);
     };
 
@@ -276,7 +276,7 @@ static TextStream& writePositionAndStyle(TextStream& ts, const RenderElement& re
 {
     if (behavior.contains(RenderAsTextFlag::ShowSVGGeometry)) {
         if (auto* box = dynamicDowncast<RenderBox>(renderer))
-            ts << ' ' << enclosingIntRect(box->frameRect());
+            ts << ' ' << enclosingIntRect(box->borderBoxRectInContainer());
         ts << " clipped"_s;
     }
 
@@ -310,7 +310,7 @@ void writeSVGGraphicsElement(TextStream& ts, const SVGGraphicsElement& svgElemen
         writeNameValuePair(ts, "cy"_s, element->cy().value(lengthContext));
         writeNameValuePair(ts, "r"_s, element->r().value(lengthContext));
     } else if (auto* element = dynamicDowncast<SVGPolyElement>(svgElement))
-        writeNameAndQuotedValue(ts, "points"_s, element->points().valueAsString());
+        writeNameAndQuotedValue(ts, "points"_s, protect(element->points())->valueAsString());
     else if (auto* element = dynamicDowncast<SVGPathElement>(svgElement)) {
         String pathString;
         // FIXME: We should switch to UnalteredParsing here - this will affect the path dumping output of dozens of tests.
@@ -323,7 +323,7 @@ void writeSVGGraphicsElement(TextStream& ts, const SVGGraphicsElement& svgElemen
 static TextStream& operator<<(TextStream& ts, const LegacyRenderSVGShape& shape)
 {
     writePositionAndStyle(ts, shape);
-    writeSVGGraphicsElement(ts, shape.protectedGraphicsElement());
+    writeSVGGraphicsElement(ts, protect(shape.graphicsElement()));
     return ts;
 }
 
@@ -414,7 +414,7 @@ static void writeStandardPrefix(TextStream& ts, const RenderObject& object, Opti
         ts << ' ' << &object;
 
     if (object.node())
-        ts << " {"_s << object.node()->nodeName() << '}';
+        ts << " {"_s << protect(object.node())->nodeName() << '}';
 
     writeDebugInfo(ts, object, behavior);
 }
@@ -423,7 +423,7 @@ static void writeChildren(TextStream& ts, const RenderElement& parent, OptionSet
 {
     TextStream::IndentScope indentScope(ts);
 
-    for (const auto& child : childrenOfType<RenderObject>(parent)) {
+    for (auto& child : childrenOfType<RenderObject>(parent)) {
         if (parent.document().settings().layerBasedSVGEngineEnabled() && child.hasLayer())
             continue;
         write(ts, child, behavior);
@@ -448,40 +448,37 @@ void writeSVGResourceContainer(TextStream& ts, const LegacyRenderSVGResourceCont
     const AtomString& id = resource.element().getIdAttribute();
     writeNameAndQuotedValue(ts, "id"_s, id);
 
-    if (auto* masker = dynamicDowncast<const LegacyRenderSVGResourceMasker>(resource)) {
+    if (auto* masker = dynamicDowncast<LegacyRenderSVGResourceMasker>(resource)) {
         writeNameValuePair(ts, "maskUnits"_s, masker->maskUnits());
         writeNameValuePair(ts, "maskContentUnits"_s, masker->maskContentUnits());
         ts << '\n';
-    } else if (resource.resourceType() == FilterResourceType) {
-        const auto& filter = static_cast<const LegacyRenderSVGResourceFilter&>(resource);
-        writeNameValuePair(ts, "filterUnits"_s, filter.filterUnits());
-        writeNameValuePair(ts, "primitiveUnits"_s, filter.primitiveUnits());
+    } else if (auto* filter = dynamicDowncast<LegacyRenderSVGResourceFilter>(resource)) {
+        writeNameValuePair(ts, "filterUnits"_s, filter->filterUnits());
+        writeNameValuePair(ts, "primitiveUnits"_s, filter->primitiveUnits());
         ts << '\n';
         // Creating a placeholder filter which is passed to the builder.
-        Ref filterElement = filter.filterElement();
+        Ref filterElement = filter->filterElement();
         auto placeholderFilter = SVGFilterRenderer::create(filterElement.ptr(), filterElement, {
                 .referenceBox = { },
                 .filterRegion = { },
                 .scale = { 1, 1},
-            }, FilterRenderingMode::Software, NullGraphicsContext());
+            }, FilterRenderingMode::Software, { }, NullGraphicsContext());
         if (placeholderFilter) {
             TextStream::IndentScope indentScope(ts);
             placeholderFilter->externalRepresentation(ts, FilterRepresentation::TestOutput);
         }
-    } else if (resource.resourceType() == ClipperResourceType) {
-        const auto& clipper = static_cast<const LegacyRenderSVGResourceClipper&>(resource);
-        writeNameValuePair(ts, "clipPathUnits"_s, clipper.clipPathUnits());
+    } else if (auto* clipper = dynamicDowncast<LegacyRenderSVGResourceClipper>(resource)) {
+        writeNameValuePair(ts, "clipPathUnits"_s, clipper->clipPathUnits());
         ts << '\n';
-    } else if (resource.resourceType() == MarkerResourceType) {
-        const auto& marker = static_cast<const LegacyRenderSVGResourceMarker&>(resource);
-        writeNameValuePair(ts, "markerUnits"_s, marker.markerUnits());
-        ts << " [ref at "_s << marker.referencePoint() << ']';
+    } else if (auto* marker = dynamicDowncast<LegacyRenderSVGResourceMarker>(resource)) {
+        writeNameValuePair(ts, "markerUnits"_s, marker->markerUnits());
+        ts << " [ref at "_s << marker->referencePoint() << ']';
         ts << " [angle="_s;
-        if (auto angle = marker.angle())
+        if (auto angle = marker->angle())
             ts << *angle << "]\n"_s;
         else
             ts << "auto"_s << "]\n"_s;
-    } else if (auto* pattern = dynamicDowncast<const LegacyRenderSVGResourcePattern>(resource)) {
+    } else if (auto* pattern = dynamicDowncast<LegacyRenderSVGResourcePattern>(resource)) {
         // Dump final results that are used for rendering. No use in asking SVGPatternElement for its patternUnits(), as it may
         // link to other patterns using xlink:href, we need to build the full inheritance chain, aka. collectPatternProperties()
         PatternAttributes attributes;
@@ -494,19 +491,19 @@ void writeSVGResourceContainer(TextStream& ts, const LegacyRenderSVGResourceCont
         if (!transform.isIdentity())
             ts << " [patternTransform="_s << transform << ']';
         ts << '\n';
-    } else if (auto* gradient = dynamicDowncast<const LegacyRenderSVGResourceLinearGradient>(resource)) {
+    } else if (auto* gradient = dynamicDowncast<LegacyRenderSVGResourceLinearGradient>(resource)) {
         // Dump final results that are used for rendering. No use in asking SVGGradientElement for its gradientUnits(), as it may
         // link to other gradients using xlink:href, we need to build the full inheritance chain, aka. collectGradientProperties()
         LinearGradientAttributes attributes;
-        gradient->linearGradientElement().collectGradientAttributes(attributes);
+        protect(gradient->linearGradientElement())->collectGradientAttributes(attributes);
         writeCommonGradientProperties(ts, attributes.spreadMethod(), attributes.gradientTransform(), attributes.gradientUnits());
 
         ts << " [start="_s << gradient->startPoint(attributes) << "] [end="_s << gradient->endPoint(attributes) << "]\n"_s;
-    }  else if (auto* gradient = dynamicDowncast<const LegacyRenderSVGResourceRadialGradient>(resource)) {
+    }  else if (auto* gradient = dynamicDowncast<LegacyRenderSVGResourceRadialGradient>(resource)) {
         // Dump final results that are used for rendering. No use in asking SVGGradientElement for its gradientUnits(), as it may
         // link to other gradients using xlink:href, we need to build the full inheritance chain, aka. collectGradientProperties()
         RadialGradientAttributes attributes;
-        gradient->radialGradientElement().collectGradientAttributes(attributes);
+        protect(gradient->radialGradientElement())->collectGradientAttributes(attributes);
         writeCommonGradientProperties(ts, attributes.spreadMethod(), attributes.gradientTransform(), attributes.gradientUnits());
 
         FloatPoint focalPoint = gradient->focalPoint(attributes);
@@ -576,12 +573,12 @@ void writeSVGGradientStop(TextStream& ts, const RenderSVGGradientStop& stop, Opt
 {
     writeStandardPrefix(ts, stop, behavior);
 
-    ts << " [offset="_s << stop.element().offset() << "] [color="_s << stop.element().stopColorIncludingOpacity() << "]\n"_s;
+    ts << " [offset="_s << stop.element().offset() << "] [color="_s << protect(stop.element())->stopColorIncludingOpacity() << "]\n"_s;
 }
 
 void writeResources(TextStream& ts, const RenderObject& renderer, OptionSet<RenderAsTextFlag> behavior)
 {
-    const RenderStyle& style = renderer.style();
+    const Style::ComputedStyle& style = renderer.style();
 
     // FIXME: We want to use SVGResourcesCache to determine which resources are present, instead of quering the resource <-> id cache.
     // For now leave the DRT output as is, but later on we should change this so cycles are properly ignored in the DRT output.
@@ -589,7 +586,7 @@ void writeResources(TextStream& ts, const RenderObject& renderer, OptionSet<Rend
         if (RefPtr maskImage = style.maskLayers().usedFirst().image().tryStyleImage()) {
             Ref document = renderer.document();
             auto resourceID = SVGURIReference::fragmentIdentifierFromIRIString(maskImage->url(), document);
-            if (auto* masker = getRenderSVGResourceById<LegacyRenderSVGResourceMasker>(renderer.treeScopeForSVGReferences(), resourceID)) {
+            if (auto* masker = getRenderSVGResourceById<LegacyRenderSVGResourceMasker>(protect(renderer.treeScopeForSVGReferences()), resourceID)) {
                 ts << indent << ' ';
                 writeNameAndQuotedValue(ts, "masker"_s, resourceID);
                 ts << ' ';
@@ -601,7 +598,7 @@ void writeResources(TextStream& ts, const RenderObject& renderer, OptionSet<Rend
     WTF::switchOn(style.clipPath(),
         [&](const Style::ReferencePath& clipPath) {
             auto id = clipPath.fragment();
-            if (auto* clipper = getRenderSVGResourceById<LegacyRenderSVGResourceClipper>(renderer.treeScopeForSVGReferences(), id)) {
+            if (auto* clipper = getRenderSVGResourceById<LegacyRenderSVGResourceClipper>(protect(renderer.treeScopeForSVGReferences()), id)) {
                 ts << indent << ' ';
                 writeNameAndQuotedValue(ts, "clipPath"_s, id);
                 ts << ' ';
@@ -611,20 +608,20 @@ void writeResources(TextStream& ts, const RenderObject& renderer, OptionSet<Rend
         },
         [&](const auto&) { }
     );
-    if (style.hasFilter()) {
-        const auto& filterOperations = style.filter();
-        if (filterOperations.size() == 1) {
-            if (RefPtr referenceFilterOperation = dynamicDowncast<Style::ReferenceFilterOperation>(filterOperations[0].platform())) {
-                auto id = referenceFilterOperation->fragment();
-                if (LegacyRenderSVGResourceFilter* filter = getRenderSVGResourceById<LegacyRenderSVGResourceFilter>(renderer.treeScopeForSVGReferences(), id)) {
+    if (style.filter().size() == 1) {
+        WTF::switchOn(style.filter().first(),
+            [&](const Style::FilterReference& filterReference) {
+                auto& id = filterReference.cachedFragment;
+                if (LegacyRenderSVGResourceFilter* filter = getRenderSVGResourceById<LegacyRenderSVGResourceFilter>(protect(renderer.treeScopeForSVGReferences()), id)) {
                     ts << indent << ' ';
                     writeNameAndQuotedValue(ts, "filter"_s, id);
                     ts << ' ';
                     writeStandardPrefix(ts, *filter, behavior, WriteIndentOrNot::No);
                     ts << ' ' << filter->resourceBoundingBox(renderer, RepaintRectCalculation::Accurate) << '\n';
                 }
-            }
-        }
+            },
+            []<CSSValueID C, typename T>(const FunctionNotation<C, T>&) { }
+        );
     }
 }
 

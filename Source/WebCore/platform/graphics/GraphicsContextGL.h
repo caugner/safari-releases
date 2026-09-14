@@ -38,6 +38,7 @@
 #include <WebCore/Image.h>
 #include <WebCore/IntRect.h>
 #include <WebCore/IntSize.h>
+#include <array>
 #include <span>
 #include <wtf/EnumSet.h>
 #include <wtf/FunctionDispatcher.h>
@@ -731,10 +732,6 @@ public:
     // WebGL-specific.
     static constexpr GCGLenum MAX_CLIENT_WAIT_TIMEOUT_WEBGL = 0x9247;
 
-    // Necessary desktop OpenGL constants.
-    static constexpr GCGLenum TEXTURE_RECTANGLE_ARB = 0x84F5;
-    static constexpr GCGLenum TEXTURE_BINDING_RECTANGLE_ARB = 0x84F6;
-
     // EXT_sRGB formats
     static constexpr GCGLenum SRGB_EXT = 0x8C40;
     static constexpr GCGLenum SRGB_ALPHA_EXT = 0x8C42;
@@ -1305,10 +1302,8 @@ public:
 
     virtual void generateMipmap(GCGLenum target) = 0;
 
-    virtual std::optional<GraphicsContextGLActiveInfo> getActiveAttrib(PlatformGLObject program, GCGLuint index) = 0;
-    virtual std::optional<GraphicsContextGLActiveInfo> getActiveUniform(PlatformGLObject program, GCGLuint index) = 0;
-
-    virtual GCGLint getAttribLocation(PlatformGLObject, const CString& name) = 0;
+    virtual Vector<GCGLAttribActiveInfo> activeAttribs(PlatformGLObject program) = 0;
+    virtual Vector<GCGLUniformActiveInfo> activeUniforms(PlatformGLObject program) = 0;
 
     virtual GCGLint getBufferParameteri(GCGLenum target, GCGLenum pname) = 0;
 
@@ -1347,8 +1342,6 @@ public:
     virtual void getUniformfv(PlatformGLObject program, GCGLint location, std::span<GCGLfloat> value) = 0;
     virtual void getUniformiv(PlatformGLObject program, GCGLint location, std::span<GCGLint> value) = 0;
     virtual void getUniformuiv(PlatformGLObject program, GCGLint location, std::span<GCGLuint> value) = 0;
-
-    virtual GCGLint getUniformLocation(PlatformGLObject, const CString& name) = 0;
 
     virtual GCGLsizeiptr getVertexAttribOffset(GCGLuint index, GCGLenum pname) = 0;
 
@@ -1535,15 +1528,12 @@ public:
     virtual void beginTransformFeedback(GCGLenum primitiveMode) = 0;
     virtual void endTransformFeedback() = 0;
     virtual void transformFeedbackVaryings(PlatformGLObject program, const Vector<CString>& varyings, GCGLenum bufferMode) = 0;
-    virtual std::optional<GraphicsContextGLActiveInfo> getTransformFeedbackVarying(PlatformGLObject program, GCGLuint index) = 0;
+    virtual std::optional<GCGLTransformFeedbackActiveInfo> getTransformFeedbackVarying(PlatformGLObject program, GCGLuint index) = 0;
     virtual void pauseTransformFeedback() = 0;
     virtual void resumeTransformFeedback() = 0;
 
     virtual void bindBufferBase(GCGLenum target, GCGLuint index, PlatformGLObject buffer) = 0;
     virtual void bindBufferRange(GCGLenum target, GCGLuint index, PlatformGLObject buffer, GCGLintptr offset, GCGLsizeiptr size) = 0;
-    // getIndexedParameter -> use getParameter calls above.
-    virtual Vector<GCGLuint> getUniformIndices(PlatformGLObject program, const Vector<CString>& uniformNames) = 0;
-    virtual Vector<GCGLint> getActiveUniforms(PlatformGLObject program, const Vector<GCGLuint>& uniformIndices, GCGLenum pname) = 0;
 
     virtual GCGLuint getUniformBlockIndex(PlatformGLObject program, const CString& uniformBlockName) = 0;
     // getActiveUniformBlockParameter
@@ -1661,7 +1651,21 @@ public:
     GraphicsContextGLAttributes contextAttributes() const { return m_attrs; }
     void setContextAttributes(const GraphicsContextGLAttributes& attrs) { m_attrs = attrs; }
 
-    virtual std::tuple<GCGLenum, GCGLenum> externalImageTextureBindingPoint();
+    // Static GL implementation limits. These never change for the lifetime of
+    // the context, so the remote-context implementation caches them at context
+    // creation and returns them without an IPC round-trip.
+    virtual GCGLint maxCombinedTextureImageUnits() = 0;
+    virtual GCGLint maxVertexAttribs() = 0;
+    virtual GCGLint maxTextureSize() = 0;
+    virtual GCGLint maxCubeMapTextureSize() = 0;
+    virtual GCGLint maxRenderbufferSize() = 0;
+    virtual std::array<GCGLint, 2> maxViewportDims() = 0;
+    virtual GCGLint maxSamples() = 0;
+    virtual GCGLint maxTransformFeedbackSeparateAttribs() = 0;
+    virtual GCGLint maxUniformBufferBindings() = 0;
+    virtual GCGLint uniformBufferOffsetAlignment() = 0;
+    virtual GCGLint max3DTextureSize() = 0;
+    virtual GCGLint maxArrayTextureLayers() = 0;
 
     virtual void reshape(int width, int height) = 0;
 
@@ -1696,7 +1700,7 @@ public:
 
     // Computes the bytes per image element for a format and type.
     // Returns zero if format or type is an invalid enum.
-    WEBCORE_EXPORT static unsigned computeBytesPerGroup(GCGLenum format, GCGLenum type);
+    WEBCORE_EXPORT static unsigned NODELETE computeBytesPerGroup(GCGLenum format, GCGLenum type);
 
 
     struct PixelRectangleSizes {
@@ -1707,7 +1711,7 @@ public:
     };
     // Returns nullopt if width/height is negative or overflow happens or if format and type are invalid.
     // Also validates total bytes (imageBytes + initialSkipBytes)
-    static std::optional<PixelRectangleSizes> computeImageSize(GCGLenum format, GCGLenum type, IntSize, GCGLsizei depth, const PixelStoreParameters&);
+    static std::optional<PixelRectangleSizes> NODELETE computeImageSize(GCGLenum format, GCGLenum type, IntSize, GCGLsizei depth, const PixelStoreParameters&);
 
     // Extracts the contents of the given PixelBuffer into the passed Vector,
     // packing the pixel data according to the given format and type,

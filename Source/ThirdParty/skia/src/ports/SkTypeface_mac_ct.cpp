@@ -495,13 +495,6 @@ std::unique_ptr<SkAdvancedTypefaceMetrics> SkTypeface_Mac::onGetAdvancedMetrics(
 
     std::unique_ptr<SkAdvancedTypefaceMetrics> info(new SkAdvancedTypefaceMetrics);
 
-    {
-        SkUniqueCFRef<CFStringRef> fontName(CTFontCopyPostScriptName(ctFont.get()));
-        if (fontName.get()) {
-            SkStringFromCFString(fontName.get(), &info->fPostScriptName);
-        }
-    }
-
     CFArrayRef ctAxes = this->getVariationAxes();
     if (ctAxes && CFArrayGetCount(ctAxes) > 0) {
         info->fFlags |= SkAdvancedTypefaceMetrics::kVariable_FontFlag;
@@ -794,8 +787,7 @@ int SkTypeface_Mac::onGetVariationDesignPosition(
 }
 
 int SkTypeface_Mac::onGetUPEM() const {
-    SkUniqueCFRef<CGFontRef> cgFont(CTFontCopyGraphicsFont(fFontRef.get(), nullptr));
-    return CGFontGetUnitsPerEm(cgFont.get());
+    return CTFontGetUnitsPerEm(fFontRef.get());
 }
 
 SkTypeface::LocalizedStrings* SkTypeface_Mac::onCreateFamilyNameIterator() const {

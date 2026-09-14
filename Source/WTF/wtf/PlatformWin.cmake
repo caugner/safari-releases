@@ -24,6 +24,8 @@ list(APPEND WTF_SOURCES
 )
 
 list(APPEND WTF_PUBLIC_HEADERS
+    PlatformEnableWin.h
+
     text/win/WCharStringExtras.h
 
     win/DbgHelperWin.h
@@ -37,5 +39,6 @@ list(APPEND WTF_PUBLIC_HEADERS
 list(APPEND WTF_LIBRARIES
     DbgHelp
     shlwapi
+    synchronization
     winmm
 )

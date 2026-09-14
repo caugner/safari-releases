@@ -89,11 +89,10 @@ public:
 
     void didReceiveMessage(IPC::Connection&, IPC::Decoder&) final;
 
-    std::optional<SharedPreferencesForWebProcess> sharedPreferencesForWebProcess() const;
+    std::optional<SharedPreferencesForWebProcess> NODELETE sharedPreferencesForWebProcess() const;
 
     NetworkSession* session();
-    CheckedPtr<NetworkSession> checkedSession();
-    PAL::SessionID sessionID() const;
+    PAL::SessionID NODELETE sessionID() const;
 
     RefPtr<ServiceWorkerFetchTask> createFetchTask(NetworkResourceLoader&, const WebCore::ResourceRequest&);
     void fetchTaskTimedOut(WebCore::ServiceWorkerIdentifier);
@@ -177,7 +176,7 @@ private:
     void getNotifications(const URL& registrationURL, const String& tag, CompletionHandler<void(Expected<Vector<WebCore::NotificationData>, WebCore::ExceptionData>&&)>&&);
 #endif
 
-    void checkTopOrigin(const WebCore::SecurityOriginData&);
+    bool checkTopOrigin(const WebCore::SecurityOriginData&);
 
     URL clientURLFromIdentifier(WebCore::ServiceWorkerOrClientIdentifier);
 
@@ -185,8 +184,7 @@ private:
     uint64_t messageSenderDestinationID() const final { return 0; }
     
     template<typename U> static void sendToContextProcess(WebCore::SWServerToContextConnection&, U&& message);
-    NetworkProcess& networkProcess();
-    Ref<NetworkProcess> protectedNetworkProcess();
+    NetworkProcess* NODELETE networkProcess();
 
     bool isWebSWServerConnection() const final { return true; }
 

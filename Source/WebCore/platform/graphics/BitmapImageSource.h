@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2024-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -54,6 +54,8 @@ public:
     // Encoded and decoded data
     void destroyDecodedData(bool destroyAll) final;
     void resetData();
+    bool canReplaceData() const { return true; }
+    void dataReplaced(FragmentedSharedBuffer*) final;
     unsigned decodedSize() const { return m_decodedSize; }
     void didDecodeProperties(unsigned decodedPropertiesSize);
 
@@ -62,18 +64,18 @@ public:
 
     // Decoding & animation
     bool isPendingDecodingAtIndex(unsigned index, SubsamplingLevel, const DecodingOptions&) const;
-    void destroyNativeImageAtIndex(unsigned index, std::optional<ShouldDecodeToHDR> = std::nullopt);
+    void destroyNativeImageAtIndex(unsigned index, std::optional<DecodingDestination> = std::nullopt);
     void imageFrameAtIndexAvailable(unsigned index, ImageAnimatingState, DecodingStatus);
     void imageFrameDecodeAtIndexHasFinished(unsigned index, SubsamplingLevel, ImageAnimatingState, const DecodingOptions&, RefPtr<NativeImage>&&);
 
     // ImageFrame
     unsigned primaryFrameIndex() const final { return m_descriptor.primaryFrameIndex(); }
 
-    const Vector<ImageFrame>& frames() const { return m_frames; }
+    const Vector<ImageFrame>& frames() const LIFETIME_BOUND { return m_frames; }
     const ImageFrame& primaryImageFrame(const std::optional<SubsamplingLevel>& subsamplingLevel = std::nullopt) final { return frameAtIndexCacheIfNeeded(primaryFrameIndex(), subsamplingLevel); }
 
     // NativeImage
-    DecodingStatus requestNativeImageAtIndexIfNeeded(unsigned index, SubsamplingLevel, ImageAnimatingState, const DecodingOptions&);
+    Expected<DecodingDestination, DecodingStatus> requestNativeImageAtIndexIfNeeded(unsigned index, SubsamplingLevel, ImageAnimatingState, const DecodingOptions&);
 
     RefPtr<NativeImage> primaryNativeImageIfExists() { return frameAtIndex(primaryFrameIndex()).nativeImage(std::nullopt); }
     RefPtr<NativeImage> primaryNativeImage() final { return nativeImageAtIndex(primaryFrameIndex()); }
@@ -107,6 +109,7 @@ private:
     void decodedSizeDecreased(unsigned decodedSize);
     void decodedSizeReset(unsigned decodedSize);
     bool canDestroyDecodedData() const;
+    void destroyDecodedFrames(bool destroyAll);
 
     void clearFrameBufferCache();
 
@@ -120,9 +123,10 @@ private:
     bool hasEverAnimated() const final;
 
     // Decoding
+    DecodingDestination preferredDecodingDestination(GraphicsContext&, ImagePaintingOptions) const final;
+    std::optional<DecodingDestination> compatibleDecodingDestinationWithOptionsAtIndex(unsigned index, SubsamplingLevel, const DecodingOptions&) const;
     bool isLargeForDecoding() const final;
-    bool isDecodingWorkQueueIdle() const;
-    bool isCompatibleWithOptionsAtIndex(unsigned index, SubsamplingLevel, const DecodingOptions&) const;
+    bool NODELETE isDecodingWorkQueueIdle() const;
     void stopDecodingWorkQueue() final;
     void decode(Function<void(DecodingStatus)>&& decodeCallback) final;
     void callDecodeCallbacks(DecodingStatus);
@@ -171,6 +175,10 @@ private:
     std::optional<IntPoint> hotSpot() const final { return m_descriptor.hotSpot(); }
     SubsamplingLevel maximumSubsamplingLevel() const { return m_descriptor.maximumSubsamplingLevel(); }
     SubsamplingLevel subsamplingLevelForScaleFactor(GraphicsContext& context, const FloatSize& scaleFactor, AllowImageSubsampling allowImageSubsampling) final { return m_descriptor.subsamplingLevelForScaleFactor(context, scaleFactor, allowImageSubsampling); }
+
+#if ENABLE(QUICKLOOK_FULLSCREEN)
+    bool isPanorama() const final { return m_descriptor.isPanorama(); }
+#endif
 
 #if ENABLE(SPATIAL_IMAGE_DETECTION)
     bool isSpatial() const final { return m_descriptor.isSpatial(); }

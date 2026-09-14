@@ -28,13 +28,15 @@
 
 #include "DatagramSink.h"
 #include "InternalWritableStream.h"
+#include "ScriptExecutionContext.h"
 #include "WebTransport.h"
 #include "WebTransportSendGroup.h"
 #include "WebTransportSendOptions.h"
+#include "WebTransportSession.h"
 
 namespace WebCore {
 
-ExceptionOr<Ref<WritableStream>> WebTransportDatagramsWritable::create(ScriptExecutionContext& context, RefPtr<WebTransport>&& transport, WebTransportSendOptions&& options)
+ExceptionOr<Ref<WebTransportDatagramsWritable>> WebTransportDatagramsWritable::create(ScriptExecutionContext& context, RefPtr<WebTransport>&& transport, WebTransportSendOptions&& options)
 {
     RefPtr sendGroup = options.sendGroup;
     if (sendGroup && sendGroup->transport().get() != transport.get())
@@ -45,7 +47,7 @@ ExceptionOr<Ref<WritableStream>> WebTransportDatagramsWritable::create(ScriptExe
         ASSERT_NOT_REACHED();
         return Exception { ExceptionCode::InvalidStateError };
     }
-    auto& domGlobalObject = *JSC::jsCast<JSDOMGlobalObject*>(globalObject);
+    auto& domGlobalObject = *downcast<JSDOMGlobalObject>(globalObject);
 
     Ref datagramSink = DatagramSink::create(transport ? transport->session().get() : nullptr);
     auto internal = createInternalWritableStream(domGlobalObject, datagramSink.copyRef());

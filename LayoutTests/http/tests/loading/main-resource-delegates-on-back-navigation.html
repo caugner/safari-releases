@@ -1,4 +1,4 @@
-<!-- webkit-test-runner [ UsesBackForwardCache=true ] -->
+<!-- webkit-test-runner [ UsesBackForwardCache=true dumpResourceLoadCallbacks=true ] -->
 <!DOCTYPE html>
 <html>
 <body>
@@ -6,7 +6,7 @@ Test that main resource load delegates are the same when page cache is enabled a
 <script>
 if (window.testRunner) {
     testRunner.dumpAsText();
-    testRunner.dumpResourceLoadCallbacks();
+    testRunner.dumpFrameLoadCallbacks();
     testRunner.waitUntilDone();
 }
 

@@ -31,11 +31,11 @@
 #include "FlexRect.h"
 #include "InlineFormattingContext.h"
 #include "PathOperation.h"
-#include "RenderStyle+SettersInlines.h"
 #include "StyleContentAlignmentData.h"
+#include "StyleComputedStyle+SettersInlines.h"
 #include "StyleSelfAlignmentData.h"
 #include <wtf/FixedVector.h>
-#include <wtf/ListHashSet.h>
+#include <wtf/OrderedHashSet.h>
 
 namespace WebCore {
 namespace Layout {
@@ -46,7 +46,7 @@ struct FlexBaseAndHypotheticalMainSize {
 };
 
 struct PositionAndMargins {
-    LayoutUnit margin() const { return marginStart + marginEnd; }
+    LayoutUnit NODELETE margin() const { return marginStart + marginEnd; }
 
     LayoutUnit position;
     LayoutUnit marginStart;
@@ -194,7 +194,7 @@ LayoutUnit FlexLayout::flexContainerInnerMainSize(const ConstraintsForFlexConten
     return mainAxisGeometry.availableSize.value_or(LayoutUnit::max());
 }
 
-static LayoutUnit outerMainSize(const LogicalFlexItem& flexItem, LayoutUnit mainSize, std::optional<LayoutUnit> usedMargin = { })
+static LayoutUnit NODELETE outerMainSize(const LogicalFlexItem& flexItem, LayoutUnit mainSize, std::optional<LayoutUnit> usedMargin = { })
 {
     auto outerMainSize = usedMargin.value_or(flexItem.mainAxis().margin());
     if (flexItem.isContentBoxBased())
@@ -203,7 +203,7 @@ static LayoutUnit outerMainSize(const LogicalFlexItem& flexItem, LayoutUnit main
     return outerMainSize;
 }
 
-static LayoutUnit outerCrossSize(const LogicalFlexItem& flexItem, LayoutUnit crossSize, std::optional<LayoutUnit> usedMargin = { })
+static LayoutUnit NODELETE outerCrossSize(const LogicalFlexItem& flexItem, LayoutUnit crossSize, std::optional<LayoutUnit> usedMargin = { })
 {
     auto outerCrossSize = usedMargin.value_or(flexItem.crossAxis().margin());
     if (flexItem.isContentBoxBased())
@@ -246,11 +246,11 @@ FlexLayout::LineRanges FlexLayout::computeFlexLines(const LogicalFlexItems& flex
 FlexLayout::SizeList FlexLayout::computeMainSizeForFlexItems(const LogicalFlexItems& flexItems, const LineRanges& lineRanges, LayoutUnit flexContainerInnerMainSize, const FlexBaseAndHypotheticalMainSizeList& flexBaseAndHypotheticalMainSizeList) const
 {
     SizeList mainSizeList(flexItems.size());
-    Vector<bool> isInflexibleItemList(flexItems.size(), false);
+    Vector<bool> isInflexibleItemList(FillWith { }, flexItems.size(), false);
 
     for (size_t lineIndex = 0; lineIndex < lineRanges.size(); ++lineIndex) {
         auto lineRange = lineRanges[lineIndex];
-        auto nonFrozenSet = ListHashSet<size_t> { };
+        auto nonFrozenSet = OrderedHashSet<size_t> { };
         auto availableMainSpaceForLineContent = mainAxisAvailableSpaceForItemAlignment(flexContainerInnerMainSize, lineRange.distance());
 
         // 1. Determine the used flex factor. Sum the outer hypothetical main sizes of all items on the line.

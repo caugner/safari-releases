@@ -52,6 +52,60 @@ class RemoteAnimationStack;
 class RemoteAnimationTimeline;
 #endif
 
+enum class PendingCommitMessage {
+    NotifyPendingCommitLayerTree,
+    NotifyFlushingLayerTree,
+    CommitLayerTree,
+};
+
+enum class CommitDelayState {
+    Pending,
+    Delayed,
+    IntentionallyDeferred,
+};
+
+struct PendingCommit {
+    TransactionID transactionID;
+    PendingCommitMessage pendingMessage;
+    CommitDelayState delayState;
+};
+
+struct ProcessState {
+    WTF_MAKE_NONCOPYABLE(ProcessState);
+    ProcessState(WebProcessProxy&);
+    ProcessState(WTF::HashTableDeletedValueType)
+        : nextLayerTreeTransactionID(WTF::HashTableDeletedValue)
+    {
+    }
+    ProcessState(TransactionID transactionID)
+        : nextLayerTreeTransactionID(transactionID)
+    {
+    }
+    ProcessState(ProcessState&&) = default;
+    ProcessState& operator=(ProcessState&&) = default;
+
+    bool canSendDisplayDidRefresh(RemoteLayerTreeDrawingAreaProxy&);
+
+    Vector<PendingCommit, 2> pendingCommits;
+    TransactionID nextLayerTreeTransactionID;
+    std::optional<TransactionID> committedLayerTreeTransactionID;
+    uint32_t delayedCommits { 0 };
+};
+
+} // namespace WebKit
+
+namespace WTF {
+
+template<> struct HashTraits<WebKit::ProcessState> : SimpleClassHashTraits<WebKit::ProcessState> {
+    static constexpr bool emptyValueIsZero = HashTraits<WebKit::TransactionID>::emptyValueIsZero;
+    static WebKit::ProcessState emptyValue() { return { HashTraits<WebKit::TransactionID>::emptyValue() }; }
+    static bool isEmptyValue(const WebKit::ProcessState& value) { return HashTraits<WebKit::TransactionID>::isEmptyValue(value.nextLayerTreeTransactionID); }
+};
+
+} // namespace WTF
+
+namespace WebKit {
+
 class RemoteLayerTreeDrawingAreaProxy : public DrawingAreaProxy, public RefCounted<RemoteLayerTreeDrawingAreaProxy> {
     WTF_MAKE_TZONE_ALLOCATED(RemoteLayerTreeDrawingAreaProxy);
     WTF_MAKE_NONCOPYABLE(RemoteLayerTreeDrawingAreaProxy);
@@ -62,7 +116,7 @@ public:
     void ref() const final { RefCounted::ref(); }
     void deref() const final { RefCounted::deref(); }
 
-    const RemoteLayerTreeHost& remoteLayerTreeHost() const { return *m_remoteLayerTreeHost; }
+    const RemoteLayerTreeHost& remoteLayerTreeHost() const LIFETIME_BOUND { return *m_remoteLayerTreeHost; }
     std::unique_ptr<RemoteLayerTreeHost> detachRemoteLayerTreeHost();
 
     virtual std::unique_ptr<RemoteScrollingCoordinatorProxy> createScrollingCoordinatorProxy() const = 0;
@@ -70,15 +124,16 @@ public:
     void acceleratedAnimationDidStart(WebCore::PlatformLayerIdentifier, const String& key, MonotonicTime startTime);
     void acceleratedAnimationDidEnd(WebCore::PlatformLayerIdentifier, const String& key);
 
-    TransactionID nextMainFrameLayerTreeTransactionID() const;
-    TransactionID lastCommittedMainFrameLayerTreeTransactionID() const;
+    TransactionID NODELETE nextMainFrameLayerTreeTransactionID() const;
+    TransactionID NODELETE lastCommittedMainFrameLayerTreeTransactionID() const;
 
     virtual void didRefreshDisplay();
     virtual void setDisplayLinkWantsFullSpeedUpdates(bool) { }
+    virtual bool displayLinkWantsHighFrameRateForTesting() const { return false; };
 
     bool hasDebugIndicator() const { return !!m_debugIndicatorLayerTreeHost; }
 
-    CALayer *layerWithIDForTesting(WebCore::PlatformLayerIdentifier) const;
+    RetainPtr<CALayer> layerWithIDForTesting(WebCore::PlatformLayerIdentifier) const;
 
     void viewWillStartLiveResize() final;
     void viewWillEndLiveResize() final;
@@ -100,14 +155,6 @@ public:
 
     void drawSlowFrameIndicator(WebCore::GraphicsContext&);
 
-    struct CommitLayerTreePending {
-        size_t requestedNotifyPendingCommitLayerTree { 1 };
-        size_t requestedCommitLayerTree { 1 };
-        bool missedDisplayDidRefresh { false };
-    };
-    struct NeedsDisplayDidRefresh { };
-    struct Idle { };
-
     bool allowMultipleCommitLayerTreePending();
 
 protected:
@@ -117,29 +164,13 @@ protected:
 
     bool shouldCoalesceVisualEditorStateUpdates() const override { return true; }
 
-    // displayDidRefresh is sent to the WebProcess, and it responds
-    // with a commitLayerTree message (ideally before the next
-    // displayDidRefresh, otherwise we mark it as missed and send
-    // it when commitLayerTree does arrive).
-    struct ProcessState {
-        WTF_MAKE_NONCOPYABLE(ProcessState);
-        ProcessState() = default;
-        ProcessState(ProcessState&&) = default;
-        ProcessState& operator=(ProcessState&&) = default;
-
-        bool canSendDisplayDidRefresh(RemoteLayerTreeDrawingAreaProxy&);
-
-        Variant<Idle, CommitLayerTreePending, NeedsDisplayDidRefresh> commitLayerTreeMessageState;
-        std::optional<TransactionID> pendingLayerTreeTransactionID;
-        std::optional<TransactionID> committedLayerTreeTransactionID;
-    };
-
     ProcessState& processStateForConnection(IPC::Connection&);
-    const ProcessState& processStateForIdentifier(WebCore::ProcessIdentifier) const;
+    const ProcessState& NODELETE processStateForIdentifier(WebCore::ProcessIdentifier) const;
     IPC::Connection* connectionForIdentifier(WebCore::ProcessIdentifier);
     void forEachProcessState(NOESCAPE Function<void(ProcessState&, WebProcessProxy&)>&&);
 
     std::unique_ptr<RemoteLayerTreeHost> m_remoteLayerTreeHost;
+    bool m_needsDisplayRefreshCallbacksForDrawing { false };
 private:
 #if ENABLE(TILED_CA_DRAWING_AREA)
     DrawingAreaType type() const final { return DrawingAreaType::RemoteLayerTree; }
@@ -191,6 +222,7 @@ private:
     virtual void setPreferredFramesPerSecond(IPC::Connection&, WebCore::FramesPerSecond) { }
 
     void notifyPendingCommitLayerTree(IPC::Connection&, std::optional<TransactionID>);
+    void notifyFlushingLayerTree(IPC::Connection&, TransactionID);
     void commitLayerTree(IPC::Connection&, const RemoteLayerTreeCommitBundle&, HashMap<ImageBufferSetIdentifier, std::unique_ptr<BufferSetBackendHandle>>&&);
     void commitLayerTreeTransaction(IPC::Connection&, const RemoteLayerTreeTransaction&, const RemoteScrollingCoordinatorTransaction&, const std::optional<MainFrameData>&, const PageData&, const TransactionID&);
     virtual void didCommitLayerTree(IPC::Connection&, const RemoteLayerTreeTransaction&, const RemoteScrollingCoordinatorTransaction&, const std::optional<MainFrameData>&, const TransactionID&) { }
@@ -227,9 +259,9 @@ private:
     unsigned m_countOfTransactionsWithNonEmptyLayerChanges { 0 };
 };
 
-TextStream& operator<<(TextStream&, const RemoteLayerTreeDrawingAreaProxy::Idle&);
-TextStream& operator<<(TextStream&, const RemoteLayerTreeDrawingAreaProxy::NeedsDisplayDidRefresh&);
-TextStream& operator<<(TextStream&, const RemoteLayerTreeDrawingAreaProxy::CommitLayerTreePending&);
+TextStream& operator<<(TextStream&, const CommitDelayState&);
+TextStream& operator<<(TextStream&, const PendingCommitMessage&);
+TextStream& operator<<(TextStream&, const PendingCommit&);
 
 } // namespace WebKit
 

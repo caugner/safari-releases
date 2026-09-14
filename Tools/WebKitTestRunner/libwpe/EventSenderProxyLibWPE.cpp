@@ -26,9 +26,13 @@
 #include "config.h"
 #include "EventSenderProxy.h"
 
+#include "PlatformWebView.h"
 #include "TestController.h"
 #include <WebCore/NotImplemented.h>
+#include <WebKit/WKPagePrivate.h>
+#include <wtf/CompletionHandler.h>
 #include <wtf/MonotonicTime.h>
+#include <wtf/Seconds.h>
 
 #if USE(LIBWPE)
 #include "EventSenderProxyClientLibWPE.h"
@@ -42,9 +46,8 @@ namespace WTR {
 
 EventSenderProxy::EventSenderProxy(TestController* testController)
     : m_testController(testController)
-    // WPE event timestamps are just MonotonicTime, not actual WallTime, so we can
-    // use any point of origin, as long as we are consistent.
-    , m_time(MonotonicTime::now().secondsSinceEpoch().value())
+    // Tracks leap offset time, not actual wall time
+    , m_time(0)
     , m_leftMouseButtonDown(false)
     , m_clickCount(0)
     , m_clickTime(0)
@@ -59,6 +62,11 @@ EventSenderProxy::EventSenderProxy(TestController* testController)
 #if USE(LIBWPE)
     m_client = makeUnique<EventSenderProxyClientLibWPE>(*testController);
 #endif
+}
+
+static double absoluteTimeForEventTime(double leapOffset)
+{
+    return MonotonicTime::now().secondsSinceEpoch().value() + leapOffset;
 }
 
 EventSenderProxy::~EventSenderProxy() = default;
@@ -77,24 +85,30 @@ void EventSenderProxy::updateClickCountForButton(int button)
     m_clickButton = button;
 }
 
-void EventSenderProxy::mouseDown(unsigned button, WKEventModifiers wkModifiers, WKStringRef pointerType)
+void EventSenderProxy::mouseDown(unsigned button, WKEventModifiers wkModifiers, WKStringRef pointerType, CompletionHandler<void()>&& completionHandler)
 {
     updateClickCountForButton(button);
-    m_client->mouseDown(button, m_time, wkModifiers, m_position.x, m_position.y, m_clickCount, m_mouseButtonsCurrentlyDown);
+    m_client->mouseDown(button, absoluteTimeForEventTime(m_time), wkModifiers, m_position.x, m_position.y, m_clickCount, m_mouseButtonsCurrentlyDown);
+    if (completionHandler)
+        m_testController->doAfterProcessingAllPendingMouseEvents(WTF::move(completionHandler));
 }
 
-void EventSenderProxy::mouseUp(unsigned button, WKEventModifiers wkModifiers, WKStringRef pointerType)
+void EventSenderProxy::mouseUp(unsigned button, WKEventModifiers wkModifiers, WKStringRef pointerType, CompletionHandler<void()>&& completionHandler)
 {
-    m_client->mouseUp(button, m_time, wkModifiers, m_position.x, m_position.y, m_mouseButtonsCurrentlyDown);
+    m_client->mouseUp(button, absoluteTimeForEventTime(m_time), wkModifiers, m_position.x, m_position.y, m_mouseButtonsCurrentlyDown);
     m_clickPosition = m_position;
     m_clickTime = m_time;
+    if (completionHandler)
+        m_testController->doAfterProcessingAllPendingMouseEvents(WTF::move(completionHandler));
 }
 
-void EventSenderProxy::mouseMoveTo(double x, double y, WKStringRef pointerType)
+void EventSenderProxy::mouseMoveTo(double x, double y, WKStringRef pointerType, CompletionHandler<void()>&& completionHandler)
 {
     m_position.x = x;
     m_position.y = y;
-    m_client->mouseMoveTo(x, y, m_time, m_clickButton, m_mouseButtonsCurrentlyDown);
+    m_client->mouseMoveTo(x, y, absoluteTimeForEventTime(m_time), m_clickButton, m_mouseButtonsCurrentlyDown);
+    if (completionHandler)
+        m_testController->doAfterProcessingAllPendingMouseEvents(WTF::move(completionHandler));
 }
 
 void EventSenderProxy::mouseScrollBy(int horizontal, int vertical)
@@ -103,7 +117,7 @@ void EventSenderProxy::mouseScrollBy(int horizontal, int vertical)
     if (!horizontal && !vertical)
         return;
 
-    m_client->mouseScrollBy(horizontal, vertical, m_time, m_position.x, m_position.y);
+    m_client->mouseScrollBy(horizontal, vertical, absoluteTimeForEventTime(m_time), m_position.x, m_position.y);
 }
 
 void EventSenderProxy::mouseScrollByWithWheelAndMomentumPhases(int horizontal, int vertical, int, int)
@@ -120,9 +134,11 @@ void EventSenderProxy::leapForward(int milliseconds)
     m_time += milliseconds / 1000.0;
 }
 
-void EventSenderProxy::keyDown(WKStringRef keyRef, WKEventModifiers wkModifiers, unsigned location)
+void EventSenderProxy::keyDown(WKStringRef keyRef, WKEventModifiers wkModifiers, unsigned location, CompletionHandler<void()>&& completionHandler)
 {
-    m_client->keyDown(keyRef, m_time, wkModifiers, location);
+    m_client->keyDown(keyRef, absoluteTimeForEventTime(m_time), wkModifiers, location);
+    if (completionHandler)
+        m_testController->doAfterProcessingAllPendingKeyEvents(WTF::move(completionHandler));
 }
 
 void EventSenderProxy::rawKeyDown(WKStringRef keyRef, WKEventModifiers wkModifiers, unsigned location)
@@ -139,12 +155,12 @@ void EventSenderProxy::rawKeyUp(WKStringRef keyRef, WKEventModifiers wkModifiers
 
 void EventSenderProxy::addTouchPoint(int x, int y)
 {
-    m_client->addTouchPoint(x, y, m_time);
+    m_client->addTouchPoint(x, y, absoluteTimeForEventTime(m_time));
 }
 
 void EventSenderProxy::updateTouchPoint(int index, int x, int y)
 {
-    m_client->updateTouchPoint(index, x, y, m_time);
+    m_client->updateTouchPoint(index, x, y, absoluteTimeForEventTime(m_time));
 }
 
 void EventSenderProxy::setTouchModifier(WKEventModifiers, bool)
@@ -159,22 +175,22 @@ void EventSenderProxy::setTouchPointRadius(int, int)
 
 void EventSenderProxy::touchStart()
 {
-    m_client->touchStart(m_time);
+    m_client->touchStart(absoluteTimeForEventTime(m_time));
 }
 
 void EventSenderProxy::touchMove()
 {
-    m_client->touchMove(m_time);
+    m_client->touchMove(absoluteTimeForEventTime(m_time));
 }
 
 void EventSenderProxy::touchEnd()
 {
-    m_client->touchEnd(m_time);
+    m_client->touchEnd(absoluteTimeForEventTime(m_time));
 }
 
 void EventSenderProxy::touchCancel()
 {
-    m_client->touchCancel(m_time);
+    m_client->touchCancel(absoluteTimeForEventTime(m_time));
 }
 
 void EventSenderProxy::clearTouchPoints()
@@ -184,18 +200,14 @@ void EventSenderProxy::clearTouchPoints()
 
 void EventSenderProxy::releaseTouchPoint(int index)
 {
-    m_client->releaseTouchPoint(index, m_time);
+    m_client->releaseTouchPoint(index, absoluteTimeForEventTime(m_time));
 }
 
 void EventSenderProxy::cancelTouchPoint(int index)
 {
-    m_client->cancelTouchPoint(index, m_time);
+    m_client->cancelTouchPoint(index, absoluteTimeForEventTime(m_time));
 }
 
 #endif // ENABLE(TOUCH_EVENTS)
-
-void EventSenderProxy::waitForPendingMouseEvents()
-{
-}
 
 } // namespace WTR

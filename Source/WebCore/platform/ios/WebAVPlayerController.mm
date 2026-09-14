@@ -42,15 +42,19 @@
 #import <pal/cf/CoreMediaSoftLink.h>
 #import <pal/cocoa/AVFoundationSoftLink.h>
 
+#if !defined(WebCore_AVKitLibrary_SoftLinked)
+#define WebCore_AVKitLibrary_SoftLinked
 SOFTLINK_AVKIT_FRAMEWORK()
+#endif
 SOFT_LINK_CLASS_OPTIONAL(AVKit, AVPlayerController)
 SOFT_LINK_CLASS_OPTIONAL(AVKit, AVTimeRange)
+#if !defined(WebCore_AVValueTiming_SoftLinked)
+#define WebCore_AVValueTiming_SoftLinked
 SOFT_LINK_CLASS_OPTIONAL(AVKit, AVValueTiming)
+#endif
 
 OBJC_CLASS AVAssetTrack;
 OBJC_CLASS AVMetadataItem;
-
-using namespace WebCore;
 
 static void * WebAVPlayerControllerSeekableTimeRangesObserverContext = &WebAVPlayerControllerSeekableTimeRangesObserverContext;
 static void * WebAVPlayerControllerHasLiveStreamingContentObserverContext = &WebAVPlayerControllerHasLiveStreamingContentObserverContext;
@@ -253,8 +257,8 @@ Class webAVPlayerControllerClassSingleton()
     BOOL _pictureInPictureInterrupted;
     BOOL _muted;
     NSTimeInterval _seekToTime;
-    WebAVMediaSelectionOption *_currentAudioMediaSelectionOption;
-    WebAVMediaSelectionOption *_currentLegibleMediaSelectionOption;
+    RetainPtr<WebAVMediaSelectionOption> _currentAudioMediaSelectionOption;
+    RetainPtr<WebAVMediaSelectionOption> _currentLegibleMediaSelectionOption;
     RetainPtr<AVPlayer> _player;
 }
 
@@ -299,8 +303,6 @@ Class webAVPlayerControllerClassSingleton()
     [_timing release];
     [_audioMediaSelectionOptions release];
     [_legibleMediaSelectionOptions release];
-    [_currentAudioMediaSelectionOption release];
-    [_currentLegibleMediaSelectionOption release];
     [_externalPlaybackAirPlayDeviceLocalizedName release];
     [_minTiming release];
     [_maxTiming release];
@@ -750,7 +752,7 @@ Class webAVPlayerControllerClassSingleton()
 
 - (WebAVMediaSelectionOption *)currentAudioMediaSelectionOption
 {
-    return _currentAudioMediaSelectionOption;
+    return _currentAudioMediaSelectionOption.get();
 }
 
 - (void)setCurrentAudioMediaSelectionOption:(WebAVMediaSelectionOption *)option
@@ -758,8 +760,7 @@ Class webAVPlayerControllerClassSingleton()
     if (option == _currentAudioMediaSelectionOption)
         return;
 
-    [_currentAudioMediaSelectionOption release];
-    _currentAudioMediaSelectionOption = [option retain];
+    _currentAudioMediaSelectionOption = option;
 
     if (!self.delegate)
         return;
@@ -777,7 +778,7 @@ Class webAVPlayerControllerClassSingleton()
 
 - (WebAVMediaSelectionOption *)currentLegibleMediaSelectionOption
 {
-    return _currentLegibleMediaSelectionOption;
+    return _currentLegibleMediaSelectionOption.get();
 }
 
 - (void)setCurrentLegibleMediaSelectionOption:(WebAVMediaSelectionOption *)option
@@ -785,8 +786,7 @@ Class webAVPlayerControllerClassSingleton()
     if (option == _currentLegibleMediaSelectionOption)
         return;
 
-    [_currentLegibleMediaSelectionOption release];
-    _currentLegibleMediaSelectionOption = [option retain];
+    _currentLegibleMediaSelectionOption = option;
 
     if (self.delegate && option)
         self.delegate->selectLegibleMediaOption(option.tag);
@@ -895,7 +895,7 @@ Class webAVPlayerControllerClassSingleton()
     }
 
     if (WebAVPlayerControllerIsPlayingOnSecondScreenObserverContext == context) {
-        if (auto* delegate = self.delegate)
+        if (CheckedPtr<WebCore::PlaybackSessionModel> delegate = self.delegate)
             delegate->setPlayingOnSecondScreen(_playingOnSecondScreen);
         return;
     }
@@ -1224,7 +1224,7 @@ Class webAVPlayerControllerClassSingleton()
     return _localizedDisplayName.get();
 }
 
-- (NSString *)mediaType
+- (AVMediaType)mediaType
 {
     return _mediaType.get();
 }

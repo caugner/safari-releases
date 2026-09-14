@@ -36,6 +36,7 @@
 #include "ViewTransitionUpdateCallback.h"
 #include "VisibilityChangeClient.h"
 #include <wtf/CheckedRef.h>
+#include <wtf/OrderedHashSet.h>
 #include <wtf/Ref.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/text/AtomString.h>
@@ -155,7 +156,7 @@ public:
     }
 
 private:
-    ListHashSet<AtomString> m_keys;
+    OrderedHashSet<AtomString> m_keys;
     HashMap<AtomString, UniqueRef<CapturedElement>> m_map;
 };
 
@@ -165,7 +166,7 @@ public:
 
     OrderedNamedElementsMap namedElements;
     FloatSize initialLargeViewportSize;
-    float initialPageZoom;
+    float initialPageZoom { 1 };
     MonotonicTime startTime;
     RefPtr<SecurityOrigin> oldDocumentOrigin;
 };
@@ -195,17 +196,16 @@ public:
 
     UniqueRef<ViewTransitionParams> takeViewTransitionParams();
 
-    DOMPromise& ready();
-    DOMPromise& updateCallbackDone();
-    DOMPromise& finished();
+    DOMPromise& NODELETE ready();
+    DOMPromise& NODELETE updateCallbackDone();
+    DOMPromise& NODELETE finished();
 
     ViewTransitionPhase phase() const { return m_phase; }
     const OrderedNamedElementsMap& namedElements() const { return m_namedElements; };
 
-    Document* document() const;
-    RefPtr<Document> protectedDocument() const { return document(); }
+    Document* NODELETE document() const;
 
-    bool documentElementIsCaptured() const;
+    bool NODELETE documentElementIsCaptured() const;
 
     const ViewTransitionTypeSet& types() const { return m_types; }
     void setTypes(Ref<ViewTransitionTypeSet>&&);
@@ -249,7 +249,7 @@ private:
     OrderedNamedElementsMap m_namedElements;
     ViewTransitionPhase m_phase { ViewTransitionPhase::PendingCapture };
     FloatSize m_initialLargeViewportSize;
-    float m_initialPageZoom;
+    float m_initialPageZoom { 1 };
 
     RefPtr<ViewTransitionUpdateCallback> m_updateCallback;
     bool m_isCrossDocument { false };

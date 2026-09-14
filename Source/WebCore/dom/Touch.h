@@ -26,7 +26,11 @@
 #pragma once
 
 #if ENABLE(IOS_TOUCH_EVENTS)
+// FIXME: Properly support using WKA in modules.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnon-modular-include-in-module"
 #include <WebKitAdditions/TouchIOS.h>
+#pragma clang diagnostic pop
 #elif ENABLE(TOUCH_EVENTS)
 
 #include <WebCore/DoublePoint.h>
@@ -64,7 +68,7 @@ public:
     float webkitRotationAngle() const { return m_rotationAngle; }
     double twist() const { return m_twist; }
     float webkitForce() const { return m_force; }
-    const DoublePoint& absoluteLocation() const { return m_absoluteLocation; }
+    const DoublePoint& absoluteLocation() const LIFETIME_BOUND { return m_absoluteLocation; }
     Ref<Touch> cloneWithNewTarget(EventTarget*) const;
 
 private:

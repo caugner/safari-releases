@@ -42,40 +42,69 @@
 #else
 
 #if HAVE(LIQUID_GLASS)
-static bool platformIsLiquidGlassEnabled()
+static bool NODELETE platformIsLiquidGlassEnabled()
 {
     return true;
 }
 #endif
 
 namespace WebKit {
+
 #if ENABLE(VIDEO)
-bool defaultCaptionDisplaySettingsEnabled()
+
+bool NODELETE defaultCaptionDisplaySettingsEnabled()
 {
     return false;
 }
+
 #endif
 
 #if PLATFORM(MAC)
-bool defaultUseAppKitGestures()
+
+bool NODELETE defaultUseAppKitGestures()
+{
+    return false;
+}
+
+bool NODELETE defaultTextInputClientSelectionUpdatesEnabled()
+{
+    return false;
+}
+
+#endif // PLATFORM(MAC)
+
+#if ENABLE(CONTENT_CHANGE_OBSERVER)
+bool defaultContentChangeObserverEnabled()
+{
+#if PLATFORM(IOS_FAMILY) && !PLATFORM(MACCATALYST)
+    return true;
+#else
+    return false;
+#endif
+}
+#endif
+
+#if HAVE(WEBCONTENTRESTRICTIONS_ASK_TO)
+bool NODELETE defaultWebContentRestrictionsAskToEnabled()
 {
     return false;
 }
 #endif
+
 }
 
-#endif
+#endif // namespace WebKit
 
 namespace WebKit {
 
 #if HAVE(LIQUID_GLASS)
-static std::optional<bool>& cachedIsLiqudGlassEnabled()
+static std::optional<bool>& NODELETE cachedIsLiqudGlassEnabled()
 {
     static std::optional<bool> isLiquidGlassEnabled;
     return isLiquidGlassEnabled;
 }
 
-bool isLiquidGlassEnabled()
+bool NODELETE isLiquidGlassEnabled()
 {
     if (auto isLiquidGlassEnabled = cachedIsLiqudGlassEnabled())
         return *isLiquidGlassEnabled;
@@ -83,7 +112,7 @@ bool isLiquidGlassEnabled()
     return platformIsLiquidGlassEnabled();
 }
 
-void setLiquidGlassEnabled(bool isLiquidGlassEnabled)
+void NODELETE setLiquidGlassEnabled(bool isLiquidGlassEnabled)
 {
     cachedIsLiqudGlassEnabled() = isLiquidGlassEnabled;
 }
@@ -135,7 +164,7 @@ bool defaultRemoveBackgroundEnabled()
 
 #endif // ENABLE(IMAGE_ANALYSIS)
 
-bool defaultTopContentInsetBackgroundCanChangeAfterScrolling()
+SUPPRESS_NODELETE bool defaultTopContentInsetBackgroundCanChangeAfterScrolling()
 {
 #if PLATFORM(IOS_FAMILY)
     return PAL::currentUserInterfaceIdiomIsSmallScreen();
@@ -144,7 +173,7 @@ bool defaultTopContentInsetBackgroundCanChangeAfterScrolling()
 #endif
 }
 
-bool defaultContentInsetBackgroundFillEnabled()
+bool NODELETE defaultContentInsetBackgroundFillEnabled()
 {
 #if ENABLE(CONTENT_INSET_BACKGROUND_FILL)
     return isLiquidGlassEnabled();
@@ -154,7 +183,7 @@ bool defaultContentInsetBackgroundFillEnabled()
 }
 
 #if HAVE(MATERIAL_HOSTING)
-bool defaultHostedBlurMaterialInMediaControlsEnabled()
+bool NODELETE defaultHostedBlurMaterialInMediaControlsEnabled()
 {
     return isLiquidGlassEnabled();
 }
@@ -172,7 +201,7 @@ bool defaultIOSurfaceLosslessCompressionEnabled()
 }
 
 #if ENABLE(UNIFIED_PDF)
-bool defaultUnifiedPDFEnabled()
+bool NODELETE defaultUnifiedPDFEnabled()
 {
 #if ENABLE(UNIFIED_PDF_BY_DEFAULT)
     return true;
@@ -180,6 +209,15 @@ bool defaultUnifiedPDFEnabled()
     return false;
 #endif
 }
+#endif
+
+#if ENABLE(HORIZONTAL_BANNER_VIEW_OVERLAYS) && !USE(APPLE_INTERNAL_SDK)
+
+bool NODELETE defaultHorizontalBannerViewOverlaysEnabled()
+{
+    return false;
+}
+
 #endif
 
 } // namespace WebKit

@@ -37,12 +37,19 @@
 #include "CSSTokenizer.h"
 #include "CSSValuePair.h"
 #include "CaptionDisplaySettingsOptions.h"
+#include "Document.h"
+#include "DocumentPage.h"
+#include "DocumentView.h"
 #include "Element.h"
 #include "EventHandler.h"
+#include "FrameDestructionObserverInlines.h"
 #include "HTMLVideoElement.h"
 #include "JSDOMPromiseDeferred.h"
 #include "JSDOMWindow.h"
+#include "LocalFrameInlines.h"
+#include "LocalFrameView.h"
 #include "MouseEvent.h"
+#include "NodeDocument.h"
 #include "ResolvedCaptionDisplaySettingsOptions.h"
 #include "TouchEvent.h"
 
@@ -67,10 +74,10 @@ static void parsePositionAreaString(const String& positionArea, ResolvedCaptionD
     if (!valuePair)
         return;
 
-    RefPtr firstValue = valuePair->first();
-    RefPtr secondValue = valuePair->second();
+    RefPtr firstValue = dynamicDowncast<CSSKeywordValue>(valuePair->first());
+    RefPtr secondValue = dynamicDowncast<CSSKeywordValue>(valuePair->second());
 
-    if (!firstValue->isValueID() || !secondValue->isValueID())
+    if (!firstValue || !secondValue)
         return;
 
     using XPositionArea = ResolvedCaptionDisplaySettingsOptions::XPositionArea;
@@ -155,7 +162,7 @@ void HTMLVideoElementCaptionDisplaySettings::showCaptionDisplaySettings(HTMLVide
             if (!frame)
                 return std::nullopt;
 
-            auto* JSDOMWindowBase = toJSDOMWindow(frame.get(), mainThreadNormalWorldSingleton());
+            auto* JSDOMWindowBase = toJSDOMWindow(frame, mainThreadNormalWorldSingleton());
             if (!JSDOMWindowBase)
                 return std::nullopt;
 

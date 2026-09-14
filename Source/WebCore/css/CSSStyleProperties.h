@@ -27,6 +27,7 @@
 #include <WebCore/CSSProperty.h>
 #include <WebCore/CSSPropertyNames.h>
 #include <WebCore/CSSStyleDeclaration.h>
+#include <WebCore/MutableStyleProperties.h>
 #include <WebCore/StyleRuleType.h>
 #include <WebCore/StyledElement.h>
 #include <wtf/HashMap.h>
@@ -85,7 +86,7 @@ public:
     {
     }
 
-    void ref() const override;
+    void NODELETE ref() const override;
     void deref() const override;
 
     StyleSheetContents* contextStyleSheet() const;
@@ -101,7 +102,7 @@ protected:
 private:
     CSSRule* parentRule() const override { return nullptr; }
     // FIXME: To implement.
-    CSSRule* cssRules() const override { return nullptr; }
+    CSSRuleList* cssRules() const override { return nullptr; }
     unsigned length() const final;
     String item(unsigned index) const final;
     RefPtr<DeprecatedCSSOMValue> getPropertyCSSValue(const String& propertyName) final;
@@ -121,7 +122,7 @@ private:
 
     RefPtr<DeprecatedCSSOMValue> wrapForDeprecatedCSSOM(CSSValue*);
 
-    WARN_UNUSED_RETURN virtual bool willMutate() { return true; }
+    [[nodiscard]] virtual bool willMutate() { return true; }
     virtual void didMutate(MutationType) { }
 };
 
@@ -144,11 +145,11 @@ public:
 private:
     StyleRuleCSSStyleProperties(MutableStyleProperties&, CSSRule&);
 
-    CSSStyleSheet* parentStyleSheet() const final;
+    CSSStyleSheet* NODELETE parentStyleSheet() const final;
 
-    CSSRule* parentRule() const final;
+    CSSRule* NODELETE parentRule() const final;
 
-    WARN_UNUSED_RETURN bool willMutate() final;
+    [[nodiscard]] bool willMutate() final;
     void didMutate(MutationType) final;
     OptionalOrReference<CSSParserContext> cssParserContext() const final;
 
@@ -169,7 +170,7 @@ private:
     CSSStyleSheet* parentStyleSheet() const final;
     StyledElement* parentElement() const final { return m_parentElement.get(); }
 
-    WARN_UNUSED_RETURN bool willMutate() final;
+    [[nodiscard]] bool willMutate() final;
     void didMutate(MutationType) final;
     OptionalOrReference<CSSParserContext> cssParserContext() const final;
 

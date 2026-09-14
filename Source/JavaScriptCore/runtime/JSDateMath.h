@@ -44,12 +44,12 @@
 #pragma once
 
 #include <JavaScriptCore/DateInstanceCache.h>
+#include <JavaScriptCore/JSCTimeZone.h>
 #include <JavaScriptCore/JSExportMacros.h>
 #include <wtf/Compiler.h>
 #include <wtf/DateMath.h>
 #include <wtf/GregorianDateTime.h>
 #include <wtf/Platform.h>
-#include <wtf/SaturatedArithmetic.h>
 #include <wtf/TZoneMalloc.h>
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
@@ -112,9 +112,9 @@ public:
 
     JS_EXPORT_PRIVATE void resetIfNecessarySlow();
 
-    String defaultTimeZone();
+    TimeZone defaultTimeZone();
     String timeZoneDisplayName(bool isDST);
-    Ref<DateInstanceData> cachedDateInstanceData(double millisecondsFromEpoch);
+    Ref<DateInstanceData> NODELETE cachedDateInstanceData(double millisecondsFromEpoch);
 
     void msToGregorianDateTime(double millisecondsFromEpoch, TimeType outputTimeType, GregorianDateTime&);
     double gregorianDateTimeToMS(const GregorianDateTime&, double milliseconds, TimeType);
@@ -158,7 +158,7 @@ private:
         LocalTimeOffset localTimeOffset(DateCache&, int64_t millisecondsFromEpoch, TimeType);
 
     private:
-        LocalTimeOffsetCache* leastRecentlyUsed(LocalTimeOffsetCache* exclude);
+        LocalTimeOffsetCache* NODELETE leastRecentlyUsed(LocalTimeOffsetCache* exclude);
         std::tuple<LocalTimeOffsetCache*, LocalTimeOffsetCache*> probe(int64_t millisecondsFromEpoch);
         void extendTheAfterCache(int64_t millisecondsFromEpoch, LocalTimeOffset);
 
@@ -176,22 +176,11 @@ private:
     };
 
     void timeZoneCacheSlow();
-    LocalTimeOffset localTimeOffset(int64_t millisecondsFromEpoch, TimeType inputTimeType = TimeType::UTCTime)
-    {
-        using Underlying = std::underlying_type_t<TimeType>;
-        static_assert(!static_cast<Underlying>(TimeType::UTCTime));
-        static_assert(static_cast<Underlying>(TimeType::LocalTime) == 1);
-        return m_caches[static_cast<unsigned>(inputTimeType)].localTimeOffset(*this, millisecondsFromEpoch, inputTimeType);
-    }
+    LocalTimeOffset localTimeOffset(int64_t millisecondsFromEpoch, TimeType = TimeType::UTCTime);
 
     LocalTimeOffset calculateLocalTimeOffset(double millisecondsFromEpoch, TimeType inputTimeType);
 
-    OpaqueICUTimeZone* timeZoneCache()
-    {
-        if (!m_timeZoneCache)
-            timeZoneCacheSlow();
-        return m_timeZoneCache.get();
-    }
+    OpaqueICUTimeZone* timeZoneCache();
 
     std::unique_ptr<OpaqueICUTimeZone, OpaqueICUTimeZoneDeleter> m_timeZoneCache;
     std::array<DSTCache, 2> m_caches;

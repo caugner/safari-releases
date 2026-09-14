@@ -105,7 +105,10 @@ public:
 #endif
 
     float usedZoom;
-    float deviceScaleFactor { 1.0f };
+    // This lives here so that we can access the device scale factor cheaply during
+    // layout in order to perform pixel snapping for StyleLineWidth evaluations.
+    // Otherwise, we get significant regressions on performance benchmarks.
+    float deviceScaleFactor;
     WebkitTextStrokeWidth textStrokeWidth;
 
     Color textStrokeColor;
@@ -134,7 +137,7 @@ public:
 
     Cursor::Images cursorImages;
 
-#if ENABLE(TOUCH_EVENTS)
+#if ENABLE(CSS_TAP_HIGHLIGHT_COLOR)
     Color tapHighlightColor;
 #endif
 
@@ -181,7 +184,6 @@ public:
     PREFERRED_TYPE(NBSPMode) unsigned nbspMode : 1;
     PREFERRED_TYPE(LineBreak) unsigned lineBreak : 3;
     PREFERRED_TYPE(UserSelect) unsigned userSelect : 2;
-    PREFERRED_TYPE(ColorSpace) unsigned colorSpace : 1;
     PREFERRED_TYPE(SpeakAs) unsigned speakAs : 4;
     PREFERRED_TYPE(Hyphens) unsigned hyphens : 2;
     PREFERRED_TYPE(TextCombine) unsigned textCombine : 1;

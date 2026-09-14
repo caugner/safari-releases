@@ -25,10 +25,10 @@
 
 #pragma once
 
-#include <WebCore/IDLTypes.h>
-#include <WebCore/JSDOMConvertBase.h>
-#include <WebCore/JSDOMPromise.h>
-#include <WebCore/WorkerGlobalScope.h>
+#include "IDLTypes.h"
+#include "JSDOMConvertBase.h"
+#include "JSDOMPromise.h"
+#include "WorkerGlobalScope.h"
 
 namespace WebCore {
 
@@ -40,9 +40,9 @@ template<typename T> struct Converter<IDLPromise<T>> : DefaultConverter<IDLPromi
     template<typename ExceptionThrower = DefaultExceptionThrower>
     static Result convert(JSC::JSGlobalObject& lexicalGlobalObject, JSC::JSValue value, ExceptionThrower&& exceptionThrower = ExceptionThrower())
     {
-        JSC::VM& vm = JSC::getVM(&lexicalGlobalObject);
+        auto& vm = lexicalGlobalObject.vm();
         auto scope = DECLARE_THROW_SCOPE(vm);
-        auto* globalObject = JSC::jsDynamicCast<JSDOMGlobalObject*>(&lexicalGlobalObject);
+        auto* globalObject = dynamicDowncast<JSDOMGlobalObject>(&lexicalGlobalObject);
         RELEASE_ASSERT(globalObject);
 
         // 1. Let resolve be the original value of %Promise%.resolve.
@@ -51,7 +51,7 @@ template<typename T> struct Converter<IDLPromise<T>> : DefaultConverter<IDLPromi
         if (scope.exception()) {
             CheckedPtr scriptExecutionContext = globalObject->scriptExecutionContext();
             if (RefPtr globalScope = dynamicDowncast<WorkerGlobalScope>(scriptExecutionContext.get())) {
-                auto* scriptController = globalScope->script();
+                CheckedPtr scriptController = globalScope->script();
                 bool terminatorCausedException = vm.isTerminationException(scope.exception());
                 if (terminatorCausedException || (scriptController && scriptController->isTerminatingExecution())) {
                     scriptController->forbidExecution();
@@ -74,14 +74,9 @@ template<typename T> struct JSConverter<IDLPromise<T>> {
     static constexpr bool needsState = true;
     static constexpr bool needsGlobalObject = true;
 
-    static JSC::JSValue convert(JSC::JSGlobalObject&, JSDOMGlobalObject&, DOMPromise& promise)
+    static JSC::JSValue convert(JSC::JSGlobalObject&, JSDOMGlobalObject&, const DOMPromise& promise)
     {
         return promise.guardedObject();
-    }
-
-    static JSC::JSValue convert(JSC::JSGlobalObject&, JSDOMGlobalObject&, const RefPtr<DOMPromise>& promise)
-    {
-        return promise->guardedObject();
     }
 
     static JSC::JSValue convert(JSC::JSGlobalObject&, JSDOMGlobalObject&, const Ref<DOMPromise>& promise)
@@ -97,12 +92,12 @@ template<typename T> struct JSConverter<IDLPromise<T>> {
 };
 
 template<typename T> struct JSConverter<IDLPromiseIgnoringSuspension<T>> : public JSConverter<IDLPromise<T>> {
-    static JSC::JSValue convert(JSC::JSGlobalObject&, JSDOMGlobalObject&, DOMPromise& promise)
+    static JSC::JSValue convert(JSC::JSGlobalObject&, JSDOMGlobalObject&, const DOMPromise& promise)
     {
         return promise.guardedObject();
     }
 
-    static JSC::JSValue convert(JSC::JSGlobalObject&, JSDOMGlobalObject&, const RefPtr<DOMPromise>& promise)
+    static JSC::JSValue convert(JSC::JSGlobalObject&, JSDOMGlobalObject&, const Ref<DOMPromise>& promise)
     {
         return promise->guardedObject();
     }

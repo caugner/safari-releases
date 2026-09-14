@@ -33,10 +33,12 @@
 #import "MessageSenderInlines.h"
 #import "PlaybackSessionManagerMessages.h"
 #import "PlaybackSessionManagerProxyMessages.h"
+#import "TextRecognitionRequest.h"
 #import "VideoPresentationManager.h"
 #import "WebPage.h"
 #import "WebProcess.h"
 #import <WebCore/Color.h>
+#import <WebCore/DocumentPage.h>
 #import <WebCore/DocumentQuirks.h>
 #import <WebCore/DocumentView.h>
 #import <WebCore/ElementInlines.h>
@@ -191,6 +193,9 @@ PlaybackSessionManager::PlaybackSessionManager(WebPage& page)
     , m_logger(page.logger())
     , m_logIdentifier(page.logIdentifier())
 #endif
+#if ENABLE(IMAGE_ANALYSIS)
+    , m_textRecognitionRequest(makeUniqueRef<TextRecognitionRequest>(page, *this))
+#endif
 {
     ALWAYS_LOG(LOGIDENTIFIER);
     WebProcess::singleton().addMessageReceiver(Messages::PlaybackSessionManager::messageReceiverName(), page.identifier(), *this);
@@ -297,11 +302,11 @@ void PlaybackSessionManager::setUpPlaybackControlsManager(WebCore::HTMLMediaElem
 
     Ref page = *m_page;
     if (auto previousContextId = std::exchange(m_controlsManagerContextId, contextId)) {
-        if (mediaElement.protectedDocument()->quirks().needsNowPlayingFullscreenSwapQuirk()) {
+        if (protect(mediaElement.document())->quirks().needsNowPlayingFullscreenSwapQuirk()) {
             RefPtr previousElement = dynamicDowncast<HTMLVideoElement>(mediaElementWithContextId(*previousContextId));
             if (RefPtr videoElement = dynamicDowncast<HTMLVideoElement>(mediaElement); videoElement && previousElement
                 && previousElement->fullscreenMode() != HTMLMediaElement::VideoFullscreenModeNone) {
-                page->protectedVideoPresentationManager()->swapFullscreenModes(*videoElement, *previousElement);
+                protect(page->videoPresentationManager())->swapFullscreenModes(*videoElement, *previousElement);
 
                 page->send(Messages::PlaybackSessionManagerProxy::SwapFullscreenModes(processQualify(contextId), processQualify(*previousContextId)));
 
@@ -393,6 +398,9 @@ void PlaybackSessionManager::durationChanged(WebCore::HTMLMediaElementIdentifier
 void PlaybackSessionManager::currentTimeChanged(WebCore::HTMLMediaElementIdentifier contextId, double currentTime, double anchorTime)
 {
     m_page->send(Messages::PlaybackSessionManagerProxy::CurrentTimeChanged(processQualify(contextId), currentTime, anchorTime));
+#if ENABLE(IMAGE_ANALYSIS)
+    m_textRecognitionRequest->requestTextRecognitionFor(contextId);
+#endif
 }
 
 void PlaybackSessionManager::bufferedTimeChanged(WebCore::HTMLMediaElementIdentifier contextId, double bufferedTime)
@@ -408,7 +416,17 @@ void PlaybackSessionManager::playbackStartedTimeChanged(WebCore::HTMLMediaElemen
 void PlaybackSessionManager::rateChanged(WebCore::HTMLMediaElementIdentifier contextId, OptionSet<PlaybackSessionModel::PlaybackState> playbackState, double playbackRate, double defaultPlaybackRate)
 {
     m_page->send(Messages::PlaybackSessionManagerProxy::RateChanged(processQualify(contextId), playbackState, playbackRate, defaultPlaybackRate));
+#if ENABLE(IMAGE_ANALYSIS)
+    m_textRecognitionRequest->requestTextRecognitionFor(contextId);
+#endif
 }
+
+#if ENABLE(IMAGE_ANALYSIS)
+void PlaybackSessionManager::cancelTextRecognition()
+{
+    m_textRecognitionRequest->cancel();
+}
+#endif
 
 void PlaybackSessionManager::seekableRangesChanged(WebCore::HTMLMediaElementIdentifier contextId, const WebCore::PlatformTimeRanges& timeRanges, double lastModifiedTime, double liveUpdateInterval)
 {
@@ -586,7 +604,7 @@ void PlaybackSessionManager::setMediaSessionAndRegisterAsObserver()
         return;
     }
 
-    auto mediaSession = NavigatorMediaSession::mediaSessionIfExists(window->protectedNavigator().get());
+    auto mediaSession = NavigatorMediaSession::mediaSessionIfExists(protect(window->navigator()).get());
     if (!mediaSession) {
         m_mediaSession = nullptr;
         return;

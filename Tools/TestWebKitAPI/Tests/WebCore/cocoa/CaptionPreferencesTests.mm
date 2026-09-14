@@ -25,8 +25,8 @@
 
 #import "config.h"
 
-#import "PlatformUtilities.h"
-#import "SoftLinkShim.h"
+#import "Helpers/PlatformUtilities.h"
+#import "Helpers/SoftLinkShim.h"
 #import <CoreFoundation/CoreFoundation.h>
 #import <WebCore/CaptionUserPreferencesMediaAF.h>
 #import <WebCore/Color.h>
@@ -60,16 +60,6 @@
 #if HAVE(AVLEGIBLEMEDIAOPTIONSMENUCONTROLLER)
 - (void)findAndDismissContextMenus;
 #endif
-@end
-
-// Simple delegate for testing
-@interface TestContextMenuDelegate : NSObject <UIContextMenuInteractionDelegate>
-@end
-
-@implementation TestContextMenuDelegate
-- (UIContextMenuConfiguration *)contextMenuInteraction:(UIContextMenuInteraction *)interaction configurationForMenuAtLocation:(CGPoint)location {
-    return nil;
-}
 @end
 #endif
 
@@ -379,12 +369,7 @@ TEST_F(CaptionPreferenceTests, FontSize)
     EXPECT_STREQ(preferences->captionsFontSizeCSS().utf8().data(), "font-size: 10cqmin;");
 }
 
-// FIXME: https://bugs.webkit.org/show_bug.cgi?id=302171
-#if PLATFORM(MAC) && __MAC_OS_X_VERSION_MIN_REQUIRED < 150000 && defined(__x86_64__)
-TEST_F(CaptionPreferenceTests, DISABLED_Colors)
-#else
 TEST_F(CaptionPreferenceTests, Colors)
-#endif
 {
     MediaAccessibilityShim shim;
 
@@ -757,5 +742,17 @@ TEST_F(CaptionPreferenceTests, ReceievedDidOpenWhenHighlighted)
 }
 #endif
 
+TEST_F(CaptionPreferenceTests, NullProfileNameShouldYieldEmptyStyleSheet)
+{
+    if (!CaptionUserPreferencesMediaAF::canSetActiveProfileID())
+        return;
+
+    MediaAccessibilityShim shim;
+    UniqueRef group = PageGroup::create("CaptionPreferenceTests"_s);
+    auto preferences = CaptionUserPreferencesMediaAF::create(group);
+
+    SOFT_LINK_SHIM_SET_RESULT(MACaptionAppearanceCopyActiveProfileID, CFSTR(""));
+    EXPECT_STREQ(preferences->captionsStyleSheetOverride().utf8().data(), "");
+}
 
 }

@@ -44,13 +44,13 @@
 namespace WebGPU {
 
 struct ShaderModuleParameters {
-    const char* wgslCode;
+    String wgslCode;
     const WGPUShaderModuleCompilationHint* hints;
 };
 
-static std::optional<ShaderModuleParameters> findShaderModuleParameters(const WGPUShaderModuleDescriptor& descriptor)
+static std::optional<ShaderModuleParameters> NODELETE findShaderModuleParameters(const WGPUShaderModuleDescriptor& descriptor)
 {
-    const char* wgslCode = descriptor.wgslDescriptor;
+    const auto& wgslCode = descriptor.wgslDescriptor;
     const WGPUShaderModuleCompilationHint* hints = descriptor.hints;
 
     if (!wgslCode)
@@ -104,7 +104,7 @@ static RefPtr<ShaderModule> earlyCompileShaderModule(Device& device, Variant<WGS
     wgslPipelineLayouts.reserveCapacity(suppliedHints.hintCount);
     for (const auto& hint : suppliedHints.hintsSpan()) {
         auto hintKey = fromAPI(hint.entryPoint);
-        Ref layout = WebGPU::protectedFromAPI(hint.layout);
+        Ref layout = WebGPU::fromAPI(hint.layout);
         hints.add(hintKey, layout);
         WGSL::PipelineLayout* convertedPipelineLayout = nullptr;
         if (layout->numberOfBindGroupLayouts()) {
@@ -178,7 +178,7 @@ Ref<ShaderModule> Device::createShaderModule(const WGPUShaderModuleDescriptor& d
         return ShaderModule::createInvalid(*this);
 
     auto supportedFeatures = buildFeatureSet(m_capabilities.features);
-    auto checkResult = WGSL::staticCheck(fromAPI(shaderModuleParameters->wgslCode), std::nullopt, WGSL::Configuration {
+    auto checkResult = WGSL::staticCheck(shaderModuleParameters->wgslCode, std::nullopt, WGSL::Configuration {
         .maxBuffersPlusVertexBuffersForVertexStage = maxBuffersPlusVertexBuffersForVertexStage(),
         .maxBuffersForFragmentStage = maxBuffersForFragmentStage(),
         .maxBuffersForComputeStage = maxBuffersForComputeStage(),
@@ -198,7 +198,7 @@ auto ShaderModule::convertCheckResult(Variant<WGSL::SuccessfulCheck, WGSL::Faile
     });
 }
 
-static MTLDataType metalDataTypeFromPrimitive(const WGSL::Types::Primitive *primitiveType, int vectorSize = 1)
+static MTLDataType NODELETE metalDataTypeFromPrimitive(const WGSL::Types::Primitive *primitiveType, int vectorSize = 1)
 {
     switch (vectorSize) {
     case 1:
@@ -266,7 +266,7 @@ static MTLDataType metalDataTypeFromPrimitive(const WGSL::Types::Primitive *prim
     }
 }
 
-static WGPUVertexFormat vertexFormatTypeFromPrimitive(const WGSL::Types::Primitive *primitiveType, int vectorSize)
+static WGPUVertexFormat NODELETE vertexFormatTypeFromPrimitive(const WGSL::Types::Primitive *primitiveType, int vectorSize)
 {
     switch (vectorSize) {
     case 1:
@@ -510,6 +510,20 @@ bool ShaderModule::usesFragDepth(const String& entryPoint) const
     return false;
 }
 
+bool ShaderModule::usesPrimitiveIndexInInput(const String& entryPoint) const
+{
+    if (auto state = shaderModuleState(entryPoint))
+        return state->usesPrimitiveIndexInInput;
+    return false;
+}
+
+uint32_t ShaderModule::clipDistancesCount(const String& entryPoint) const
+{
+    if (auto state = shaderModuleState(entryPoint))
+        return state->clipDistancesCount;
+    return 0;
+}
+
 void ShaderModule::populateFragmentInputs(const WGSL::Type& type, ShaderModule::FragmentInputs& fragmentInputs, const String& entryPointName)
 {
     auto* inputStruct = std::get_if<WGSL::Types::Struct>(&type);
@@ -520,6 +534,8 @@ void ShaderModule::populateFragmentInputs(const WGSL::Type& type, ShaderModule::
         if (member.builtin()) {
             using enum WGSL::Builtin;
             switch (*member.builtin()) {
+            case ClipDistances:
+                break;
             case FragDepth:
                 populateShaderModuleState(entryPointName).usesFragDepth = true;
                 break;
@@ -537,6 +553,9 @@ void ShaderModule::populateFragmentInputs(const WGSL::Type& type, ShaderModule::
             case NumWorkgroups:
                 break;
             case Position:
+                break;
+            case PrimitiveIndex:
+                populateShaderModuleState(entryPointName).usesPrimitiveIndexInInput = true;
                 break;
             case SampleIndex:
                 populateShaderModuleState(entryPointName).usesSampleIndexInInput = true;
@@ -575,7 +594,7 @@ static ShaderModule::VertexStageIn parseStageIn(const WGSL::AST::Function& funct
     return result;
 }
 
-ShaderModule::FragmentInputs ShaderModule::parseFragmentInputs(const WGSL::AST::Function& function)
+ShaderModule::FragmentInputs ShaderModule::parseFragmentInputs(const WGSL::AST::Function& function, const String& entryPointName)
 {
     ShaderModule::FragmentInputs result;
     for (auto& parameter : function.parameters()) {
@@ -583,7 +602,7 @@ ShaderModule::FragmentInputs ShaderModule::parseFragmentInputs(const WGSL::AST::
             continue;
 
         if (auto* inferredType = parameter.typeName().inferredType())
-            populateFragmentInputs(*inferredType, result, function.name());
+            populateFragmentInputs(*inferredType, result, entryPointName);
     }
 
     return result;
@@ -604,8 +623,23 @@ ShaderModule::ShaderModule(Variant<WGSL::SuccessfulCheck, WGSL::FailedCheck>&& c
             case WGSL::ShaderStage::Vertex: {
                 m_stageInTypesForEntryPoint.add(entryPoint.originalName, parseStageIn(entryPoint.function));
                 if (auto expression = entryPoint.function.maybeReturnType()) {
-                    if (auto* inferredType = expression->inferredType())
+                    if (auto* inferredType = expression->inferredType()) {
                         m_vertexReturnTypeForEntryPoint.add(entryPoint.originalName, parseVertexReturnType(*inferredType));
+
+                        // Check for @builtin(clip_distances) in vertex output
+                        if (auto* returnStruct = std::get_if<WGSL::Types::Struct>(inferredType)) {
+                            for (auto& member : returnStruct->structure.members()) {
+                                if (member.builtin() && *member.builtin() == WGSL::Builtin::ClipDistances) {
+                                    // Extract the array size from array<f32, N>
+                                    if (auto* arrayType = std::get_if<WGSL::Types::Array>(member.type().inferredType())) {
+                                        if (auto* size = std::get_if<unsigned>(&arrayType->size))
+                                            populateShaderModuleState(entryPoint.originalName).clipDistancesCount = *size;
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
                 }
                 if (!allowVertexDefault || m_defaultVertexEntryPoint.length()) {
                     allowVertexDefault = false;
@@ -615,7 +649,7 @@ ShaderModule::ShaderModule(Variant<WGSL::SuccessfulCheck, WGSL::FailedCheck>&& c
                 m_defaultVertexEntryPoint = entryPoint.originalName;
             } break;
             case WGSL::ShaderStage::Fragment: {
-                m_fragmentInputsForEntryPoint.add(entryPoint.originalName, parseFragmentInputs(entryPoint.function));
+                m_fragmentInputsForEntryPoint.add(entryPoint.originalName, parseFragmentInputs(entryPoint.function, entryPoint.originalName));
                 if (auto expression = entryPoint.function.maybeReturnType()) {
                     if (auto* inferredType = expression->inferredType())
                         m_fragmentReturnTypeForEntryPoint.add(entryPoint.originalName, parseFragmentReturnType(*inferredType, entryPoint));
@@ -776,7 +810,7 @@ void ShaderModule::setLabel(String&& label)
         m_library.label = label.createNSString().get();
 }
 
-static auto wgslBindingType(WGPUBufferBindingType bindingType)
+static auto NODELETE wgslBindingType(WGPUBufferBindingType bindingType)
 {
     switch (bindingType) {
     case WGPUBufferBindingType_Uniform:
@@ -792,7 +826,7 @@ static auto wgslBindingType(WGPUBufferBindingType bindingType)
     }
 }
 
-static auto wgslSamplerType(WGPUSamplerBindingType bindingType)
+static auto NODELETE wgslSamplerType(WGPUSamplerBindingType bindingType)
 {
     switch (bindingType) {
     case WGPUSamplerBindingType_Filtering:
@@ -808,7 +842,7 @@ static auto wgslSamplerType(WGPUSamplerBindingType bindingType)
     }
 }
 
-static auto wgslSampleType(WGPUTextureSampleType sampleType)
+static auto NODELETE wgslSampleType(WGPUTextureSampleType sampleType)
 {
     switch (sampleType) {
     case WGPUTextureSampleType_Sint:
@@ -828,7 +862,7 @@ static auto wgslSampleType(WGPUTextureSampleType sampleType)
     }
 }
 
-static auto wgslViewDimension(WGPUTextureViewDimension viewDimension)
+static auto NODELETE wgslViewDimension(WGPUTextureViewDimension viewDimension)
 {
     switch (viewDimension) {
     case WGPUTextureViewDimension_Cube:
@@ -850,7 +884,7 @@ static auto wgslViewDimension(WGPUTextureViewDimension viewDimension)
     }
 }
 
-static WGSL::StorageTextureAccess wgslAccess(WGPUStorageTextureAccess access)
+static WGSL::StorageTextureAccess NODELETE wgslAccess(WGPUStorageTextureAccess access)
 {
     switch (access) {
     case WGPUStorageTextureAccess_WriteOnly:
@@ -865,7 +899,7 @@ static WGSL::StorageTextureAccess wgslAccess(WGPUStorageTextureAccess access)
     }
 }
 
-static WGSL::TexelFormat wgslFormat(WGPUTextureFormat format)
+static WGSL::TexelFormat NODELETE wgslFormat(WGPUTextureFormat format)
 {
     switch (format) {
     case WGPUTextureFormat_BGRA8Unorm:
@@ -1076,7 +1110,7 @@ const String& ShaderModule::defaultComputeEntryPoint() const
 
 #pragma mark WGPU Stubs
 
-void wgpuShaderModuleReference(WGPUShaderModule shaderModule)
+void NODELETE wgpuShaderModuleReference(WGPUShaderModule shaderModule)
 {
     WebGPU::fromAPI(shaderModule).ref();
 }
@@ -1088,21 +1122,21 @@ void wgpuShaderModuleRelease(WGPUShaderModule shaderModule)
 
 void wgpuShaderModuleGetCompilationInfo(WGPUShaderModule shaderModule, WGPUCompilationInfoCallback callback, void * userdata)
 {
-    WebGPU::protectedFromAPI(shaderModule)->getCompilationInfo([callback, userdata](WGPUCompilationInfoRequestStatus status, const WGPUCompilationInfo& compilationInfo) {
+    protect(WebGPU::fromAPI(shaderModule))->getCompilationInfo([callback, userdata](WGPUCompilationInfoRequestStatus status, const WGPUCompilationInfo& compilationInfo) {
         callback(status, &compilationInfo, userdata);
     });
 }
 
 void wgpuShaderModuleGetCompilationInfoWithBlock(WGPUShaderModule shaderModule, WGPUCompilationInfoBlockCallback callback)
 {
-    WebGPU::protectedFromAPI(shaderModule)->getCompilationInfo([callback = WebGPU::fromAPI(WTF::move(callback))](WGPUCompilationInfoRequestStatus status, const WGPUCompilationInfo& compilationInfo) {
+    protect(WebGPU::fromAPI(shaderModule))->getCompilationInfo([callback = WebGPU::fromAPI(WTF::move(callback))](WGPUCompilationInfoRequestStatus status, const WGPUCompilationInfo& compilationInfo) {
         callback(status, &compilationInfo);
     });
 }
 
 void wgpuShaderModuleSetLabel(WGPUShaderModule shaderModule, const char* label)
 {
-    WebGPU::protectedFromAPI(shaderModule)->setLabel(WebGPU::fromAPI(label));
+    protect(WebGPU::fromAPI(shaderModule))->setLabel(WebGPU::fromAPI(label));
 }
 
 String wgpuAdapterFeatureName(WGPUFeatureName feature)
@@ -1140,6 +1174,8 @@ String wgpuAdapterFeatureName(WGPUFeatureName feature)
         return "float32-blendable"_s;
     case WGPUFeatureName_ClipDistances:
         return "clip-distances"_s;
+    case WGPUFeatureName_PrimitiveIndex:
+        return "primitive-index"_s;
     case WGPUFeatureName_DualSourceBlending:
         return "dual-source-blending"_s;
     case WGPUFeatureName_Float16Renderable:
@@ -1150,6 +1186,8 @@ String wgpuAdapterFeatureName(WGPUFeatureName feature)
         return "core-features-and-limits"_s;
     case WGPUFeatureName_TextureFormatsTier1:
         return "texture-formats-tier1"_s;
+    case WGPUFeatureName_TextureFormatsTier2:
+        return "texture-formats-tier2"_s;
     case WGPUFeatureName_Force32:
         return emptyString();
     }

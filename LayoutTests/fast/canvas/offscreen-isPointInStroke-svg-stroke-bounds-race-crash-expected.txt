@@ -1,5 +1,0 @@
-Ensure Path uses thread-safe context to check strokeContains() and to calculate strokeBoundingBox().
-
-PASS if this test does not crash.
-
-

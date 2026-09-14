@@ -16,14 +16,13 @@
 #include "include/core/SkShader.h"
 #include "include/core/SkSpan.h"
 #include "include/core/SkTileMode.h"
-#include "include/effects/SkGradientShader.h"
+#include "include/effects/SkGradient.h"
 #include "include/gpu/graphite/Context.h"
 #include "src/core/SkColorData.h"
 #include "src/core/SkColorSpaceXformSteps.h"
 #include "src/gpu/graphite/KeyContext.h"
 #include "src/gpu/graphite/PaintParams.h"
 #include "src/gpu/graphite/PaintParamsKey.h"
-#include "src/gpu/graphite/ReadSwizzle.h"
 #include "src/gpu/graphite/ResourceTypes.h"
 #include "src/gpu/graphite/TextureProxy.h"
 #include "src/shaders/SkShaderBase.h"
@@ -39,7 +38,6 @@ class DrawContext;
 class FloatStorageManager;
 class PipelineDataGatherer;
 class UniquePaintParamsID;
-enum class ReadSwizzle;
 
 /**
  * The KeyHelpers can be used to manually construct an SkPaintParamsKey.
@@ -85,7 +83,7 @@ struct GradientShaderBlocks {
                      const SkGradientBaseShader* shader,
                      sk_sp<TextureProxy> colorsAndOffsetsProxy,
                      bool useStorageBuffer,
-                     const SkGradientShader::Interpolation&);
+                     const SkGradient::Interpolation&);
 
         bool operator==(const GradientData& rhs) const = delete;
         bool operator!=(const GradientData& rhs) const = delete;
@@ -116,7 +114,7 @@ struct GradientShaderBlocks {
         const float*                  fSrcOffsets;
         const SkGradientBaseShader*   fSrcShader;
 
-        SkGradientShader::Interpolation fInterpolation;
+        SkGradient::Interpolation     fInterpolation;
     };
 
     static void AddBlock(const KeyContext&, const GradientData&);
@@ -306,11 +304,11 @@ struct ColorSpaceTransformBlock {
                                 const SkColorSpace* dst,
                                 SkAlphaType dstAT);
         ColorSpaceTransformData(const SkColorSpaceXformSteps& steps) { fSteps = steps; }
-        ColorSpaceTransformData(ReadSwizzle swizzle) : fReadSwizzle(swizzle) {
+        ColorSpaceTransformData(Swizzle swizzle) : fReadSwizzle(swizzle) {
             SkASSERT(fSteps.fFlags.mask() == 0);  // By default, the colorspace should have no effect
         }
         SkColorSpaceXformSteps fSteps;
-        ReadSwizzle            fReadSwizzle = ReadSwizzle::kRGBA;
+        Swizzle                fReadSwizzle = Swizzle::RGBA();
     };
 
     static void AddBlock(const KeyContext&, const ColorSpaceTransformData&);

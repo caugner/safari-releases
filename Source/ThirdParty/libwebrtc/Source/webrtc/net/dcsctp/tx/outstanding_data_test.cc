@@ -135,8 +135,9 @@ TEST_F(OutstandingDataTest, AcksAndNacksWithGapAckBlocks) {
   EXPECT_EQ(ack.highest_tsn_acked.Wrap(), TSN(11));
   EXPECT_FALSE(ack.has_packet_loss);
 
-  EXPECT_EQ(buf_.unacked_payload_bytes(), 0u);
-  EXPECT_EQ(buf_.unacked_items(), 0u);
+  // TSN (10) is still outstanding.
+  EXPECT_EQ(buf_.unacked_payload_bytes(), 1u);
+  EXPECT_EQ(buf_.unacked_items(), 1u);
   EXPECT_FALSE(buf_.has_data_to_be_retransmitted());
   EXPECT_EQ(buf_.last_cumulative_tsn_ack().Wrap(), TSN(9));
   EXPECT_EQ(buf_.next_tsn().Wrap(), TSN(12));
@@ -744,6 +745,31 @@ TEST_F(OutstandingDataTest, NackBetweenAckBlocksDoesNotAccessOutOfBounds) {
   // This should not crash or trigger ASAN errors.
   buf_.HandleSack(unwrapper_.Unwrap(TSN(10)), malformed_blocks,
                   /*is_in_fast_recovery=*/false);
+}
+
+TEST_F(OutstandingDataTest, HandlesSacksWithOutOfBoundsTsns) {
+  // Send chunks with TSNs 10, 11, 12, 13, 14, 15, 16
+  for (int i = 0; i < 7; ++i) {
+    buf_.Insert(kMessageId, gen_.Ordered({1}, ""), kNow);
+  }
+
+  // This NACKs TSN 11, 13, 15 (1st miss indication)
+  SackChunk::GapAckBlock sack1[] = {{2, 2},   // TSN 12
+                                    {4, 4},   // TSN 14
+                                    {6, 6}};  // TSN 16
+  buf_.HandleSack(unwrapper_.Unwrap(TSN(10)), sack1,
+                  /*is_in_fast_recovery=*/false);
+  EXPECT_EQ(buf_.unacked_items(), 3u);  // 11, 13, 15
+
+  // The gap between block1-end (12) and block2-start (1011) causes
+  // NackBetweenAckBlocks to loop TSN 13..1010, but only TSN 13..16 are valid.
+  SackChunk::GapAckBlock sack2[] = {{1, 1},          // TSN 12
+                                    {1000, 60000}};  // TSN 1011..60011
+
+  buf_.HandleSack(unwrapper_.Unwrap(TSN(11)), sack2,
+                  /*is_in_fast_recovery=*/true);
+  // Packet 11 has been acknowledged.
+  EXPECT_EQ(buf_.unacked_items(), 2u);  // 13, 15
 }
 
 }  // namespace

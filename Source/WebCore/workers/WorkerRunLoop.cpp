@@ -1,11 +1,11 @@
 /*
  * Copyright (C) 2009 Google Inc. All rights reserved.
  * Copyright (C) 2016-2024 Apple Inc. All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
- * 
+ *
  *     * Redistributions of source code must retain the above copyright
  * notice, this list of conditions and the following disclaimer.
  *     * Redistributions in binary form must reproduce the above
@@ -15,7 +15,7 @@
  *     * Neither the name of Google Inc. nor the names of its
  * contributors may be used to endorse or promote products derived from
  * this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -28,7 +28,7 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
- 
+
 #include "config.h"
 #include "WorkerRunLoop.h"
 
@@ -45,9 +45,12 @@
 #include "WorkerOrWorkletGlobalScope.h"
 #include "WorkerOrWorkletScriptController.h"
 #include "WorkerThread.h"
-#include <JavaScriptCore/CatchScope.h>
 #include <JavaScriptCore/JSCJSValueInlines.h>
 #include <JavaScriptCore/JSRunLoopTimer.h>
+#include <JavaScriptCore/Options.h>
+#include <JavaScriptCore/TopExceptionScope.h>
+#include <JavaScriptCore/VMManager.h>
+#include <JavaScriptCore/VMTraps.h>
 #include <wtf/AutodrainedPool.h>
 #include <wtf/TZoneMallocInlines.h>
 
@@ -75,7 +78,7 @@ public:
     void setFireInterval(Seconds interval) final { m_nextFireTime = MonotonicTime::now() + interval; }
     void stop() final { m_nextFireTime = MonotonicTime { }; }
 
-    bool isActive() { return m_sharedTimerFunction && m_nextFireTime; }
+    bool NODELETE isActive() { return m_sharedTimerFunction && m_nextFireTime; }
     Seconds fireTimeDelay() { return std::max(0_s, m_nextFireTime - MonotonicTime::now()); }
     void fire() { m_sharedTimerFunction(); }
 
@@ -93,12 +96,12 @@ public:
     {
     }
 
-    const String mode() const
+    const String NODELETE mode() const
     {
         return m_mode;
     }
 
-    bool isDefaultMode() const
+    bool NODELETE isDefaultMode() const
     {
         return m_defaultMode;
     }
@@ -114,9 +117,7 @@ private:
     bool m_allowEventLoopTasks;
 };
 
-WorkerDedicatedRunLoop::WorkerDedicatedRunLoop()
-{
-}
+WorkerDedicatedRunLoop::WorkerDedicatedRunLoop() = default;
 
 WorkerDedicatedRunLoop::~WorkerDedicatedRunLoop()
 {
@@ -305,12 +306,29 @@ WorkerDedicatedRunLoop::RunInModeResult WorkerDedicatedRunLoop::runInMode(Worker
     if (script) {
         script->releaseHeapAccess();
         script->addTimerSetNotification(timerAddedTask);
+
+#if ENABLE(WEBASSEMBLY_DEBUGGER)
+        // Apply the STW check cap last so it overrides all platform-specific timeouts.
+        // Zero overhead when the WASM debugger is disabled.
+        if (JSC::Options::enableWasmDebugger()) [[unlikely]]
+            timeoutDelay = std::min(timeoutDelay, JSC::DebuggerSTWCheckInterval);
+#endif
     }
     MessageQueueWaitResult result;
     auto task = m_messageQueue.waitForMessageFilteredWithTimeout(result, predicate, timeoutDelay);
     if (script) {
         script->acquireHeapAccess();
         script->removeTimerSetNotification(timerAddedTask);
+
+#if ENABLE(WEBASSEMBLY_DEBUGGER)
+        // Heap access is released above; participate in STW if needed while it remains released.
+        // Check regardless of result — NeedStopTheWorld may be set even when a message arrived.
+        if (JSC::Options::enableWasmDebugger()) [[unlikely]] {
+            JSC::VM& vm = script->vm();
+            if (vm.traps().hasTrapBit(JSC::VMTraps::NeedStopTheWorld))
+                JSC::VMManager::singleton().notifyVMStop(vm, JSC::StopTheWorldEvent::VMStopped);
+        }
+#endif
     }
 
     RunInModeResult runInModeResult;
@@ -406,7 +424,7 @@ void WorkerDedicatedRunLoop::Task::performTask(WorkerOrWorkletGlobalScope* conte
         m_task.performTask(*context);
     else if (!context->isClosing() && context->script() && !context->script()->isTerminatingExecution()) {
         JSC::VM& vm = context->script()->vm();
-        auto scope = DECLARE_CATCH_SCOPE(vm);
+        auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
         m_task.performTask(*context);
         if (context->script() && scope.exception()) [[unlikely]] {
             if (vm.hasPendingTerminationException()) {
@@ -425,9 +443,7 @@ WorkerDedicatedRunLoop::Task::Task(ScriptExecutionContext::Task&& task, const St
 {
 }
 
-WorkerMainRunLoop::WorkerMainRunLoop()
-{
-}
+WorkerMainRunLoop::WorkerMainRunLoop() = default;
 
 void WorkerMainRunLoop::setGlobalScope(WorkerOrWorkletGlobalScope& globalScope)
 {

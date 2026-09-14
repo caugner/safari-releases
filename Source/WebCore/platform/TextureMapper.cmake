@@ -54,8 +54,10 @@ if (USE_COORDINATED_GRAPHICS)
         "${WEBCORE_DIR}/platform/graphics/texmap/coordinated"
     )
     list(APPEND WebCore_SOURCES
-        page/scrolling/coordinated/ScrollingCoordinatorCoordinated.cpp
+        page/scrolling/coordinated/ScrollerCoordinated.cpp
+        page/scrolling/coordinated/ScrollerPairCoordinated.cpp
         page/scrolling/coordinated/ScrollingStateNodeCoordinated.cpp
+        page/scrolling/coordinated/ScrollingStateScrollingNodeCoordinated.cpp
         page/scrolling/coordinated/ScrollingTreeCoordinated.cpp
         page/scrolling/coordinated/ScrollingTreeFixedNodeCoordinated.cpp
         page/scrolling/coordinated/ScrollingTreeFrameScrollingNodeCoordinated.cpp
@@ -76,6 +78,7 @@ if (USE_COORDINATED_GRAPHICS)
         platform/graphics/texmap/coordinated/CoordinatedPlatformLayerBufferNativeImage.cpp
         platform/graphics/texmap/coordinated/CoordinatedPlatformLayerBufferProxy.cpp
         platform/graphics/texmap/coordinated/CoordinatedPlatformLayerBufferRGB.cpp
+        platform/graphics/texmap/coordinated/CoordinatedPlatformLayerBufferSkiaImage.cpp
         platform/graphics/texmap/coordinated/CoordinatedPlatformLayerBufferYUV.cpp
         platform/graphics/texmap/coordinated/CoordinatedTileBuffer.cpp
         platform/graphics/texmap/coordinated/GraphicsContextGLTextureMapperANGLECoordinated.cpp
@@ -84,6 +87,8 @@ if (USE_COORDINATED_GRAPHICS)
         platform/graphics/texmap/coordinated/GraphicsLayerCoordinated.cpp
     )
     list(APPEND WebCore_PRIVATE_FRAMEWORK_HEADERS
+        page/scrolling/coordinated/ScrollingTreeCoordinated.h
+
         platform/graphics/texmap/coordinated/CoordinatedAnimatedBackingStoreClient.h
         platform/graphics/texmap/coordinated/CoordinatedBackingStore.h
         platform/graphics/texmap/coordinated/CoordinatedBackingStoreProxy.h
@@ -156,7 +161,6 @@ endif ()
 
 if (USE_GBM)
     list(APPEND WebCore_PRIVATE_FRAMEWORK_HEADERS
-        platform/graphics/gbm/DMABufBuffer.h
         platform/graphics/gbm/DRMDevice.h
         platform/graphics/gbm/DRMDeviceManager.h
         platform/graphics/gbm/GBMDevice.h

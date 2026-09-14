@@ -49,7 +49,15 @@ private:
     void applyLayerPositionsInternal() final;
     void didCompleteRenderingUpdate() final;
 
+#if HAVE(DISPLAY_LINK)
+    // ScrollingTree
+    void hasNodeWithAnimatedScrollChanged(bool /* hasNodeWithAnimatedScroll */) final;
+#endif
+
     RefPtr<ScrollingTreeNode> scrollingNodeForPoint(FloatPoint) final;
+#if ENABLE(WHEEL_EVENT_REGIONS)
+    OptionSet<EventListenerRegionType> eventListenerRegionTypesForPoint(FloatPoint) const final;
+#endif
 };
 
 } // namespace WebCore

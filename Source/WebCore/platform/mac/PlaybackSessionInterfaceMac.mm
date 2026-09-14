@@ -41,8 +41,14 @@
 
 #import <pal/cf/CoreMediaSoftLink.h>
 
+#if !defined(WebCore_AVKitLibrary_SoftLinked)
+#define WebCore_AVKitLibrary_SoftLinked
 SOFTLINK_AVKIT_FRAMEWORK()
+#endif
+#if !defined(WebCore_AVValueTiming_SoftLinked)
+#define WebCore_AVValueTiming_SoftLinked
 SOFT_LINK_CLASS_OPTIONAL(AVKit, AVValueTiming)
+#endif
 
 namespace WebCore {
 
@@ -163,7 +169,7 @@ void PlaybackSessionInterfaceMac::skipAd()
 void PlaybackSessionInterfaceMac::seekableRangesChanged(const PlatformTimeRanges& timeRanges, double, double)
 {
 #if ENABLE(WEB_PLAYBACK_CONTROLS_MANAGER)
-    [protectedPlayBackControlsManager() setSeekableTimeRanges:makeNSArray(timeRanges).get()];
+    [protect(playBackControlsManager()) setSeekableTimeRanges:makeNSArray(timeRanges).get()];
 #else
     UNUSED_PARAM(timeRanges);
 #endif
@@ -172,7 +178,7 @@ void PlaybackSessionInterfaceMac::seekableRangesChanged(const PlatformTimeRanges
 void PlaybackSessionInterfaceMac::audioMediaSelectionOptionsChanged(const Vector<MediaSelectionOption>& options, uint64_t selectedIndex)
 {
 #if ENABLE(WEB_PLAYBACK_CONTROLS_MANAGER)
-    [protectedPlayBackControlsManager() setAudioMediaSelectionOptions:options withSelectedIndex:static_cast<NSUInteger>(selectedIndex)];
+    [protect(playBackControlsManager()) setAudioMediaSelectionOptions:options withSelectedIndex:static_cast<NSUInteger>(selectedIndex)];
 #else
     UNUSED_PARAM(options);
     UNUSED_PARAM(selectedIndex);
@@ -182,7 +188,7 @@ void PlaybackSessionInterfaceMac::audioMediaSelectionOptionsChanged(const Vector
 void PlaybackSessionInterfaceMac::legibleMediaSelectionOptionsChanged(const Vector<MediaSelectionOption>& options, uint64_t selectedIndex)
 {
 #if ENABLE(WEB_PLAYBACK_CONTROLS_MANAGER)
-    [protectedPlayBackControlsManager() setLegibleMediaSelectionOptions:options withSelectedIndex:static_cast<NSUInteger>(selectedIndex)];
+    [protect(playBackControlsManager()) setLegibleMediaSelectionOptions:options withSelectedIndex:static_cast<NSUInteger>(selectedIndex)];
 #else
     UNUSED_PARAM(options);
     UNUSED_PARAM(selectedIndex);
@@ -192,7 +198,7 @@ void PlaybackSessionInterfaceMac::legibleMediaSelectionOptionsChanged(const Vect
 void PlaybackSessionInterfaceMac::audioMediaSelectionIndexChanged(uint64_t selectedIndex)
 {
 #if ENABLE(WEB_PLAYBACK_CONTROLS_MANAGER)
-    [protectedPlayBackControlsManager() setAudioMediaSelectionIndex:selectedIndex];
+    [protect(playBackControlsManager()) setAudioMediaSelectionIndex:selectedIndex];
 #else
     UNUSED_PARAM(selectedIndex);
 #endif
@@ -201,7 +207,7 @@ void PlaybackSessionInterfaceMac::audioMediaSelectionIndexChanged(uint64_t selec
 void PlaybackSessionInterfaceMac::legibleMediaSelectionIndexChanged(uint64_t selectedIndex)
 {
 #if ENABLE(WEB_PLAYBACK_CONTROLS_MANAGER)
-    [protectedPlayBackControlsManager() setLegibleMediaSelectionIndex:selectedIndex];
+    [protect(playBackControlsManager()) setLegibleMediaSelectionIndex:selectedIndex];
 #else
     UNUSED_PARAM(selectedIndex);
 #endif
@@ -271,11 +277,11 @@ void PlaybackSessionInterfaceMac::updatePlaybackControlsManagerCanTogglePictureI
 {
     CheckedPtr model = playbackSessionModel();
     if (!model) {
-        [protectedPlayBackControlsManager() setCanTogglePictureInPicture:NO];
+        [protect(playBackControlsManager()) setCanTogglePictureInPicture:NO];
         return;
     }
 
-    [protectedPlayBackControlsManager() setCanTogglePictureInPicture:model->isPictureInPictureSupported() && !model->externalPlaybackEnabled()];
+    [protect(playBackControlsManager()) setCanTogglePictureInPicture:model->isPictureInPictureSupported() && !model->externalPlaybackEnabled()];
 }
 
 void PlaybackSessionInterfaceMac::updatePlaybackControlsManagerTiming(double currentTime, double anchorTime, double playbackRate, bool isPlaying)
@@ -297,11 +303,6 @@ void PlaybackSessionInterfaceMac::updatePlaybackControlsManagerTiming(double cur
         effectivePlaybackRate = 0;
 
     manager.get().timing = [getAVValueTimingClassSingleton() valueTimingWithAnchorValue:currentTime anchorTimeStamp:effectiveAnchorTime rate:effectivePlaybackRate];
-}
-
-RetainPtr<WebPlaybackControlsManager> PlaybackSessionInterfaceMac::protectedPlayBackControlsManager()
-{
-    return playBackControlsManager();
 }
 
 #endif // ENABLE(WEB_PLAYBACK_CONTROLS_MANAGER)

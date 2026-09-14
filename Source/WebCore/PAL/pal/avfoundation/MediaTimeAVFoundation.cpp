@@ -24,15 +24,17 @@
  */
 
 #include "config.h"
-#include "MediaTimeAVFoundation.h"
+#include <pal/avfoundation/MediaTimeAVFoundation.h>
 
 #if USE(AVFOUNDATION)
 
-#include "CoreMediaSoftLink.h"
+#include <CoreMedia/CoreMedia.h>
+#include <pal/cf/CoreMediaSoftLink.h>
+#include <wtf/MediaTime.h>
 
 namespace PAL {
 
-static bool CMTimeHasFlags(const CMTime& cmTime, uint32_t flags)
+static bool NODELETE CMTimeHasFlags(const CMTime& cmTime, uint32_t flags)
 {
     return (cmTime.flags & flags) == flags;
 }

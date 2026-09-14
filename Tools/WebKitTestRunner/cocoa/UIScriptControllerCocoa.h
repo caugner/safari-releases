@@ -81,6 +81,8 @@ private:
 
     void completeTaskAsynchronouslyAfterActivityStateUpdate(unsigned callbackID);
 
+    void simulateAvailableSpeechVoicesDidChangeOnBackgroundThread(JSValueRef) override;
+
     unsigned long countOfUpdatesWithLayerChanges() const override;
 
 #if ENABLE(IMAGE_ANALYSIS)
@@ -109,6 +111,7 @@ private:
     JSRetainPtr<JSStringRef> animationStackForLayerWithID(uint64_t layerID) const final;
     JSRetainPtr<JSStringRef> progressBasedTimelinesForScrollingNodeID(unsigned long long scrollingNodeID, unsigned long long processID) const final;
 #endif
+    bool displayLinkWantsHighFrameRate() const final;
 };
 
 } // namespace WTR

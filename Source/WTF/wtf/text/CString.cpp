@@ -51,7 +51,7 @@ Ref<CStringBuffer> CStringBuffer::createUninitialized(size_t length)
 
 CString::CString(ASCIILiteral string)
 {
-    if (!string)
+    if (string.isNull())
         return;
 
     init(string.span());
@@ -83,7 +83,7 @@ void CString::init(std::span<const char> string)
     memcpySpan(m_buffer->mutableSpan(), string);
 }
 
-std::span<char> CString::mutableSpan()
+std::span<char> CString::mutableSpan() LIFETIME_BOUND
 {
     copyBufferIfNeeded();
     if (!m_buffer)
@@ -91,7 +91,7 @@ std::span<char> CString::mutableSpan()
     return m_buffer->mutableSpan();
 }
 
-std::span<char> CString::mutableSpanIncludingNullTerminator()
+std::span<char> CString::mutableSpanIncludingNullTerminator() LIFETIME_BOUND
 {
     copyBufferIfNeeded();
     if (!m_buffer)
@@ -154,10 +154,7 @@ unsigned CString::hash() const
 {
     if (isNull())
         return 0;
-    SuperFastHash hasher;
-    for (auto character : span())
-        hasher.addCharacter(character);
-    return hasher.hash();
+    return SuperFastHash::computeHash(span());
 }
 
 bool operator<(const CString& a, const CString& b)

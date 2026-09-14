@@ -51,16 +51,17 @@ constexpr uint32_t kNoMoreDataErr = 'MOAR';
 
 namespace WebCore {
 
-RefPtr<AudioSampleBufferConverter> AudioSampleBufferConverter::create(CMBufferQueueTriggerCallback callback, void* callbackObject, const Options& options)
+RefPtr<AudioSampleBufferConverter> AudioSampleBufferConverter::create(Function<void()>&& outputCallback, const Options& options)
 {
-    Ref converter = adoptRef(*new AudioSampleBufferConverter(options));
-    if (!converter->initialize(callback, callbackObject))
+    Ref converter = adoptRef(*new AudioSampleBufferConverter(WTF::move(outputCallback), options));
+    if (!converter->initialize())
         return nullptr;
     return converter;
 }
 
-AudioSampleBufferConverter::AudioSampleBufferConverter(const Options& options)
+AudioSampleBufferConverter::AudioSampleBufferConverter(Function<void()>&& outputCallback, const Options& options)
     : m_serialDispatchQueue(WorkQueue::create("com.apple.AudioSampleBufferConverter"_s))
+    , m_outputCallback(WTF::move(outputCallback))
     , m_destinationFormat(options.description ? *options.description : AudioStreamBasicDescription { })
     , m_currentNativePresentationTimeStamp(PAL::kCMTimeInvalid)
     , m_currentOutputPresentationTimeStamp(PAL::kCMTimeInvalid)
@@ -81,7 +82,14 @@ AudioSampleBufferConverter::~AudioSampleBufferConverter()
     }
 }
 
-bool AudioSampleBufferConverter::initialize(CMBufferQueueTriggerCallback callback, void* callbackObject)
+void AudioSampleBufferConverter::converterOutputBufferCallback(void* object, CMBufferQueueTriggerToken)
+{
+    // CMBufferQueueRemoveTrigger is called in the destructor, so `object` is guaranteed to be alive here.
+    // We do not ref `object` since we might be in destructor.
+    SUPPRESS_UNCOUNTED_ARG static_cast<class AudioSampleBufferConverter*>(object)->m_outputCallback();
+}
+
+bool AudioSampleBufferConverter::initialize()
 {
     CMBufferQueueRef inputBufferQueue;
     if (auto error = PAL::CMBufferQueueCreate(kCFAllocatorDefault, 0, PAL::CMBufferQueueGetCallbacksForUnsortedSampleBuffers(), &inputBufferQueue)) {
@@ -96,7 +104,7 @@ bool AudioSampleBufferConverter::initialize(CMBufferQueueTriggerCallback callbac
         return false;
     }
     lazyInitialize(m_outputBufferQueue, adoptCF(outputBufferQueue));
-    PAL::CMBufferQueueInstallTrigger(m_outputBufferQueue.get(), callback, callbackObject, kCMBufferQueueTrigger_WhenDataBecomesReady, PAL::kCMTimeZero, &m_triggerToken);
+    PAL::CMBufferQueueInstallTrigger(m_outputBufferQueue.get(), converterOutputBufferCallback, this, kCMBufferQueueTrigger_WhenDataBecomesReady, PAL::kCMTimeZero, &m_triggerToken);
 
     return true;
 }
@@ -181,6 +189,8 @@ OSStatus AudioSampleBufferConverter::initAudioConverterForSourceFormatDescriptio
     assertIsCurrent(queue());
 
     const auto *audioFormatListItem = PAL::CMAudioFormatDescriptionGetRichestDecodableFormat(formatDescription);
+    if (!audioFormatListItem)
+        return kCMSampleBufferError_InvalidMediaFormat;
     m_sourceFormat = audioFormatListItem->mASBD;
     m_skipEmptyBlock = [](AudioFormatID format) {
         switch (format) {
@@ -513,6 +523,10 @@ void AudioSampleBufferConverter::processSampleBuffers()
             setTimeFromSample(buffer.get());
 
         RetainPtr formatDescription = PAL::CMSampleBufferGetFormatDescription(buffer.get());
+        if (!formatDescription) {
+            m_lastError = kCMSampleBufferError_InvalidMediaFormat;
+            return;
+        }
         if (auto error = initAudioConverterForSourceFormatDescription(formatDescription.get(), m_outputCodecType)) {
             m_lastError = error;
             return;

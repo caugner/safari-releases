@@ -82,12 +82,38 @@ void AccessibilityAtspi::didConnect(GRefPtr<GDBusConnection>&& connection)
     }
 
     RELEASE_ASSERT(g_dbus_is_name(m_busName.utf8().data()));
-    g_bus_own_name_on_connection(m_connection.get(), m_busName.utf8().data(), G_BUS_NAME_OWNER_FLAGS_DO_NOT_QUEUE,
+    m_nameOwnerId = g_bus_own_name_on_connection(m_connection.get(), m_busName.utf8().data(), G_BUS_NAME_OWNER_FLAGS_DO_NOT_QUEUE,
         [](GDBusConnection*, const char*, gpointer userData) {
             auto& atspi = *static_cast<AccessibilityAtspi*>(userData);
             atspi.didOwnName();
         },
         nullptr, this, nullptr);
+}
+
+void AccessibilityAtspi::disconnect()
+{
+    m_isConnecting = false;
+
+    m_cacheUpdateTimer.stop();
+    m_cacheClearTimer.stop();
+    m_cacheUpdateList.clear();
+
+    for (auto& pending : std::exchange(m_pendingRootRegistrations, { }))
+        pending.completionHandler({ });
+
+    if (auto id = std::exchange(m_nameOwnerId, 0))
+        g_bus_unown_name(id);
+
+    if (auto registry = std::exchange(m_registry, nullptr))
+        g_signal_handlers_disconnect_by_data(registry.get(), this);
+
+    if (auto connection = std::exchange(m_connection, nullptr)) {
+        for (auto id : m_clients.values())
+            g_dbus_connection_signal_unsubscribe(connection.get(), id);
+        m_clients.clear();
+
+        g_dbus_connection_close_sync(connection.get(), nullptr, nullptr);
+    }
 }
 
 void AccessibilityAtspi::didOwnName()
@@ -612,7 +638,7 @@ struct RoleNameEntry {
     const char* localizedName;
 };
 
-static constexpr SortedArrayMap roleNamesMap { std::to_array<std::pair<AccessibilityRole, RoleNameEntry>>({
+static constexpr SortedArrayMap roleNamesMap { WTF::toArray<std::pair<AccessibilityRole, RoleNameEntry>>({
     { AccessibilityRole::Application, { "application", N_("application") } },
     { AccessibilityRole::ApplicationAlert, { "notification", N_("notification") } },
     { AccessibilityRole::ApplicationAlertDialog, { "alert", N_("alert") } },
@@ -938,7 +964,7 @@ void AccessibilityAtspi::notifyValueChanged(AccessibilityObjectAtspi& atspiObjec
 
 void AccessibilityAtspi::notifyLoadEvent(AccessibilityObjectAtspi& atspiObject, const CString& event) const
 {
-    if (event != "LoadComplete")
+    if (event != "LoadComplete"_s)
         return;
 
     notify(atspiObject, "AXLoadComplete", nullptr);

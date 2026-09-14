@@ -32,14 +32,13 @@ class RenderSVGResourcePattern final : public RenderSVGResourcePaintServer {
     WTF_MAKE_TZONE_ALLOCATED(RenderSVGResourcePattern);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(RenderSVGResourcePattern);
 public:
-    RenderSVGResourcePattern(SVGElement&, RenderStyle&&);
+    RenderSVGResourcePattern(SVGElement&, Style::ComputedStyle&&);
     virtual ~RenderSVGResourcePattern();
 
     inline SVGPatternElement& patternElement() const;
-    inline Ref<SVGPatternElement> protectedPatternElement() const;
 
-    bool prepareFillOperation(GraphicsContext&, const RenderLayerModelObject&, const RenderStyle&) final;
-    bool prepareStrokeOperation(GraphicsContext&, const RenderLayerModelObject&, const RenderStyle&) final;
+    bool prepareFillOperation(GraphicsContext&, const RenderLayerModelObject&, const Style::ComputedStyle&) final;
+    bool prepareStrokeOperation(GraphicsContext&, const RenderLayerModelObject&, const Style::ComputedStyle&) final;
 
     enum class SuppressRepaint { Yes, No };
     void invalidatePattern(SuppressRepaint suppressRepaint = SuppressRepaint::No)
@@ -50,6 +49,9 @@ public:
         if (suppressRepaint == SuppressRepaint::No)
             repaintAllClients();
     }
+
+private:
+    bool requiresLayer() const final { return true; }
 
 protected:
     RefPtr<Pattern> buildPattern(GraphicsContext&, const RenderLayerModelObject&);
@@ -64,7 +66,7 @@ protected:
 
     std::optional<PatternAttributes> m_attributes;
 
-    HashMap<SingleThreadWeakRef<const RenderLayerModelObject>, RefPtr<ImageBuffer>> m_imageMap;
+    HashMap<SingleThreadWeakRef<const RenderLayerModelObject>, Ref<ImageBuffer>> m_imageMap;
     HashMap<SingleThreadWeakRef<const RenderLayerModelObject>, AffineTransform> m_transformMap;
 };
 

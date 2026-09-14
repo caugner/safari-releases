@@ -385,7 +385,8 @@ void WebExtensionController::addPage(WebPageProxy& page)
     addWebsiteDataStore(dataStore);
 
     Ref controller = page.userContentController();
-    addUserContentController(controller, dataStore->isPersistent() ? ForPrivateBrowsing::No : ForPrivateBrowsing::Yes);
+    bool isOwnStore = !dataStore->isPersistent() && (&dataStore.get() == &m_configuration->defaultWebsiteDataStore());
+    addUserContentController(controller, (dataStore->isPersistent() || isOwnStore) ? ForPrivateBrowsing::No : ForPrivateBrowsing::Yes);
 }
 
 void WebExtensionController::removePage(WebPageProxy& page)
@@ -465,8 +466,8 @@ void WebExtensionController::addUserContentController(WebUserContentControllerPr
 void WebExtensionController::removeUserContentController(WebUserContentControllerProxy& userContentController)
 {
     // Only remove the user content controller if no other pages use the same one.
-    for (Ref knownPage : m_pages) {
-        if (knownPage->userContentController() == userContentController)
+    for (auto& knownPage : m_pages) {
+        if (knownPage.userContentController() == userContentController)
             return;
     }
 
@@ -486,9 +487,9 @@ RefPtr<WebsiteDataStore> WebExtensionController::websiteDataStore(std::optional<
     if (!sessionID || configuration->defaultWebsiteDataStore().sessionID() == sessionID.value())
         return configuration->defaultWebsiteDataStore();
 
-    for (Ref dataStore : allWebsiteDataStores()) {
-        if (dataStore->sessionID() == sessionID.value())
-            return dataStore;
+    for (auto& dataStore : allWebsiteDataStores()) {
+        if (dataStore.sessionID() == sessionID.value())
+            return &dataStore;
     }
 
     return nullptr;
@@ -501,21 +502,21 @@ void WebExtensionController::addWebsiteDataStore(WebsiteDataStore& dataStore)
     if (!m_cookieStoreObserver)
         m_cookieStoreObserver = HTTPCookieStoreObserver::create(*this);
 
-    dataStore.protectedCookieStore()->registerObserver(*protectedCookieStoreObserver());
+    protect(dataStore.cookieStore())->registerObserver(*protect(m_cookieStoreObserver));
 }
 
 void WebExtensionController::removeWebsiteDataStore(WebsiteDataStore& dataStore)
 {
     // Only remove the data store if no other pages use the same one.
-    for (Ref knownPage : m_pages) {
-        if (knownPage->websiteDataStore() == dataStore)
+    for (auto& knownPage : m_pages) {
+        if (knownPage.websiteDataStore() == dataStore)
             return;
     }
 
     m_websiteDataStores.remove(dataStore);
 
     if (RefPtr observer = m_cookieStoreObserver)
-        dataStore.protectedCookieStore()->unregisterObserver(*observer);
+        protect(dataStore.cookieStore())->unregisterObserver(*observer);
 
     if (m_websiteDataStores.isEmptyIgnoringNullReferences())
         m_cookieStoreObserver = nullptr;
@@ -531,7 +532,7 @@ void WebExtensionController::cookiesDidChange(API::HTTPCookieStore& cookieStore)
 
 bool WebExtensionController::isFeatureEnabled(const String& featureName) const
 {
-    WKPreferences *preferences = protectedConfiguration()->webViewConfiguration().preferences;
+    WKPreferences *preferences = protect(configuration())->webViewConfiguration().preferences;
 
     auto *cocoaFeatureName = featureName.createNSString().get();
     for (_WKFeature *feature in WKPreferences._features) {
@@ -544,7 +545,7 @@ bool WebExtensionController::isFeatureEnabled(const String& featureName) const
 
 RefPtr<WebExtensionContext> WebExtensionController::extensionContext(const WebExtension& extension) const
 {
-    for (Ref context : m_extensionContexts) {
+    for (auto& context : m_extensionContexts) {
         if (context->extension() == extension)
             return context.ptr();
     }
@@ -554,7 +555,7 @@ RefPtr<WebExtensionContext> WebExtensionController::extensionContext(const WebEx
 
 RefPtr<WebExtensionContext> WebExtensionController::extensionContext(const UniqueIdentifier& uniqueIdentifier) const
 {
-    for (Ref context : m_extensionContexts) {
+    for (auto& context : m_extensionContexts) {
         if (context->uniqueIdentifier() == uniqueIdentifier)
             return context.ptr();
     }
@@ -728,9 +729,13 @@ void WebExtensionController::updateWebsitePoliciesForNavigation(API::WebsitePoli
         if (!context->hasPermission(WKWebExtensionPermissionDeclarativeNetRequestWithHostAccess))
             continue;
 
+        OptionSet<WebExtensionMatchPattern::Options> expandOptions;
+        if (context->hasAccessToFileURLs())
+            expandOptions.add(WebExtensionMatchPattern::Options::AllowFileScheme);
+
         Vector<String> patterns;
         for (Ref pattern : context->currentPermissionMatchPatterns())
-            patterns.appendVector(pattern->expandedStrings());
+            patterns.appendVector(pattern->expandedStrings(expandOptions));
 
         actionPatterns.set(context->uniqueIdentifier(), WTF::move(patterns));
     }

@@ -36,7 +36,23 @@ async function runTest()
         throw error;
     }
 
-    const sourceId = 100n;
+    // Hardcoded ID chosen to be much larger than the WebProcess's
+    // RealtimeMediaSourceIdentifier monotonic counter could ever reach in a
+    // single layout-test session, avoiding collision with the id allocated
+    // for the getUserMedia() source above.
+    //
+    // WARNING: RealtimeMediaSourceIdentifier is a process-global monotonic
+    // counter (ObjectIdentifier::generate()) that is never reset across
+    // tests sharing a WebProcess (e.g. mac-wk2). A small hardcoded value
+    // like 100 will eventually collide with the id auto-allocated for the
+    // getUserMedia() source above once enough prior tests have advanced the
+    // counter, tripping ASSERT(!m_proxies.contains(id)) in
+    // UserMediaCaptureManagerProxy::createMediaSourceForCaptureDeviceWithConstraints
+    // and crashing the GPU process on debug bots. Any future IPC test that
+    // hardcodes a RealtimeMediaSourceIdentifier must pick a value well above
+    // any plausible counter (and below the UINT64_MAX hash-traits sentinel).
+    const sourceId = 0xFFFFFFFFn;
+
     const emptyConstraintMap = {
         m_width: {}, m_height: {}, m_sampleRate: {}, m_sampleSize: {},
         m_aspectRatio: {}, m_frameRate: {}, m_volume: {},
@@ -80,6 +96,10 @@ async function runTest()
         if (++count > 20) {
             clearInterval(interval);
             stream.getTracks().forEach(t => t.stop());
+
+            // Tear down the GPU-side proxy we created via raw IPC so layout-test
+            // runs that share this WebProcess don't collide on the hardcoded sourceId.
+            CoreIPC.GPU.UserMediaCaptureManagerProxy.RemoveSource(0, { id: sourceId });
             done();
         }
     }, 10);
@@ -93,6 +113,6 @@ window.addEventListener('load', async event => {
 
 </script>
 </head>
-<body onload="runTest()">
+<body>
 </body>
 </html>

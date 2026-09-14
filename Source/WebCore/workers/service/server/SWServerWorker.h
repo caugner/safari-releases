@@ -84,12 +84,12 @@ public:
     bool isNotRunning() const { return m_state == State::NotRunning; }
     void setState(State);
 
-    SWServer* server() { return m_server.get(); }
-    const ServiceWorkerRegistrationKey& registrationKey() const { return m_registrationKey; }
+    SWServer* server() const { return m_server.get(); }
+    const ServiceWorkerRegistrationKey& registrationKey() const LIFETIME_BOUND { return m_registrationKey; }
     RegistrableDomain firstPartyForCookies() const { return m_registrationKey.firstPartyForCookies(); }
-    const URL& scriptURL() const { return m_data.scriptURL; }
-    const ScriptBuffer& script() const { ASSERT(!m_needsScriptLoading); return m_script; }
-    const CertificateInfo& certificateInfo() const { return m_certificateInfo; }
+    const URL& scriptURL() const LIFETIME_BOUND { return m_data.scriptURL; }
+    const ScriptBuffer& script() const LIFETIME_BOUND { ASSERT(!m_needsScriptLoading); return m_script; }
+    const CertificateInfo& certificateInfo() const LIFETIME_BOUND { return m_certificateInfo; }
     WorkerType type() const { return m_data.type; }
 
     ServiceWorkerIdentifier identifier() const { return m_data.identifier; }
@@ -121,32 +121,35 @@ public:
     WEBCORE_EXPORT void skipWaiting();
     bool isSkipWaitingFlagSet() const { return m_isSkipWaitingFlagSet; }
 
-    WEBCORE_EXPORT static SWServerWorker* existingWorkerForIdentifier(ServiceWorkerIdentifier);
-    static HashMap<ServiceWorkerIdentifier, WeakRef<SWServerWorker>>& allWorkers();
+    WEBCORE_EXPORT static SWServerWorker* NODELETE existingWorkerForIdentifier(ServiceWorkerIdentifier);
+    static HashMap<ServiceWorkerIdentifier, WeakRef<SWServerWorker>>& NODELETE allWorkers();
 
-    const ServiceWorkerData& data() const { return m_data; }
+    const ServiceWorkerData& data() const LIFETIME_BOUND { return m_data; }
     ServiceWorkerContextData contextData() const;
 
     WEBCORE_EXPORT const ClientOrigin& origin() const;
-    const RegistrableDomain& topRegistrableDomain() const { return m_topSite.domain(); }
-    const Site& topSite() const { return m_topSite; }
-    WEBCORE_EXPORT std::optional<ScriptExecutionContextIdentifier> serviceWorkerPageIdentifier() const;
+    const CrossOriginEmbedderPolicy& crossOriginEmbedderPolicy() const { return m_crossOriginEmbedderPolicy; }
+    const RegistrableDomain& topRegistrableDomain() const LIFETIME_BOUND { return m_topSite.domain(); }
+    const Site& topSite() const LIFETIME_BOUND { return m_topSite; }
+    WEBCORE_EXPORT std::optional<ScriptExecutionContextIdentifier> NODELETE serviceWorkerPageIdentifier() const;
 
     bool shouldPersistToDisk() const;
 
     WEBCORE_EXPORT SWServerToContextConnection* contextConnection();
     String userAgent() const;
 
-    WEBCORE_EXPORT RouterSource getRouterSource(const FetchOptions&, const ResourceRequest&) const;
-    
-    WEBCORE_EXPORT SWServerRegistration* registration() const;
+    bool hasRouterRules() const { return !m_routes.isEmpty(); }
+    WEBCORE_EXPORT std::optional<RouterSource> getRouterSource(const FetchOptions&, const ResourceRequest&) const;
+    WEBCORE_EXPORT RouterSource defaultRouterSource() const;
+
+    WEBCORE_EXPORT SWServerRegistration* NODELETE registration() const;
 
     void setHasTimedOutAnyFetchTasks() { m_hasTimedOutAnyFetchTasks = true; }
     bool hasTimedOutAnyFetchTasks() const { return m_hasTimedOutAnyFetchTasks; }
     void didFailHeartBeatCheck();
     void updateAppInitiatedValue(LastNavigationWasAppInitiated);
 
-    WorkerThreadMode workerThreadMode() const;
+    WorkerThreadMode NODELETE workerThreadMode() const;
 
     void incrementFunctionalEventCounter() { ++m_functionalEventCounter; }
     void decrementFunctionalEventCounter();
@@ -157,7 +160,7 @@ public:
     WEBCORE_EXPORT bool isClientActiveServiceWorker(ScriptExecutionContextIdentifier) const;
 
     Vector<URL> importedScriptURLs() const;
-    const MemoryCompactRobinHoodHashMap<URL, ServiceWorkerContextData::ImportedScript>& scriptResourceMap() const { return m_scriptResourceMap; }
+    const MemoryCompactRobinHoodHashMap<URL, ServiceWorkerContextData::ImportedScript>& scriptResourceMap() const LIFETIME_BOUND { return m_scriptResourceMap; }
     bool matchingImportedScripts(const Vector<std::pair<URL, ScriptBuffer>>&) const;
 
     void markActivateEventAsFired() { m_isActivateEventFired = true; }
@@ -171,7 +174,7 @@ public:
     std::optional<ExceptionData> addRoutes(Vector<ServiceWorkerRoute>&&);
 
 private:
-    SWServerWorker(SWServer&, SWServerRegistration&, const URL&, const ScriptBuffer&, const CertificateInfo&, const ContentSecurityPolicyResponseHeaders&, const CrossOriginEmbedderPolicy&, String&& referrerPolicy, WorkerType, ServiceWorkerIdentifier, MemoryCompactRobinHoodHashMap<URL, ServiceWorkerContextData::ImportedScript>&&);
+    SWServerWorker(SWServer&, SWServerRegistration&, const URL&, const ScriptBuffer&, const CertificateInfo&, const ContentSecurityPolicyResponseHeaders&, const CrossOriginEmbedderPolicy&, String&& referrerPolicy, WorkerType, ServiceWorkerIdentifier, MemoryCompactRobinHoodHashMap<URL, ServiceWorkerContextData::ImportedScript>&&, Vector<ServiceWorkerRoute>&& = { });
 
     void callWhenActivatedHandler(bool success);
 
@@ -182,8 +185,6 @@ private:
     void callTerminationCallbacks();
     void terminateIfPossible();
     bool shouldBeTerminated() const;
-
-    RefPtr<SWServer> protectedServer() const;
 
     WeakPtr<SWServer> m_server;
     ServiceWorkerRegistrationKey m_registrationKey;

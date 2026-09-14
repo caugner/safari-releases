@@ -38,10 +38,13 @@
 #include "FloatRect.h"
 #include "KeyframeEffect.h"
 #include "LayoutSize.h"
+#include "RotateTransformOperation.h"
+#include "ScaleTransformOperation.h"
 #include "Settings.h"
 #include "StyleInterpolation.h"
 #include "StyleOffsetRotate.h"
 #include "StyleOriginatedAnimation.h"
+#include "TranslateTransformOperation.h"
 #include "WebAnimation.h"
 #include "WebAnimationTypes.h"
 #include <wtf/TZoneMallocInlines.h>
@@ -146,7 +149,7 @@ static AcceleratedEffectProperty acceleratedPropertyFromCSSProperty(AnimatableCS
     }
 }
 
-static CSSPropertyID cssPropertyFromAcceleratedProperty(AcceleratedEffectProperty property)
+static CSSPropertyID NODELETE cssPropertyFromAcceleratedProperty(AcceleratedEffectProperty property)
 {
     switch (property) {
     case AcceleratedEffectProperty::Opacity:
@@ -242,7 +245,14 @@ AcceleratedEffect::AcceleratedEffect(const KeyframeEffect& effect, const IntRect
     auto& settings = effect.document()->settings();
     CheckedPtr renderLayerModelObject = dynamicDowncast<RenderLayerModelObject>(effect.renderer());
 
+    OptionSet<AcceleratedEffectProperty> propertiesReplacedByZeroKeyframe;
+    OptionSet<AcceleratedEffectProperty> propertiesReplacedByOneKeyframe;
+
     for (auto& srcKeyframe : effect.blendingKeyframes()) {
+        ASSERT(!std::isnan(srcKeyframe.offset()));
+        auto offset = srcKeyframe.offset();
+        auto isReplacingKeyframe = m_compositeOperation == CompositeOperation::Replace
+            && (!srcKeyframe.compositeOperation() || srcKeyframe.compositeOperation() == CompositeOperation::Replace);
         OptionSet<AcceleratedEffectProperty> animatedProperties;
         for (auto animatedCSSProperty : srcKeyframe.properties()) {
             if (Style::Interpolation::isAccelerated(animatedCSSProperty, settings)) {
@@ -251,6 +261,12 @@ AcceleratedEffect::AcceleratedEffect(const KeyframeEffect& effect, const IntRect
                     continue;
                 animatedProperties.add(acceleratedProperty);
                 m_animatedProperties.add(acceleratedProperty);
+                if (!isReplacingKeyframe)
+                    continue;
+                if (!offset)
+                    propertiesReplacedByZeroKeyframe.add(acceleratedProperty);
+                if (offset == 1.0)
+                    propertiesReplacedByOneKeyframe.add(acceleratedProperty);
             }
         }
 
@@ -258,14 +274,18 @@ AcceleratedEffect::AcceleratedEffect(const KeyframeEffect& effect, const IntRect
             continue;
 
         auto values = [&]() -> AcceleratedEffectValues {
-            if (auto* style = srcKeyframe.style())
+            if (CheckedPtr style = srcKeyframe.style())
                 return { *style, borderBoxRect, renderLayerModelObject.get() };
             return { };
         }();
 
-        ASSERT(!std::isnan(srcKeyframe.offset()));
-        m_keyframes.append({ srcKeyframe.offset(), WTF::move(values), srcKeyframe.timingFunction(), srcKeyframe.compositeOperation(), WTF::move(animatedProperties) });
+        m_keyframes.append({ offset, WTF::move(values), srcKeyframe.timingFunction(), srcKeyframe.compositeOperation(), WTF::move(animatedProperties) });
     }
+
+    // Any property that was added to both the zero and one keyframe replaced
+    // properties is a property fully replaced by this effect.
+    m_replacedProperties = propertiesReplacedByZeroKeyframe & propertiesReplacedByOneKeyframe;
+    ASSERT(!m_replacedProperties.containsAny(disallowedProperties));
 
     m_animatedProperties.remove(disallowedProperties);
 }
@@ -319,19 +339,17 @@ AcceleratedEffect::AcceleratedEffect(const AcceleratedEffect& source, OptionSet<
 
 static RefPtr<TransformOperation> blend(const RefPtr<TransformOperation>& base, const RefPtr<TransformOperation>& from, const RefPtr<TransformOperation>& to, const BlendingContext& blendingContext, NOESCAPE const Function<Ref<TransformOperation>(const TransformOperation&)>& identity)
 {
-    if (to) {
-        // Explicit "from" and "to" values.
-        if (from)
-            return to->blend(from.get(), blendingContext);
-        // Implicit "from" value.
-        return to->blend(base.get(), blendingContext);
+    // Explicit |to|, from value is either |from| if not null, or |base|.
+    if (to)
+        return to->blend(from ? from : base, blendingContext);
+
+    // Explicit |from|, to value is either |base| if not null, or the identity value.
+    if (from) {
+        Ref toValue = base ? Ref { *base } : identity(*from);
+        return toValue->blend(from.get(), blendingContext);
     }
 
-    // Implicit "to" value.
-    ASSERT(from);
-    if (base)
-        return base->blend(from.get(), blendingContext);
-    return identity(*from)->blend(from.get(), blendingContext);
+    return base;
 }
 
 static void blend(AcceleratedEffectProperty property, AcceleratedEffectValues& output, const AcceleratedEffectValues& from, const AcceleratedEffectValues& to, BlendingContext& blendingContext)
@@ -369,8 +387,11 @@ static void blend(AcceleratedEffectProperty property, AcceleratedEffectValues& o
         output.offsetDistance = blend(from.offsetDistance, to.offsetDistance, blendingContext);
         break;
     case AcceleratedEffectProperty::OffsetPath:
-        if (auto& fromOffsetPath = from.offsetPath)
-            output.offsetPath = fromOffsetPath->blend(to.offsetPath.get(), blendingContext);
+        if (!canBlend(from.offsetPath, to.offsetPath)) {
+            blendingContext.isDiscrete = true;
+            blendingContext.normalizeProgress();
+        }
+        output.offsetPath = blend(from.offsetPath, to.offsetPath, blendingContext);
         break;
     case AcceleratedEffectProperty::OffsetPosition:
         if (!canBlend(from.offsetPosition, to.offsetPosition)) {
@@ -543,12 +564,6 @@ void AcceleratedEffect::validateFilters(const AcceleratedEffectValues& baseValue
         // PlatformCAFilters::setFiltersOnLayer().
         ASSERT(longestFilterList);
         for (auto& operation : *longestFilterList) {
-            // If we encounter a DropShadowFilterOperationWithStyleColor it means that it failed to be
-            // converted to a DropShadowFilterOperation during AcceleratedEffectValues creation due to
-            // the use of a complex color that could not be resolved outside of the style system within
-            // the remote layer tree.
-            if (operation->type() == FilterOperation::Type::DropShadowWithStyleColor)
-                return false;
             if (operation->type() == FilterOperation::Type::DropShadow && operation != longestFilterList->last())
                 return false;
         }
@@ -573,6 +588,14 @@ void AcceleratedEffect::validateFilters(const AcceleratedEffectValues& baseValue
 bool AcceleratedEffect::animatesTransformRelatedProperty() const
 {
     return m_animatedProperties.containsAny(transformRelatedAcceleratedProperties);
+}
+
+bool AcceleratedEffect::hasHighImpact() const
+{
+    // FIXME: This is just an initial implementation. A logical next step would be to
+    // compute the distance traveled over time and only mark effects with distance traveled
+    // over a certain threshold (over 60px, 90px, 120px per second?) as high impact.
+    return animatesTransformRelatedProperty();
 }
 
 const KeyframeInterpolation::Keyframe& AcceleratedEffect::keyframeAtIndex(size_t index) const
@@ -618,6 +641,37 @@ void AcceleratedEffect::clearProperty(AcceleratedEffectProperty property)
 
     for (auto& keyframe : m_keyframes)
         keyframe.clearProperty(property);
+}
+
+void AcceleratedEffect::makeForwardsFilling()
+{
+    m_timing.fill = (m_timing.fill == FillMode::Backwards) ? FillMode::Both : FillMode::Forwards;
+}
+
+const OptionSet<AcceleratedEffectProperty> AcceleratedEffect::composedProperties() const
+{
+    // If the effect is marked as additive entirely, all of its properties are composed.
+    if (m_compositeOperation != CompositeOperation::Replace)
+        return m_animatedProperties;
+
+    // Otherwise, we need to go through the effect's keyframes to see which one may compose.
+    OptionSet<AcceleratedEffectProperty> additiveOrAccumulativeProperties;
+    OptionSet<AcceleratedEffectProperty> propertiesWithExplicitFromValue;
+    OptionSet<AcceleratedEffectProperty> propertiesWithExplicitToValue;
+    for (auto& keyframe : m_keyframes) {
+        if (keyframe.compositeOperation() == CompositeOperation::Add || keyframe.compositeOperation() == CompositeOperation::Accumulate)
+            additiveOrAccumulativeProperties.add(keyframe.animatedProperties());
+        else {
+            if (!keyframe.offset())
+                propertiesWithExplicitFromValue.add(keyframe.animatedProperties());
+            if (keyframe.offset() == 1.0)
+                propertiesWithExplicitToValue.add(keyframe.animatedProperties());
+        }
+    }
+
+    auto propertiesWithImplicitFromValue = m_animatedProperties ^ propertiesWithExplicitFromValue;
+    auto propertiesWithImplicitToValue = m_animatedProperties ^ propertiesWithExplicitToValue;
+    return additiveOrAccumulativeProperties | propertiesWithImplicitFromValue | propertiesWithImplicitToValue;
 }
 
 } // namespace WebCore

@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 Google Inc.
+ * Copyright 2017 Google LLC
  *
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
@@ -239,16 +239,15 @@ DEF_SIMPLE_GM(shadow_utils_gray, canvas, kW, kH) {
     draw_paths(canvas, kGrayscale);
 }
 
-#include "include/effects/SkGradientShader.h"
+#include "include/effects/SkGradient.h"
 #include "src/core/SkColorFilterPriv.h"
 
 DEF_SIMPLE_GM(shadow_utils_gaussian_colorfilter, canvas, 512, 256) {
     const SkRect r = SkRect::MakeWH(256, 256);
 
-    const SkColor colors[] = { 0, 0xFF000000 };
-    auto sh = SkGradientShader::MakeRadial({r.centerX(), r.centerY()}, r.width(),
-                                           colors, nullptr, std::size(colors),
-                                           SkTileMode::kClamp);
+    const SkColor4f colors[] = { {0,0,0,0}, {0,0,0,1} };
+    auto sh = SkShaders::RadialGradient(r.center(), r.width(),
+                                        {{colors, {}, SkTileMode::kClamp}, {}});
 
     SkPaint redPaint;
     redPaint.setColor(SK_ColorRED);

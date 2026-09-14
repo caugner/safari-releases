@@ -580,14 +580,14 @@ inline bool ListHashSet<T, U>::isEmpty() const
 }
 
 template<typename T, typename U>
-inline T& ListHashSet<T, U>::first()
+inline T& ListHashSet<T, U>::first() LIFETIME_BOUND
 {
     RELEASE_ASSERT(!isEmpty());
     return *begin();
 }
 
 template<typename T, typename U>
-inline const T& ListHashSet<T, U>::first() const
+inline const T& ListHashSet<T, U>::first() const LIFETIME_BOUND
 {
     RELEASE_ASSERT(!isEmpty());
     return *begin();
@@ -611,7 +611,7 @@ inline T ListHashSet<T, U>::takeFirst()
 }
 
 template<typename T, typename U>
-inline T& ListHashSet<T, U>::last()
+inline T& ListHashSet<T, U>::last() LIFETIME_BOUND
 {
     RELEASE_ASSERT(!isEmpty());
     auto last = --end();
@@ -619,7 +619,7 @@ inline T& ListHashSet<T, U>::last()
 }
 
 template<typename T, typename U>
-inline const T& ListHashSet<T, U>::last() const
+inline const T& ListHashSet<T, U>::last() const LIFETIME_BOUND
 {
     RELEASE_ASSERT(!isEmpty());
     auto last = --end();
@@ -645,7 +645,7 @@ inline T ListHashSet<T, U>::takeLast()
 }
 
 template<typename T, typename U>
-inline auto ListHashSet<T, U>::find(const ValueType& value) -> iterator
+inline auto ListHashSet<T, U>::find(const ValueType& value) LIFETIME_BOUND -> iterator
 {
     auto it = m_impl.template find<BaseTranslator, ShouldValidateKey::Yes>(value);
     if (it == m_impl.end())
@@ -654,7 +654,7 @@ inline auto ListHashSet<T, U>::find(const ValueType& value) -> iterator
 }
 
 template<typename T, typename U>
-inline auto ListHashSet<T, U>::find(const ValueType& value) const -> const_iterator
+inline auto ListHashSet<T, U>::find(const ValueType& value) const LIFETIME_BOUND -> const_iterator
 {
     auto it = m_impl.template find<BaseTranslator, ShouldValidateKey::Yes>(value);
     if (it == m_impl.end())
@@ -670,7 +670,7 @@ struct ListHashSetTranslatorAdapter {
 
 template<typename ValueType, typename U>
 template<typename HashTranslator, typename T>
-inline auto ListHashSet<ValueType, U>::find(const T& value) -> iterator
+inline auto ListHashSet<ValueType, U>::find(const T& value) LIFETIME_BOUND -> iterator
 {
     auto it = m_impl.template find<ListHashSetTranslatorAdapter<HashTranslator>, ShouldValidateKey::Yes>(value);
     if (it == m_impl.end())
@@ -680,7 +680,7 @@ inline auto ListHashSet<ValueType, U>::find(const T& value) -> iterator
 
 template<typename ValueType, typename U>
 template<typename HashTranslator, typename T>
-inline auto ListHashSet<ValueType, U>::find(const T& value) const -> const_iterator
+inline auto ListHashSet<ValueType, U>::find(const T& value) const LIFETIME_BOUND -> const_iterator
 {
     auto it = m_impl.template find<ListHashSetTranslatorAdapter<HashTranslator>, ShouldValidateKey::Yes>(value);
     if (it == m_impl.end())
@@ -702,7 +702,7 @@ inline bool ListHashSet<T, U>::contains(const ValueType& value) const
 }
 
 template<typename T, typename U>
-auto ListHashSet<T, U>::add(const ValueType& value) -> AddResult
+auto ListHashSet<T, U>::add(const ValueType& value) LIFETIME_BOUND -> AddResult
 {
     auto result = m_impl.template add<BaseTranslator, ShouldValidateKey::Yes>(value, [] { return nullptr; });
     if (result.isNewEntry)
@@ -711,7 +711,7 @@ auto ListHashSet<T, U>::add(const ValueType& value) -> AddResult
 }
 
 template<typename T, typename U>
-auto ListHashSet<T, U>::add(ValueType&& value) -> AddResult
+auto ListHashSet<T, U>::add(ValueType&& value) LIFETIME_BOUND -> AddResult
 {
     auto result = m_impl.template add<BaseTranslator, ShouldValidateKey::Yes>(WTF::move(value), [] { return nullptr; });
     if (result.isNewEntry)
@@ -720,7 +720,7 @@ auto ListHashSet<T, U>::add(ValueType&& value) -> AddResult
 }
 
 template<typename T, typename U>
-auto ListHashSet<T, U>::appendOrMoveToLast(const ValueType& value) -> AddResult
+auto ListHashSet<T, U>::appendOrMoveToLast(const ValueType& value) LIFETIME_BOUND -> AddResult
 {
     auto result = m_impl.template add<BaseTranslator, ShouldValidateKey::Yes>(value, [] { return nullptr; });
     Node* node = result.iterator->get();
@@ -732,7 +732,7 @@ auto ListHashSet<T, U>::appendOrMoveToLast(const ValueType& value) -> AddResult
 }
 
 template<typename T, typename U>
-auto ListHashSet<T, U>::appendOrMoveToLast(ValueType&& value) -> AddResult
+auto ListHashSet<T, U>::appendOrMoveToLast(ValueType&& value) LIFETIME_BOUND -> AddResult
 {
     auto result = m_impl.template add<BaseTranslator, ShouldValidateKey::Yes>(WTF::move(value), [] { return nullptr; });
     Node* node = result.iterator->get();
@@ -756,7 +756,7 @@ bool ListHashSet<T, U>::moveToLastIfPresent(const ValueType& value)
 }
 
 template<typename T, typename U>
-auto ListHashSet<T, U>::prependOrMoveToFirst(const ValueType& value) -> AddResult
+auto ListHashSet<T, U>::prependOrMoveToFirst(const ValueType& value) LIFETIME_BOUND -> AddResult
 {
     auto result = m_impl.template add<BaseTranslator, ShouldValidateKey::Yes>(value, [] { return nullptr; });
     Node* node = result.iterator->get();
@@ -768,7 +768,7 @@ auto ListHashSet<T, U>::prependOrMoveToFirst(const ValueType& value) -> AddResul
 }
 
 template<typename T, typename U>
-auto ListHashSet<T, U>::prependOrMoveToFirst(ValueType&& value) -> AddResult
+auto ListHashSet<T, U>::prependOrMoveToFirst(ValueType&& value) LIFETIME_BOUND -> AddResult
 {
     auto result = m_impl.template add<BaseTranslator, ShouldValidateKey::Yes>(WTF::move(value), [] { return nullptr; });
     Node* node = result.iterator->get();
@@ -780,19 +780,19 @@ auto ListHashSet<T, U>::prependOrMoveToFirst(ValueType&& value) -> AddResult
 }
 
 template<typename T, typename U>
-auto ListHashSet<T, U>::insertBefore(const ValueType& beforeValue, const ValueType& newValue) -> AddResult
+auto ListHashSet<T, U>::insertBefore(const ValueType& beforeValue, const ValueType& newValue) LIFETIME_BOUND -> AddResult
 {
     return insertBefore(find(beforeValue), newValue);
 }
 
 template<typename T, typename U>
-auto ListHashSet<T, U>::insertBefore(const ValueType& beforeValue, ValueType&& newValue) -> AddResult
+auto ListHashSet<T, U>::insertBefore(const ValueType& beforeValue, ValueType&& newValue) LIFETIME_BOUND -> AddResult
 {
     return insertBefore(find(beforeValue), WTF::move(newValue));
 }
 
 template<typename T, typename U>
-auto ListHashSet<T, U>::insertBefore(iterator it, const ValueType& newValue) -> AddResult
+auto ListHashSet<T, U>::insertBefore(iterator it, const ValueType& newValue) LIFETIME_BOUND -> AddResult
 {
     auto result = m_impl.template add<BaseTranslator, ShouldValidateKey::Yes>(newValue, [] { return nullptr; });
     if (result.isNewEntry)
@@ -801,7 +801,7 @@ auto ListHashSet<T, U>::insertBefore(iterator it, const ValueType& newValue) -> 
 }
 
 template<typename T, typename U>
-auto ListHashSet<T, U>::insertBefore(iterator it, ValueType&& newValue) -> AddResult
+auto ListHashSet<T, U>::insertBefore(iterator it, ValueType&& newValue) LIFETIME_BOUND -> AddResult
 {
     auto result = m_impl.template add<BaseTranslator, ShouldValidateKey::Yes>(WTF::move(newValue), [] { return nullptr; });
     if (result.isNewEntry)
@@ -862,7 +862,7 @@ inline void ListHashSet<T, U>::clear()
 
 template<typename T, typename U>
 template<SmartPtr V>
-inline auto ListHashSet<T, U>::find(std::add_const_t<typename GetPtrHelper<V>::UnderlyingType>* value) -> iterator
+inline auto ListHashSet<T, U>::find(std::add_const_t<typename GetPtrHelper<V>::UnderlyingType>* value) LIFETIME_BOUND -> iterator
 {
     auto it = m_impl.template find<BaseTranslator, ShouldValidateKey::Yes>(value);
     if (it == m_impl.end())
@@ -872,7 +872,7 @@ inline auto ListHashSet<T, U>::find(std::add_const_t<typename GetPtrHelper<V>::U
 
 template<typename T, typename U>
 template<SmartPtr V>
-inline auto ListHashSet<T, U>::find(std::add_const_t<typename GetPtrHelper<V>::UnderlyingType>* value) const -> const_iterator
+inline auto ListHashSet<T, U>::find(std::add_const_t<typename GetPtrHelper<V>::UnderlyingType>* value) const LIFETIME_BOUND -> const_iterator
 {
     auto it = m_impl.template find<BaseTranslator, ShouldValidateKey::Yes>(value);
     if (it == m_impl.end())
@@ -889,14 +889,14 @@ inline auto ListHashSet<T, U>::contains(std::add_const_t<typename GetPtrHelper<V
 
 template<typename T, typename U>
 template<SmartPtr V>
-inline auto ListHashSet<T, U>::insertBefore(std::add_const_t<typename GetPtrHelper<V>::UnderlyingType>* beforeValue, const ValueType& newValue) -> AddResult
+inline auto ListHashSet<T, U>::insertBefore(std::add_const_t<typename GetPtrHelper<V>::UnderlyingType>* beforeValue, const ValueType& newValue) LIFETIME_BOUND -> AddResult
 {
     return insertBefore(find(beforeValue), newValue);
 }
 
 template<typename T, typename U>
 template<SmartPtr V>
-inline auto ListHashSet<T, U>::insertBefore(std::add_const_t<typename GetPtrHelper<V>::UnderlyingType>* beforeValue, ValueType&& newValue) -> AddResult
+inline auto ListHashSet<T, U>::insertBefore(std::add_const_t<typename GetPtrHelper<V>::UnderlyingType>* beforeValue, ValueType&& newValue) LIFETIME_BOUND -> AddResult
 {
     return insertBefore(find(beforeValue), WTF::move(newValue));
 }

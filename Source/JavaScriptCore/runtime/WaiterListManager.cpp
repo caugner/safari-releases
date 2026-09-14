@@ -31,10 +31,17 @@
 #include "JSLock.h"
 #include "JSObjectInlines.h"
 #include "ObjectConstructor.h"
+#include "Options.h"
+#include "VMManager.h"
+#include "VMTraps.h"
 #include <wtf/DataLog.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/RawPointer.h>
 #include <wtf/TZoneMallocInlines.h>
+
+#if ENABLE(WEBASSEMBLY_DEBUGGER)
+#include "WasmDebugServerUtilities.h"
+#endif
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
@@ -55,7 +62,7 @@ Waiter::Waiter(VM* vm)
 
 Waiter::Waiter(JSPromise* promise)
     : m_vm(&promise->vm())
-    , m_globalObject(promise->globalObject())
+    , m_globalObject(promise->realm())
     , m_ticket(m_vm->deferredWorkTimer->addPendingWork(DeferredWorkTimer::WorkType::AtSomePoint, *m_vm, promise, { }))
     , m_isAsync(true)
 {
@@ -70,6 +77,39 @@ WaiterListManager& WaiterListManager::singleton()
         manager.construct();
     });
     return manager;
+}
+
+static void waitForSync(Locker<Lock>& listLocker, VM& vm, Ref<Waiter>& syncWaiter, Ref<WaiterList>& list, MonotonicTime time)
+{
+    listLocker.assertIsHolding(list->lock);
+    while (syncWaiter->isOnList() && time.now() < time && !vm.hasTerminationRequest()) {
+#if ENABLE(WEBASSEMBLY_DEBUGGER)
+        // FIXME: rdar://176407534 This is a workaround. Ideally VMManager would maintain a registry of all
+        // blocking operations (atomics.wait, futex, etc.) and signal them directly on STW
+        // instead of relying on each site to poll NeedStopTheWorld at a fixed interval.
+        // Implementing that correctly is non-trivial due to registration races, lock ordering
+        // between VMManager and each waiter's list lock, and unregistration races on wait
+        // completion — worth a dedicated follow-up patch.
+        if (Options::enableWasmDebugger()) [[unlikely]] {
+            if (vm.traps().hasTrapBit(VMTraps::NeedStopTheWorld)) {
+                // Unlock to participate in STW. The waiter stays on the list —
+                // isOnList() and time guards handle all outcomes on the next iteration.
+                list->lock.unlock();
+                VMManager::singleton().notifyVMStop(vm, StopTheWorldEvent::WasmAtomicsWaitBlocked);
+                list->lock.lock();
+            }
+            auto cap = MonotonicTime::now() + DebuggerSTWCheckInterval;
+            syncWaiter->condition().waitUntil(list->lock, std::min(time, cap).approximate<WallTime>());
+            continue;
+        }
+#endif
+        syncWaiter->condition().waitUntil(list->lock, time.approximate<WallTime>());
+    }
+
+#if ENABLE(WEBASSEMBLY_DEBUGGER)
+    if (Options::enableWasmDebugger()) [[unlikely]]
+        vm.debugState()->clearStop();
+#endif
 }
 
 template <typename ValueType>
@@ -89,8 +129,7 @@ WaiterListManager::WaitSyncResult WaiterListManager::waitSyncImpl(VM& vm, ValueT
         list->addLast(listLocker, syncWaiter);
         dataLogLnIf(WaiterListsManagerInternal::verbose, "<WaiterListManager> <Thread:", Thread::currentSingleton(), "> added a new SyncWaiter=", syncWaiter.get(), " to a waiterList for ptr ", RawPointer(ptr));
 
-        while (syncWaiter->isOnList() && time.now() < time && !vm.hasTerminationRequest())
-            syncWaiter->condition().waitUntil(list->lock, time.approximateWallTime());
+        waitForSync(listLocker, vm, syncWaiter, list, time);
 
         // At this point, syncWaiter should be either notified (dequeued) or timeout (not dequeued).
         bool didGetDequeued = !syncWaiter->isOnList();
@@ -205,11 +244,11 @@ void WaiterListManager::notifyWaiterImpl(const AbstractLocker& listLocker, Ref<W
 
     if (waiter->isAsync()) {
         waiter->scheduleWorkAndClear(listLocker, [resolveResult](DeferredWorkTimer::Ticket& ticket) {
-            JSPromise* promise = jsCast<JSPromise*>(ticket.target());
-            JSGlobalObject* globalObject = promise->globalObject();
+            JSPromise* promise = uncheckedDowncast<JSPromise>(ticket.target());
+            JSGlobalObject* globalObject = promise->realm();
             VM& vm = promise->vm();
             JSValue result = resolveResult == ResolveResult::Ok ? vm.smallStrings.okString() : vm.smallStrings.timedOutString();
-            promise->resolve(globalObject, result);
+            promise->resolve(globalObject, vm, result);
         });
         return;
     }
@@ -346,17 +385,14 @@ Ref<WaiterList> WaiterListManager::findOrCreateList(void* ptr)
 {
     Locker waiterListsLocker { m_waiterListsLock };
     return m_waiterLists.ensure(ptr, [] {
-        return adoptRef(*new WaiterList()); 
+        return adoptRef(*new WaiterList());
     }).iterator->value.get();
 }
 
 RefPtr<WaiterList> WaiterListManager::findList(void* ptr)
 {
     Locker waiterListsLocker { m_waiterListsLock };
-    auto it = m_waiterLists.find(ptr);
-    if (it == m_waiterLists.end())
-        return nullptr;
-    return it->value.ptr();
+    return m_waiterLists.get(ptr);
 }
 
 void Waiter::dump(PrintStream& out) const
@@ -374,7 +410,7 @@ void Waiter::dump(PrintStream& out) const
     out.print(", ticket=", RawPointer(ticket.get()));
     out.print(", globalObject=", RawPointer(m_globalObject));
     if (ticket && !ticket->isCancelled()) {
-        out.print(", m_ticket->target=", RawPointer(jsCast<JSObject*>(ticket->dependencies().last())));
+        out.print(", m_ticket->target=", RawPointer(uncheckedDowncast<JSObject>(ticket->dependencies().last())));
         out.print(", m_ticket->scriptExecutionOwner=", RawPointer(ticket->scriptExecutionOwner()));
     }
 

@@ -31,6 +31,7 @@
 #include <WebCore/MediaPlaybackTarget.h>
 #include <wtf/AbstractRefCountedAndCanMakeWeakPtr.h>
 #include <wtf/ProcessID.h>
+#include <wtf/ThreadSafeWeakPtr.h>
 #include <wtf/WeakHashSet.h>
 
 namespace WebCore {
@@ -64,7 +65,7 @@ public:
 };
 
 class WEBCORE_EXPORT MediaSessionHelper
-#if HAVE(AVROUTING_FRAMEWORK)
+#if ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)
     : public MediaDeviceRouteControllerClient
 #else
     : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<MediaSessionHelper>
@@ -72,7 +73,6 @@ class WEBCORE_EXPORT MediaSessionHelper
 {
 public:
     static MediaSessionHelper& sharedHelper();
-    static Ref<MediaSessionHelper> protectedSharedHelper();
     static void setSharedHelper(Ref<MediaSessionHelper>&&);
     static void resetSharedHelper();
 
@@ -85,6 +85,10 @@ public:
 
     void startMonitoringWirelessRoutes();
     void stopMonitoringWirelessRoutes();
+
+#if ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)
+    virtual void ensureMediaDeviceRouteControllerMonitoring() { }
+#endif
 
     virtual std::optional<ProcessID> presentedApplicationPID() const;
     virtual void providePresentingApplicationPID(ProcessID);
@@ -110,7 +114,7 @@ public:
     void applicationWillBecomeInactive();
     void applicationDidBecomeActive();
 
-#if HAVE(AVROUTING_FRAMEWORK)
+#if ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)
     void activeRoutesDidChange(MediaDeviceRouteController&) final;
 #endif
 

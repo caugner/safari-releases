@@ -30,6 +30,7 @@
 
 #import "ApplicationServicesSPI.h"
 #import "CodeSigning.h"
+#import "Logging.h"
 #import "SandboxInitializationParameters.h"
 #import "SandboxUtilities.h"
 #import "WKFoundation.h"
@@ -586,7 +587,7 @@ static bool applySandbox(const AuxiliaryProcessInitializationParameters& paramet
     auto header = setAndSerializeSandboxParameters(sandboxInitializationParameters, sandboxParameters, profileOrProfilePath, isProfilePath);
     if (!header) {
         WTFLogAlways("%s: Sandbox parameters are invalid\n", getprogname());
-        CRASH();
+        return compileAndApplySandboxSlowCase(profileOrProfilePath, isProfilePath, sandboxInitializationParameters);
     }
 
     String directoryPath { sandboxDirectory(parameters.processType, dataVaultParentDirectory) };
@@ -637,17 +638,6 @@ static String getUserDirectorySuffix(const AuxiliaryProcessInitializationParamet
     return makeString([[NSBundle mainBundle] bundleIdentifier], '+', clientIdentifier);
 }
 
-static StringView parseOSVersion(StringView osSystemMarketingVersion)
-{
-    auto firstDotIndex = osSystemMarketingVersion.find('.');
-    if (firstDotIndex == notFound)
-        return { };
-    auto secondDotIndex = osSystemMarketingVersion.find('.', firstDotIndex + 1);
-    if (secondDotIndex == notFound)
-        return osSystemMarketingVersion;
-    return osSystemMarketingVersion.left(secondDotIndex);
-}
-
 String AuxiliaryProcess::getHomeDirectory()
 {
     // According to the man page for getpwuid_r, we should use sysconf(_SC_GETPW_R_SIZE_MAX) to determine the size of the buffer.
@@ -674,22 +664,16 @@ static void populateSandboxInitializationParameters(SandboxInitializationParamet
 {
     RELEASE_ASSERT(!sandboxParameters.userDirectorySuffix().isNull());
 
-    String osSystemMarketingVersion = systemMarketingVersion();
-    auto osVersion = parseOSVersion(osSystemMarketingVersion);
-    if (osVersion.isNull()) {
-        WTFLogAlways("%s: Couldn't find OS Version\n", getprogname());
-        exitProcess(EX_NOPERM);
-    }
-    sandboxParameters.addParameter("_OS_VERSION"_s, osVersion.utf8());
-
     // Use private temporary and cache directories.
-    setenv("DIRHELPER_USER_DIR_SUFFIX", FileSystem::fileSystemRepresentation(sandboxParameters.userDirectorySuffix()).data(), 1);
+    CString userDirectorySuffixString = FileSystem::fileSystemRepresentation(sandboxParameters.userDirectorySuffix());
+    if (!_set_user_dir_suffix(userDirectorySuffixString.data()))
+        RELEASE_LOG_ERROR(Process, "Unable to set user dir suffix");
+
     char temporaryDirectory[PATH_MAX];
     if (!confstr(_CS_DARWIN_USER_TEMP_DIR, temporaryDirectory, sizeof(temporaryDirectory))) {
         WTFLogAlways("%s: couldn't retrieve private temporary directory path: %d\n", getprogname(), errno);
         exitProcess(EX_NOPERM);
     }
-    setenv("TMPDIR", temporaryDirectory, 1);
 
     String bundlePath = webKit2BundleSingleton().bundlePath;
     if (!bundlePath.startsWith("/System/Library/Frameworks"_s))
@@ -702,9 +686,7 @@ static void populateSandboxInitializationParameters(SandboxInitializationParamet
     auto homeDirectory = AuxiliaryProcess::getHomeDirectory();
     
     sandboxParameters.addPathParameter("HOME_DIR"_s, homeDirectory.utf8().data());
-    String path = FileSystem::pathByAppendingComponent(homeDirectory, "Library"_s);
-    sandboxParameters.addPathParameter("HOME_LIBRARY_DIR"_s, FileSystem::fileSystemRepresentation(path).data());
-    path = FileSystem::pathByAppendingComponent(path, "/Preferences"_s);
+    String path = FileSystem::pathByAppendingComponents(homeDirectory, std::initializer_list<StringView>({ "Library"_s, "Preferences"_s }));
     sandboxParameters.addPathParameter("HOME_LIBRARY_PREFERENCES_DIR"_s, FileSystem::fileSystemRepresentation(path).data());
 
 #if CPU(X86_64)
@@ -777,18 +759,7 @@ void AuxiliaryProcess::applySandboxProfileForDaemon(const String& profilePath, c
     RELEASE_ASSERT(success);
 }
 
-#if USE(APPKIT)
-void AuxiliaryProcess::stopNSAppRunLoop()
-{
-    ASSERT([NSApp isRunning]);
-    [NSApp stop:nil];
-
-    RetainPtr event = [NSEvent otherEventWithType:NSEventTypeApplicationDefined location:NSMakePoint(0, 0) modifierFlags:0 timestamp:0.0 windowNumber:0 context:nil subtype:0 data1:0 data2:0];
-    [NSApp postEvent:event.get() atStart:true];
-}
-#endif
-
-#if !PLATFORM(MACCATALYST) && ENABLE(WEBPROCESS_NSRUNLOOP)
+#if PLATFORM(MAC)
 void AuxiliaryProcess::stopNSRunLoop()
 {
     ASSERT([NSRunLoop mainRunLoop]);
@@ -796,7 +767,7 @@ void AuxiliaryProcess::stopNSRunLoop()
         exitProcess(0);
     }];
 }
-#endif
+#endif // PLATFORM(MAC)
 
 void AuxiliaryProcess::setQOS(int latencyQOS, int throughputQOS)
 {

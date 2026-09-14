@@ -6,6 +6,7 @@ initial
 unset
 revert
 revert-layer
+revert-rule
 
 //
 // CSS_PROP_OUTLINE_STYLE
@@ -509,7 +510,6 @@ ethiopic-numeric
 //none
 //
 // CSS_PROP_DISPLAY:
-// The order here must match the order of the DisplayType enum in RenderStyleConstants.h.
 //
 inline
 block
@@ -530,6 +530,7 @@ table-caption
 flex
 inline-flex
 contents
+// none
 grid
 inline-grid
 grid-lanes
@@ -539,7 +540,6 @@ flow
 -webkit-inline-flex
 -webkit-flex
 // ruby
-block-ruby
 ruby-base
 ruby-text
 // none
@@ -909,8 +909,9 @@ anywhere
 
 // -webkit-appearance
 // The order here must match the order in the StyleAppearance enum in StyleAppearance.h.
-// All appearance values that should be accepted by the parser should be listed between 'base' and 'textarea':
+// All appearance values that should be accepted by the parser should be listed between 'base' and 'textfield':
 base
+base-select
 checkbox
 radio
 push-button
@@ -930,7 +931,6 @@ attachment enable-if=ENABLE_ATTACHMENT_ELEMENT
 borderless-attachment enable-if=ENABLE_ATTACHMENT_ELEMENT
 textarea
 textfield
--internal-auto-base
 
 //
 // CSS_PROP_BORDER_IMAGE
@@ -962,7 +962,6 @@ padding-box
 scoop
 // bevel
 notch
-straight
 squircle
 superellipse
 // infinity
@@ -982,14 +981,12 @@ intersect
 exclude
 
 //
-// Variables Implementation
+// Global substitution functions
 //
 var
-
-//
-// Environment Variables
-//
 env
+random-item
+-internal-auto-base
 
 //
 // CSS_PROP_BREAK_BEFORE/AFTER/INSIDE
@@ -1332,6 +1329,7 @@ scale-down
 // background-image, etc.
 container-scroll
 cross-fade
+image
 image-set
 linear-gradient
 radial-gradient
@@ -1520,6 +1518,7 @@ path
 xywh
 
 calc
+calc-mix
 -webkit-calc
 min
 max
@@ -1544,6 +1543,7 @@ rem
 to-zero
 // nearest
 // progress
+no-clamp
 random
 element-scoped
 // fixed
@@ -1552,6 +1552,9 @@ sibling-index
 infinity
 -infinity id=NegativeInfinity
 NaN
+
+// ident()
+ident
 
 from-image
 
@@ -1606,6 +1609,7 @@ tip enable-if=ENABLE_APPLE_PAY&ENABLE_APPLE_PAY_NEW_BUTTON_TYPES
 // font-synthesis
 weight
 style
+oblique-only
 
 // will-change
 scroll-position
@@ -1800,6 +1804,7 @@ layout
 // normal
 // size
 inline-size
+scroll-state
 
 // offset-path
 // https://drafts.fxtf.org/motion-1/#offset-path-property
@@ -1833,6 +1838,7 @@ trim-all
 no-autospace
 ideograph-alpha
 ideograph-numeric
+insert
 
 // scrollbar-gutter
 // auto
@@ -1851,6 +1857,9 @@ allow-discrete
 // block
 // inline
 -internal-textarea-auto
+
+// outline-offset
+-internal-inset
 
 // CSS Anchor Positioning
 anchor
@@ -1915,7 +1924,9 @@ span-self-inline-end
 // position-visibility
 // always
 anchors-valid
+anchor-valid
 anchors-visible
+anchor-visible
 no-overflow
 
 // view-transition-name
@@ -1938,3 +1949,6 @@ strict-origin
 origin-when-cross-origin
 strict-origin-when-cross-origin
 unsafe-url
+
+// <will-change>
+will-change

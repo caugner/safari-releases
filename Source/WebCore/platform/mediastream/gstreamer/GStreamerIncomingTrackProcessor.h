@@ -23,12 +23,12 @@
 #include "GStreamerMediaEndpoint.h"
 #include "GStreamerWebRTCCommon.h"
 #include "GUniquePtrGStreamer.h"
-#include <wtf/RefCounted.h>
 #include <wtf/TZoneMalloc.h>
+#include <wtf/ThreadSafeRefCounted.h>
 
 namespace WebCore {
 
-class GStreamerIncomingTrackProcessor : public RefCounted<GStreamerIncomingTrackProcessor> {
+class GStreamerIncomingTrackProcessor : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<GStreamerIncomingTrackProcessor, WTF::DestructionThread::Main> {
     WTF_MAKE_TZONE_ALLOCATED(GStreamerIncomingTrackProcessor);
 
 public:
@@ -47,7 +47,7 @@ public:
 
     bool isDecoding() const { return m_isDecoding; }
     bool isReady() const { return m_isReady; }
-    const String& trackId() const { return m_data.trackId; }
+    const String& trackId() const LIFETIME_BOUND { return m_data.trackId; }
 
 private:
     GStreamerIncomingTrackProcessor();
@@ -61,6 +61,7 @@ private:
     void installRtpBufferPadProbe(const GRefPtr<GstPad>&);
 
     void trackReady();
+    void trackHasReceivedFirstPacket();
 
     ThreadSafeWeakPtr<GStreamerMediaEndpoint> m_endPoint;
     GRefPtr<GstPad> m_pad;
@@ -71,7 +72,7 @@ private:
 
     bool m_isDecoding { false };
     IntSize m_videoSize;
-    double m_frameRate;
+    double m_frameRate { 0 };
     uint64_t m_decodedVideoFrames { 0 };
     uint64_t m_framesReceived { 0 };
     uint64_t m_decodedKeyFrames { 0 };
@@ -81,6 +82,12 @@ private:
 
     // https://www.w3.org/TR/webrtc-stats/#dom-rtcinboundrtpstreamstats-totaldecodetime
     MediaTime m_totalVideoDecodeTime { MediaTime::zeroTime() };
+
+    String m_videoDecoderName;
+
+    GRefPtr<GstCaps> m_ntpCaps;
+
+    bool m_hasReceivedFirstPacket { false };
 };
 
 } // namespace WebCore

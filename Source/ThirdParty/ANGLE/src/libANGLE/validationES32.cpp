@@ -55,11 +55,6 @@ static bool IsIndexedCapBannedWithActivePLS(GLenum cap)
 }
 }  // anonymous namespace
 
-bool ValidateBlendBarrier(const Context *context, angle::EntryPoint entryPoint)
-{
-    return true;
-}
-
 bool ValidateBlendEquationSeparatei(const PrivateState &state,
                                     ErrorSet *errors,
                                     angle::EntryPoint entryPoint,
@@ -190,14 +185,6 @@ bool ValidateCopyImageSubData(const Context *context,
                                         srcWidth, srcHeight, srcDepth);
 }
 
-bool ValidateDebugMessageCallback(const Context *context,
-                                  angle::EntryPoint entryPoint,
-                                  GLDEBUGPROC callback,
-                                  const void *userParam)
-{
-    return true;
-}
-
 bool ValidateDebugMessageControl(const Context *context,
                                  angle::EntryPoint entryPoint,
                                  GLenum source,
@@ -265,7 +252,8 @@ bool ValidateDrawElementsBaseVertex(const Context *context,
                                     const void *indices,
                                     GLint basevertex)
 {
-    return ValidateDrawElementsCommon(context, entryPoint, mode, count, type, indices, 1);
+    return ValidateDrawElementsCommon(context, entryPoint, mode, count, type, indices, 1,
+                                      basevertex);
 }
 
 bool ValidateDrawElementsInstancedBaseVertex(const Context *context,
@@ -278,7 +266,7 @@ bool ValidateDrawElementsInstancedBaseVertex(const Context *context,
                                              GLint basevertex)
 {
     return ValidateDrawElementsInstancedBase(context, entryPoint, mode, count, type, indices,
-                                             instancecount, 0);
+                                             instancecount, basevertex, 0);
 }
 
 bool ValidateDrawRangeElementsBaseVertex(const Context *context,
@@ -297,7 +285,7 @@ bool ValidateDrawRangeElementsBaseVertex(const Context *context,
         return false;
     }
 
-    if (!ValidateDrawElementsCommon(context, entryPoint, mode, count, type, indices, 1))
+    if (!ValidateDrawElementsCommon(context, entryPoint, mode, count, type, indices, 1, basevertex))
     {
         return false;
     }
@@ -369,11 +357,6 @@ bool ValidateGetDebugMessageLog(const Context *context,
 {
     return ValidateGetDebugMessageLogBase(context, entryPoint, count, bufSize, sources, types, ids,
                                           severities, lengths, messageLog);
-}
-
-bool ValidateGetGraphicsResetStatus(const Context *context, angle::EntryPoint entryPoint)
-{
-    return true;
 }
 
 bool ValidateGetObjectLabel(const Context *context,
@@ -536,14 +519,6 @@ bool ValidateIsEnabledi(const PrivateState &state,
     return true;
 }
 
-bool ValidateMinSampleShading(const PrivateState &state,
-                              ErrorSet *errors,
-                              angle::EntryPoint entryPoint,
-                              GLfloat value)
-{
-    return true;
-}
-
 bool ValidateObjectLabel(const Context *context,
                          angle::EntryPoint entryPoint,
                          GLenum identifier,
@@ -575,21 +550,6 @@ bool ValidatePatchParameteri(const PrivateState &state,
 bool ValidatePopDebugGroup(const Context *context, angle::EntryPoint entryPoint)
 {
     return ValidatePopDebugGroupBase(context, entryPoint);
-}
-
-bool ValidatePrimitiveBoundingBox(const PrivateState &state,
-                                  ErrorSet *errors,
-                                  angle::EntryPoint entryPoint,
-                                  GLfloat minX,
-                                  GLfloat minY,
-                                  GLfloat minZ,
-                                  GLfloat minW,
-                                  GLfloat maxX,
-                                  GLfloat maxY,
-                                  GLfloat maxZ,
-                                  GLfloat maxW)
-{
-    return true;
 }
 
 bool ValidatePushDebugGroup(const Context *context,

@@ -158,8 +158,6 @@
 
 #include "pas_config.h"
 
-#include "pas_allocation_mode.h"
-#include "pas_lock.h"
 #include "pas_internal_config.h"
 #include "pas_utils.h"
 #include <stdbool.h>
@@ -206,6 +204,7 @@ typedef enum {
     pas_stats_heap_type_segregated = 0,
     pas_stats_heap_type_bitfit = 1,
     pas_stats_heap_type_large = 2,
+    pas_stats_heap_type_unknown = 3,
 
     pas_stats_heap_type_count
 } pas_stats_heap_type;
@@ -302,7 +301,9 @@ PAS_API void pas_stats_page_alloc_counts_record(pas_stats_page_alloc_counts_data
 #define PAS_STATS_FOR_EACH_COUNTER(OP) \
     OP(page_alloc_counts, pas_stats_page_alloc_counts_data, pas_stats_page_alloc_counts_dump_to_json) \
     OP(malloc_info_bytes, pas_stats_malloc_info_data, pas_stats_malloc_info_dump_to_json) \
-    OP(malloc_info_allocations, pas_stats_malloc_info_data, pas_stats_malloc_info_dump_to_json)
+    OP(malloc_info_allocations, pas_stats_malloc_info_data, pas_stats_malloc_info_dump_to_json) \
+    OP(malloc_info_mte_tagged_bytes, pas_stats_malloc_info_data, pas_stats_malloc_info_dump_to_json)
+
 
 // FIXME: in principle it should be possible to automatically generate this via PAS_STATS_FOR_EACH_COUNTER, somehow
 #define PAS_RECORD_STAT_page_alloc_counts(data, size, may_contain_small_or_medium, mapped_with_mte) \
@@ -311,6 +312,8 @@ PAS_API void pas_stats_page_alloc_counts_record(pas_stats_page_alloc_counts_data
     pas_stats_malloc_info_record(data, heap_type, size, size)
 #define PAS_RECORD_STAT_malloc_info_allocations(data, heap_type, size) \
     pas_stats_malloc_info_record(data, heap_type, size, 1)
+#define PAS_RECORD_STAT_malloc_info_mte_tagged_bytes(data, heap_type, size) \
+    pas_stats_malloc_info_record(data, heap_type, size, size)
 
 #endif /* PAS_ENABLE_STATS */
 

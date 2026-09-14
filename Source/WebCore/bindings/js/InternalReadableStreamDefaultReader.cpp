@@ -28,7 +28,12 @@
 
 #include "JSDOMPromise.h"
 #include "JSReadableStream.h"
+#include "ScriptExecutionContext.h"
 #include "WebCoreJSClientData.h"
+#include <JavaScriptCore/CallData.h>
+#include <JavaScriptCore/JSObjectInlines.h>
+#include <JavaScriptCore/MarkedVector.h>
+#include <JavaScriptCore/TopExceptionScope.h>
 
 namespace WebCore {
 
@@ -37,7 +42,7 @@ static ExceptionOr<JSC::JSValue> invokeReadableStreamDefaultReaderFunction(JSC::
     Ref vm = globalObject.vm();
     JSC::JSLockHolder lock(vm.get());
 
-    auto scope = DECLARE_CATCH_SCOPE(vm.get());
+    auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm.get());
 
     auto function = globalObject.get(&globalObject, identifier);
     ASSERT(!!scope.exception() || function.isCallable());
@@ -154,17 +159,18 @@ void InternalReadableStreamDefaultReader::onClosedPromiseRejection(Function<void
     if (result.hasException())
         return;
 
-    auto* promise = jsCast<JSC::JSPromise*>(result.returnValue());
+    auto* promise = downcast<JSC::JSPromise>(result.returnValue());
     if (!promise)
         return;
 
     Ref domPromise = DOMPromise::create(*globalObject, *promise);
-    domPromise->whenSettled([domPromise, callback = WTF::move(callback)] {
-        if (domPromise->activeDOMObjectAreStopped())
+    domPromise->whenSettledWithResult([callback = WTF::move(callback)](auto* globalObject, bool isFulfilled, auto result) {
+        if (isFulfilled || !globalObject)
             return;
-        if (domPromise->status() != DOMPromise::Status::Rejected || !domPromise->globalObject())
+        auto* scriptExecutionContext = globalObject->scriptExecutionContext();
+        if (!scriptExecutionContext || scriptExecutionContext->activeDOMObjectsAreStopped())
             return;
-        callback(*domPromise->globalObject(), domPromise->result());
+        callback(*globalObject, result);
     });
 }
 
@@ -186,15 +192,18 @@ void InternalReadableStreamDefaultReader::onClosedPromiseResolution(Function<voi
     if (result.hasException())
         return;
 
-    auto* promise = jsCast<JSC::JSPromise*>(result.returnValue());
+    auto* promise = downcast<JSC::JSPromise>(result.returnValue());
     if (!promise)
         return;
 
     Ref domPromise = DOMPromise::create(*globalObject, *promise);
-    domPromise->whenSettled([domPromise, callback = WTF::move(callback)] {
-        if (domPromise->activeDOMObjectAreStopped())
+    domPromise->whenSettledWithResult([callback = WTF::move(callback)](auto* globalObject, bool isFulfilled, auto) {
+        if (!globalObject)
             return;
-        if (domPromise->status() == DOMPromise::Status::Fulfilled)
+        auto* scriptExecutionContext = globalObject->scriptExecutionContext();
+        if (!scriptExecutionContext || scriptExecutionContext->activeDOMObjectsAreStopped())
+            return;
+        if (isFulfilled)
             callback();
     });
 }

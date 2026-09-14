@@ -29,12 +29,21 @@
 #if HAVE(BROWSERENGINEKIT_WEBCONTENTFILTER)
 
 #import "Logging.h"
+#import <UIKit/UIView.h>
 #import <WebCore/ParentalControlsContentFilter.h>
 #import <pal/spi/ios/BrowserEngineKitSPI.h>
 #import <wtf/BlockPtr.h>
 #import <wtf/CompletionHandler.h>
 #import <wtf/CrossThreadCopier.h>
 #import <wtf/WorkQueue.h>
+
+#if USE(APPLE_INTERNAL_SDK)
+#import <WebKitAdditions/BEKAdditions.h>
+#endif
+
+#if HAVE(WEBCONTENTRESTRICTIONS_TRANSITIVE_TRUST)
+#import <WebCore/DeprecatedGlobalSettings.h>
+#endif
 
 namespace WebKit {
 
@@ -61,16 +70,40 @@ bool WebParentalControlsURLFilter::isEnabledImpl() const
     return [BEWebContentFilter shouldEvaluateURLs];
 }
 
-void WebParentalControlsURLFilter::isURLAllowedImpl(const URL& url, CompletionHandler<void(bool, NSData *)>&& completionHandler)
+void WebParentalControlsURLFilter::isURLAllowedImpl(WebCore::IsMainFrameLoad isMainFrame, const URL& mainDocumentURL, const URL& url, CompletionHandler<void(bool, NSData *)>&& completionHandler)
 {
-    workQueueSingleton().dispatch([this, protectedThis = Ref { *this }, currentIsEnabled = isEnabled(), url = crossThreadCopy(url), completionHandler = WTF::move(completionHandler)]() mutable {
+    // mainDocumentURL acts as a root for Parental Controls policies. Accordingly, mainDocumentURL and url are required to match on mainframe navigations.
+    auto& effectiveMainDocumentURL = (isMainFrame == WebCore::IsMainFrameLoad::Yes) ? url : mainDocumentURL;
+
+    workQueueSingleton().dispatch([this,
+        protectedThis = Ref { *this },
+        currentIsEnabled = isEnabled(),
+        mainDocumentURL = crossThreadCopy(effectiveMainDocumentURL),
+        url = crossThreadCopy(url),
+        isMainFrame,
+        completionHandler = WTF::move(completionHandler)]() mutable {
+
+        // TODO: Remove once rdar://175796135 is merged.
+        UNUSED_PARAM(isMainFrame);
+
         if (!currentIsEnabled) {
             completionHandler(true, nullptr);
             return;
         }
 
-        [ensureWebContentFilter() evaluateURL:url.createNSURL().get() completionHandler:makeBlockPtr([completionHandler = WTF::move(completionHandler)](BOOL shouldBlock, NSData *replacementData) mutable {
-            completionHandler(!shouldBlock, replacementData);
+        RetainPtr filter = ensureWebContentFilter();
+#if HAVE(WEBCONTENTRESTRICTIONS_TRANSITIVE_TRUST)
+#if __has_include(<WebKitAdditions/BEKAdditions.h>)
+    if (WebCore::DeprecatedGlobalSettings::webContentRestrictionsTransitiveTrustEnabled()) {
+        MAYBE_EVALUATE_URL_WITH_TRANSITIVE_TRUST
+    }
+#endif
+#endif
+        [filter evaluateURL:url.createNSURL().get() completionHandler:makeBlockPtr([completionHandler = WTF::move(completionHandler)](BOOL shouldBlock, NSData *replacementData) mutable {
+            // Make sure we don't crash even if [BEWebContentFilter evaluateURL:completionHandler:] calls its
+            // completion handler more than once (which seems to happen in practice).
+            if (completionHandler)
+                completionHandler(!shouldBlock, replacementData);
         }).get()];
     });
 }
@@ -85,17 +118,50 @@ void WebParentalControlsURLFilter::allowURL(const URL& url, CompletionHandler<vo
             return;
         }
 
-        [ensureWebContentFilter() allowURL:url.createNSURL().get() completionHandler:makeBlockPtr([completionHandler = WTF::move(completionHandler)](BOOL didAllow, NSError *) mutable {
+        [protect(ensureWebContentFilter()) allowURL:url.createNSURL().get() completionHandler:makeBlockPtr([completionHandler = WTF::move(completionHandler)](BOOL didAllow, NSError *) mutable {
             RELEASE_LOG(Loading, "WebParentalControlsURLFilter::allowURL result %d.\n", didAllow);
             callOnMainRunLoop([didAllow, completionHandler = WTF::move(completionHandler)] mutable {
-                // BEWebContentFilter may call the completion handler more than once (rdar://172157523
-                // was filed for this). Guard against this to avoid a null dereference crash.
                 if (completionHandler)
                     completionHandler(didAllow);
             });
         }).get()];
     });
 }
+
+void WebParentalControlsURLFilter::setSharedParentalControlsURLFilterIfNecessary()
+{
+#if !HAVE(WEBCONTENTRESTRICTIONS_PATH_SPI)
+    ASSERT(isMainRunLoop());
+    if (!WebCore::ParentalControlsURLFilter::hasGlobalFilter()) {
+        WebCore::ParentalControlsURLFilter::setGlobalFilter(WebParentalControlsURLFilter::create());
+    }
+#endif
+}
+
+#if HAVE(WEBCONTENTRESTRICTIONS_ASK_TO)
+void WebParentalControlsURLFilter::requestPermissionForURL(const URL& url, const URL& referrerURL, CompletionHandler<void(bool)>&& completionHandler, CocoaView* presentingView)
+{
+    UIView* presentingViewAsUIView = (UIView *)presentingView;
+    workQueueSingleton().dispatch([this, protectedThis = Ref { *this },
+        currentIsEnabled = isEnabled(),
+        url = crossThreadCopy(url),
+        referrerURL = crossThreadCopy(referrerURL),
+        presentingViewAsUIView,
+        completionHandler = WTF::move(completionHandler)]() mutable {
+        if (!currentIsEnabled) {
+            callOnMainRunLoop([completionHandler = WTF::move(completionHandler)] mutable {
+                completionHandler(true);
+            });
+            return;
+        }
+        auto filter = ensureWebContentFilter();
+#if __has_include(<WebKitAdditions/BEKAdditions.h>)
+        RELEASE_LOG(Loading, "WebParentalControlsURLFilter::requestPermissionForURL starts execution");
+        MAYBE_REQUEST_PERMISSION_ASK_TO
+#endif
+    });
+}
+#endif
 
 } // namespace WebKit
 

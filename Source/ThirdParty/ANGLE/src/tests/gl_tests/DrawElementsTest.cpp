@@ -7,10 +7,7 @@
 //   Tests for indexed draws.
 //
 
-#ifdef UNSAFE_BUFFERS_BUILD
-#    pragma allow_unsafe_buffers
-#endif
-
+#include "common/unsafe_buffers.h"
 #include "test_utils/ANGLETest.h"
 #include "test_utils/gl_raii.h"
 
@@ -76,24 +73,136 @@ class WebGLDrawElementsTest : public DrawElementsTest
     WebGLDrawElementsTest() { setWebGLCompatibilityEnabled(true); }
 };
 
-template <typename T>
-std::vector<T> convertIndexBufferContents(const std::vector<GLubyte> &input)
+template <typename T, typename U>
+std::vector<T> convertIndexBufferWithRestarts(const std::vector<U> &input)
 {
+    constexpr U inputRestart  = std::numeric_limits<U>::max();
+    constexpr T outputRestart = std::numeric_limits<T>::max();
     std::vector<T> output;
     output.reserve(input.size());
     for (auto byte : input)
     {
-        if (static_cast<uint8_t>(byte) == 0xff)
-        {
-            output.push_back(std::numeric_limits<T>::max());
-        }
-        else
-        {
-            output.push_back(static_cast<T>(byte));
-        }
+        output.push_back(byte == inputRestart ? outputRestart : static_cast<T>(byte));
     }
     return output;
 }
+
+enum class PrimitiveRestartMode
+{
+    Disabled,
+    Enabled,
+    EnabledSplitContent,
+};
+
+enum class IndicesMode
+{
+    Buffer,
+    BufferAndOffset,
+    ClientSideArray,
+};
+
+enum class RestartOption
+{
+    None,
+    AtBegin,
+    AtEnd,
+    Degenerate,
+};
+
+using DrawElementsVariantsTestParams = std::tuple<angle::PlatformParameters,
+                                                  GLenum,                // type
+                                                  bool,                  // useFlat
+                                                  PrimitiveRestartMode,  // primitiveRestartMode
+                                                  bool,                  // drawStrip
+                                                  IndicesMode,           // indicesMode
+                                                  RestartOption,         // restartOption
+                                                  bool>;                 // useProvokingVertexFirst
+
+std::string DrawElementsVariantsTestPrint(
+    const ::testing::TestParamInfo<DrawElementsVariantsTestParams> &paramsInfo)
+{
+    const auto &[platform, type, useFlat, primitiveRestartMode, drawStrip, indicesMode,
+                 restartOption, useProvokingVertexFirst] = paramsInfo.param;
+    std::ostringstream out;
+    out << platform << "__"
+        << (type == GL_UNSIGNED_BYTE ? "B" : (type == GL_UNSIGNED_SHORT ? "S" : "I"))
+        << (useFlat ? "_Flat" : "");
+    switch (primitiveRestartMode)
+    {
+        case PrimitiveRestartMode::Disabled:
+            break;
+        case PrimitiveRestartMode::Enabled:
+            out << "_Restart";
+            break;
+        case PrimitiveRestartMode::EnabledSplitContent:
+            out << "_Split";
+            break;
+    }
+    out << (drawStrip ? "_Strip" : "_Tris");
+    switch (indicesMode)
+    {
+        case IndicesMode::Buffer:
+            break;
+        case IndicesMode::BufferAndOffset:
+            out << "_Offset";
+            break;
+        case IndicesMode::ClientSideArray:
+            out << "_Client";
+            break;
+    }
+    switch (restartOption)
+    {
+        case RestartOption::None:
+            break;
+        case RestartOption::AtBegin:
+            out << "_AtBegin";
+            break;
+        case RestartOption::AtEnd:
+            out << "_AtEnd";
+            break;
+        case RestartOption::Degenerate:
+            out << "_Degen";
+            break;
+    }
+    out << (useProvokingVertexFirst ? "_First" : "");
+    return out.str();
+}
+
+class DrawElementsVariantsTest : public ANGLETest<DrawElementsVariantsTestParams>
+{
+  protected:
+    DrawElementsVariantsTest()
+    {
+        setWindowWidth(64);
+        setWindowHeight(64);
+        setConfigRedBits(8);
+        setConfigGreenBits(8);
+        setConfigBlueBits(8);
+        setConfigAlphaBits(8);
+    }
+
+    GLenum type() const { return std::get<1>(GetParam()); }
+    bool useFlat() const { return std::get<2>(GetParam()); }
+    PrimitiveRestartMode primitiveRestartMode() const { return std::get<3>(GetParam()); }
+    bool drawStrip() const { return std::get<4>(GetParam()); }
+    IndicesMode indicesMode() const { return std::get<5>(GetParam()); }
+    RestartOption restartOption() const { return std::get<6>(GetParam()); }
+    bool addRestartAtBegin() const { return restartOption() == RestartOption::AtBegin; }
+    bool addRestartAtEnd() const { return restartOption() == RestartOption::AtEnd; }
+    bool addRestartDegenerate() const { return restartOption() == RestartOption::Degenerate; }
+    bool useProvokingVertexFirst() const { return std::get<7>(GetParam()); }
+
+    bool usePrimitiveRestart() const
+    {
+        return primitiveRestartMode() != PrimitiveRestartMode::Disabled;
+    }
+    bool splitContent() const
+    {
+        return primitiveRestartMode() == PrimitiveRestartMode::EnabledSplitContent;
+    }
+    bool addOffset() const { return indicesMode() == IndicesMode::BufferAndOffset; }
+    bool useClientSideArrays() const { return indicesMode() == IndicesMode::ClientSideArray; }
+};
 
 // Test no error is generated when using client-side arrays, indices = nullptr and count = 0
 TEST_P(DrawElementsTest, ClientSideNullptrArrayZeroCount)
@@ -201,8 +310,8 @@ TEST_P(DrawElementsTest, LineLoopTriangles)
 
     for (int i = 0; i < 2; i++)
     {
-        glBindVertexArray(vertexArray[i]);
-        glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer[i]);
+        glBindVertexArray(ANGLE_UNSAFE_TODO(vertexArray[i]));
+        glBindBuffer(GL_ARRAY_BUFFER, ANGLE_UNSAFE_TODO(vertexBuffer[i]));
         glBufferData(GL_ARRAY_BUFFER, sizeof(vertices[0]) * vertices.size(), vertices.data(),
                      GL_STATIC_DRAW);
         glVertexAttribPointer(posLocation, 3, GL_FLOAT, GL_FALSE, 0, 0);
@@ -260,8 +369,8 @@ TEST_P(DrawElementsTest, LineLoopTriangles2)
 
     for (int i = 0; i < 2; i++)
     {
-        glBindVertexArray(vertexArray[i]);
-        glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer[i]);
+        glBindVertexArray(ANGLE_UNSAFE_TODO(vertexArray[i]));
+        glBindBuffer(GL_ARRAY_BUFFER, ANGLE_UNSAFE_TODO(vertexBuffer[i]));
         glBufferData(GL_ARRAY_BUFFER, sizeof(vertices[0]) * vertices.size(), vertices.data(),
                      GL_STATIC_DRAW);
         glVertexAttribPointer(posLocation, 3, GL_FLOAT, GL_FALSE, 0, 0);
@@ -858,13 +967,12 @@ void main()
     ASSERT_GL_NO_ERROR();
 }
 
-TEST_P(DrawElementsTest, DrawElementsUintByteBytePrimitiveRestart2)
+// Tests various draw element parameter, vertex buffer contents variants.
+// Does not yet test using GL_BYTE 0xFF, GL_SHORT 0xFFFF with primitive restart off.
+TEST_P(DrawElementsVariantsTest, Draw)
 {
     const bool hasProvokingVertexExt = IsGLExtensionEnabled("GL_ANGLE_provoking_vertex");
-    if (IsMetal())
-    {
-        ASSERT_TRUE(hasProvokingVertexExt);
-    }
+    ANGLE_SKIP_TEST_IF(useProvokingVertexFirst() && !hasProvokingVertexExt);
 
     glClearColor(1.f, 0.f, 0.f, 1.f);
 
@@ -889,11 +997,17 @@ void main()
     else
         my_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
 })";
-    GLProgram flatProgram;
-    flatProgram.makeRaster(kFlatVS, kFlatFS);
-    GLProgram nonFlatProgram;
-    nonFlatProgram.makeRaster(essl3_shaders::vs::Simple(), essl3_shaders::fs::Green());
+    GLProgram program;
+    if (useFlat())
+    {
+        program.makeRaster(kFlatVS, kFlatFS);
+    }
+    else
+    {
+        program.makeRaster(essl3_shaders::vs::Simple(), essl3_shaders::fs::Green());
+    }
     ASSERT_GL_NO_ERROR();
+    glUseProgram(program);
 
     GLBuffer vertexBuffer;
     std::array<GLfloat, 12> vertices = {
@@ -910,7 +1024,7 @@ void main()
     glBufferData(GL_ARRAY_BUFFER, sizeof(markFirstStripData), markFirstStripData.data(),
                  GL_STATIC_DRAW);
 
-    // First vertex convention, triangle strip {0,1,2,0xff,2,1,3} and triangles {0,1,2,2,1,3} or :
+    // First vertex convention, triangle strip {0,1,2,0xff,2,1,3} and triangles {0,1,2,2,1,3}:
     // 0, 2 are provoking.
     GLBuffer markFirstConventionTriangles;
     std::array<GLfloat, 4> markFirstTriData = {1.0f, 0.0f, 1.0f, 0.0f};
@@ -918,306 +1032,188 @@ void main()
     glBufferData(GL_ARRAY_BUFFER, sizeof(markFirstTriData), markFirstTriData.data(),
                  GL_STATIC_DRAW);
 
-    // Last vertex convention: triangle strip {0, 1,2, 3} and triangles {0,1,2}, {2, 1, 3}: 2, 3 are
+    // Last vertex convention: triangle strip {0,1,2,3} and triangles {0,1,2,2,1,3}: 2, 3 are
     // provoking.
     GLBuffer markLastConvention;
     std::array<GLfloat, 4> markLastData = {0.0f, 0.0f, 1.0f, 1.0f};
     glBindBuffer(GL_ARRAY_BUFFER, markLastConvention);
     glBufferData(GL_ARRAY_BUFFER, sizeof(markLastData), markLastData.data(), GL_STATIC_DRAW);
 
-    struct Subcase
-    {
-        GLenum type;
-        bool useFlat;
-        bool usePrimitiveRestart;
-        bool drawStrip;
-        bool splitContent;
-        bool addOffset;
-        bool addRestartAtBegin;
-        bool addRestartAtEnd;
-        bool addRestartDegenerate;
-        bool useClientSideArrays;
-        bool useProvokingVertexLast;
-    };
-    std::vector<Subcase> subcases;
-    bool falseTrue[]{false, true};
-    GLenum types[]{GL_UNSIGNED_BYTE, GL_UNSIGNED_SHORT, GL_UNSIGNED_INT};
-    for (GLenum type : types)
-    {
-        for (bool useFlat : falseTrue)
-        {
-            for (bool usePrimitiveRestart : falseTrue)
-            {
-                for (bool drawStrip : falseTrue)
-                {
-                    for (bool splitContent : falseTrue)
-                    {
-                        // splitContent requires primitive restart markers.
-                        if (splitContent && !usePrimitiveRestart)
-                        {
-                            continue;
-                        }
-                        for (bool addOffset : falseTrue)
-                        {
-                            for (bool addRestartAtBegin : falseTrue)
-                            {
-                                if (addRestartAtBegin && !usePrimitiveRestart)
-                                {
-                                    continue;
-                                }
-                                for (bool addRestartAtEnd : falseTrue)
-                                {
-                                    if (addRestartAtEnd && !usePrimitiveRestart)
-                                    {
-                                        continue;
-                                    }
-                                    for (bool addRestartDegenerate : falseTrue)
-                                    {
-                                        if (addRestartDegenerate && !usePrimitiveRestart)
-                                        {
-                                            continue;
-                                        }
-                                        for (bool useClientSideArrays : falseTrue)
-                                        {
-                                            for (bool useProvokingVertexLast : falseTrue)
-                                            {
-                                                // Skip provoking vertex subcases if the extension
-                                                // is not available.
-                                                if (useProvokingVertexLast &&
-                                                    !hasProvokingVertexExt)
-                                                {
-                                                    continue;
-                                                }
-                                                Subcase subcase{
-                                                    .type                 = type,
-                                                    .useFlat              = useFlat,
-                                                    .usePrimitiveRestart  = usePrimitiveRestart,
-                                                    .drawStrip            = drawStrip,
-                                                    .splitContent         = splitContent,
-                                                    .addOffset            = addOffset,
-                                                    .addRestartAtBegin    = addRestartAtBegin,
-                                                    .addRestartAtEnd      = addRestartAtEnd,
-                                                    .addRestartDegenerate = addRestartDegenerate,
-                                                    .useClientSideArrays  = useClientSideArrays,
-                                                    .useProvokingVertexLast =
-                                                        useProvokingVertexLast,
-                                                };
-                                                subcases.push_back(subcase);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-#if 0
-    // Use this in case there is a failure.
-    subcases.clear();
-    subcases.push_back(Subcase{.type = GL_UNSIGNED_BYTE, .useFlat=true, .usePrimitiveRestart=false, .drawStrip=true, .splitContent=false, .addOffset=true, .addRestartAtBegin=false, .addRestartAtEnd=false, .addRestartDegenerate=false, .useClientSideArrays=false, .useProvokingVertexLast=false});
-#endif
     GLubyte contentStrip[]     = {0, 1, 2, 3};
     GLubyte contentTriangles[] = {0, 1, 2, 2, 1, 3};
     GLubyte contentSplit[]     = {0, 1, 2, 0xff, 2, 1, 3};
 
-    for (const auto &subcase : subcases)
+    if (usePrimitiveRestart())
     {
-        glClear(GL_COLOR_BUFFER_BIT);
-        if (subcase.usePrimitiveRestart)
-        {
-            glEnable(GL_PRIMITIVE_RESTART_FIXED_INDEX);
-        }
-        else
-        {
-            glDisable(GL_PRIMITIVE_RESTART_FIXED_INDEX);
-        }
-        if (subcase.useProvokingVertexLast)
-        {
-            glProvokingVertexANGLE(GL_LAST_VERTEX_CONVENTION_ANGLE);
-        }
-        else if (hasProvokingVertexExt)
-        {
-            glProvokingVertexANGLE(GL_FIRST_VERTEX_CONVENTION_ANGLE);
-        }
-        GLuint program = subcase.useFlat ? flatProgram : nonFlatProgram;
-        glUseProgram(program);
-        GLint posLocation = glGetAttribLocation(program, essl3_shaders::PositionAttrib());
-        ASSERT_NE(-1, posLocation);
-        glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
-        glEnableVertexAttribArray(posLocation);
-        glVertexAttribPointer(posLocation, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-        if (subcase.useFlat)
-        {
-            GLint markLocation = glGetAttribLocation(program, "a_vertexMark");
-            ASSERT_NE(-1, markLocation);
-            if (subcase.useProvokingVertexLast)
-            {
-                glBindBuffer(GL_ARRAY_BUFFER, markLastConvention);
-            }
-            else if (subcase.drawStrip && !subcase.splitContent)
-            {
-                glBindBuffer(GL_ARRAY_BUFFER, markFirstConventionStrip);
-            }
-            else
-            {
-                glBindBuffer(GL_ARRAY_BUFFER, markFirstConventionTriangles);
-            }
-            glEnableVertexAttribArray(markLocation);
-            glVertexAttribPointer(markLocation, 1, GL_FLOAT, GL_FALSE, 0, 0);
-        }
-        std::vector<GLubyte> byteIndices;
-        GLsizei contentStartCount = 0;
-        uintptr_t offset          = 0;
-        if (subcase.addOffset)
-        {
-            byteIndices.push_back(0);
-        }
-        if (subcase.addRestartAtBegin)
-        {
-            byteIndices.push_back(0xff);
-        }
-        if (subcase.addRestartDegenerate)
-        {
-            byteIndices.push_back(0);
-            byteIndices.push_back(0xff);
-        }
-        contentStartCount = byteIndices.size();
-        if (subcase.splitContent)
-        {
-            byteIndices.insert(byteIndices.end(), std::begin(contentSplit), std::end(contentSplit));
-        }
-        else if (subcase.drawStrip)
-        {
-            byteIndices.insert(byteIndices.end(), std::begin(contentStrip), std::end(contentStrip));
-        }
-        else
-        {
-            byteIndices.insert(byteIndices.end(), std::begin(contentTriangles),
-                               std::end(contentTriangles));
-        }
-        if (subcase.addRestartAtEnd)
-        {
-            byteIndices.push_back(0xff);
-        }
-        const char *typeString =
-            subcase.type == GL_UNSIGNED_BYTE
-                ? "GL_UNSIGNED_BYTE"
-                : (subcase.type == GL_UNSIGNED_SHORT ? "GL_UNSIGNED_SHORT" : "GL_UNSIGNED_INT");
-
-        SCOPED_TRACE(testing::Message()
-                     << "Subcase subcase{.type = " << typeString << ", .useFlat=" << subcase.useFlat
-                     << ", .usePrimitiveRestart=" << subcase.usePrimitiveRestart << ", .drawStrip="
-                     << subcase.drawStrip << ", .splitContent=" << subcase.splitContent
-                     << ", .addOffset=" << subcase.addOffset
-                     << ", .addRestartAtBegin=" << subcase.addRestartAtBegin
-                     << ", .addRestartAtEnd=" << subcase.addRestartAtEnd
-                     << ", .addRestartDegenerate=" << subcase.addRestartDegenerate
-                     << ", .useClientSideArrays=" << subcase.useClientSideArrays
-                     << ", .useProvokingVertexLast=" << subcase.useProvokingVertexLast << "}");
-
-        // Prepare typed index data for both buffer and client-side paths.
-        std::vector<GLushort> shortIndices;
-        std::vector<GLuint> intIndices;
-        if (subcase.type == GL_UNSIGNED_SHORT)
-        {
-            shortIndices = convertIndexBufferContents<GLushort>(byteIndices);
-        }
-        else if (subcase.type == GL_UNSIGNED_INT)
-        {
-            intIndices = convertIndexBufferContents<GLuint>(byteIndices);
-        }
-
-        GLBuffer elementBuffer;
-        const void *indices = nullptr;
-        if (subcase.useClientSideArrays)
-        {
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-            if (subcase.type == GL_UNSIGNED_BYTE)
-            {
-                indices = byteIndices.data() + (subcase.addOffset ? 1 : 0);
-            }
-            else if (subcase.type == GL_UNSIGNED_SHORT)
-            {
-                indices = shortIndices.data() + (subcase.addOffset ? 1 : 0);
-            }
-            else
-            {
-                indices = intIndices.data() + (subcase.addOffset ? 1 : 0);
-            }
-        }
-        else
-        {
-            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementBuffer);
-            if (subcase.type == GL_UNSIGNED_BYTE)
-            {
-                glBufferData(GL_ELEMENT_ARRAY_BUFFER, byteIndices.size(), byteIndices.data(),
-                             GL_STATIC_DRAW);
-                if (subcase.addOffset)
-                {
-                    offset = 1;
-                }
-            }
-            else if (subcase.type == GL_UNSIGNED_SHORT)
-            {
-                glBufferData(GL_ELEMENT_ARRAY_BUFFER, 2 * shortIndices.size(), shortIndices.data(),
-                             GL_STATIC_DRAW);
-                if (subcase.addOffset)
-                {
-                    offset = 2;
-                }
-            }
-            else
-            {
-                glBufferData(GL_ELEMENT_ARRAY_BUFFER, 4 * intIndices.size(), intIndices.data(),
-                             GL_STATIC_DRAW);
-                if (subcase.addOffset)
-                {
-                    offset = 4;
-                }
-            }
-            indices = reinterpret_cast<const void *>(offset);
-        }
-        ASSERT_GL_NO_ERROR();
-        GLenum mode   = subcase.drawStrip ? GL_TRIANGLE_STRIP : GL_TRIANGLES;
-        GLsizei count = byteIndices.size() - (subcase.addOffset ? 1 : 0);
-        glDrawElements(mode, count, subcase.type, indices);
-        ASSERT_GL_NO_ERROR();
-
-        EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
-        EXPECT_PIXEL_COLOR_EQ(getWindowWidth() - 1, 0, GLColor::green);
-        EXPECT_PIXEL_COLOR_EQ(0, getWindowHeight() - 1, GLColor::green);
-        EXPECT_PIXEL_COLOR_EQ(getWindowWidth() - 1, getWindowHeight() - 1, GLColor::green);
-        ASSERT_GL_NO_ERROR();
-
-        // Test drawing again to verify caching behavior and buffer regeneration.
-        glClear(GL_COLOR_BUFFER_BIT);
-        glDrawElements(mode, count, subcase.type, indices);
-        glDrawElements(mode, count, subcase.type, indices);
-        ASSERT_GL_NO_ERROR();
-
-        EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
-        EXPECT_PIXEL_COLOR_EQ(getWindowWidth() - 1, 0, GLColor::green);
-        EXPECT_PIXEL_COLOR_EQ(0, getWindowHeight() - 1, GLColor::green);
-        EXPECT_PIXEL_COLOR_EQ(getWindowWidth() - 1, getWindowHeight() - 1, GLColor::green);
-        ASSERT_GL_NO_ERROR();
-
-        // Test drawing again with a subrange, to check that possibly cached ranges
-        // are cropped correctly. Draw only one triangle.
-        glClear(GL_COLOR_BUFFER_BIT);
-        count = contentStartCount + 3 - (subcase.addOffset ? 1 : 0);
-        glDrawElements(mode, count, subcase.type, indices);
-        ASSERT_GL_NO_ERROR();
-
-        EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
-        EXPECT_PIXEL_COLOR_EQ(getWindowWidth() - 1, 0, GLColor::red);
-        EXPECT_PIXEL_COLOR_EQ(0, getWindowHeight() - 1, GLColor::red);
-        EXPECT_PIXEL_COLOR_EQ(getWindowWidth() - 1, getWindowHeight() - 1, GLColor::red);
-        ASSERT_GL_NO_ERROR();
+        glEnable(GL_PRIMITIVE_RESTART_FIXED_INDEX);
     }
+    if (useProvokingVertexFirst())
+    {
+        glProvokingVertexANGLE(GL_FIRST_VERTEX_CONVENTION_ANGLE);
+    }
+
+    GLint posLocation = glGetAttribLocation(program, essl3_shaders::PositionAttrib());
+    ASSERT_NE(-1, posLocation);
+    glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
+    glEnableVertexAttribArray(posLocation);
+    glVertexAttribPointer(posLocation, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+    if (useFlat())
+    {
+        GLint markLocation = glGetAttribLocation(program, "a_vertexMark");
+        ASSERT_NE(-1, markLocation);
+        if (!useProvokingVertexFirst())
+        {
+            glBindBuffer(GL_ARRAY_BUFFER, markLastConvention);
+        }
+        else if (drawStrip() && !splitContent())
+        {
+            glBindBuffer(GL_ARRAY_BUFFER, markFirstConventionStrip);
+        }
+        else
+        {
+            glBindBuffer(GL_ARRAY_BUFFER, markFirstConventionTriangles);
+        }
+        glEnableVertexAttribArray(markLocation);
+        glVertexAttribPointer(markLocation, 1, GL_FLOAT, GL_FALSE, 0, 0);
+    }
+
+    std::vector<GLubyte> byteIndices;
+    GLsizei contentStartCount = 0;
+    uintptr_t offset          = 0;
+    if (addOffset())
+    {
+        byteIndices.push_back(0);
+    }
+    if (addRestartAtBegin())
+    {
+        byteIndices.push_back(0xff);
+    }
+    if (addRestartDegenerate())
+    {
+        byteIndices.push_back(0);
+        byteIndices.push_back(0xff);
+    }
+    contentStartCount = byteIndices.size();
+    if (splitContent())
+    {
+        byteIndices.insert(byteIndices.end(), std::begin(contentSplit), std::end(contentSplit));
+    }
+    else if (drawStrip())
+    {
+        byteIndices.insert(byteIndices.end(), std::begin(contentStrip), std::end(contentStrip));
+    }
+    else
+    {
+        byteIndices.insert(byteIndices.end(), std::begin(contentTriangles),
+                           std::end(contentTriangles));
+    }
+    if (addRestartAtEnd())
+    {
+        byteIndices.push_back(0xff);
+    }
+
+    // Prepare typed index data for both buffer and client-side paths.
+    std::vector<GLushort> shortIndices;
+    std::vector<GLuint> intIndices;
+    if (type() == GL_UNSIGNED_SHORT)
+    {
+        shortIndices = convertIndexBufferWithRestarts<GLushort>(byteIndices);
+    }
+    else if (type() == GL_UNSIGNED_INT)
+    {
+        intIndices = convertIndexBufferWithRestarts<GLuint>(byteIndices);
+    }
+
+    GLBuffer elementBuffer;
+    const void *indices = nullptr;
+    if (useClientSideArrays())
+    {
+        ASSERT_FALSE(addOffset());
+        if (type() == GL_UNSIGNED_BYTE)
+        {
+            indices = byteIndices.data();
+        }
+        else if (type() == GL_UNSIGNED_SHORT)
+        {
+            indices = shortIndices.data();
+        }
+        else
+        {
+            indices = intIndices.data();
+        }
+    }
+    else
+    {
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementBuffer);
+        if (type() == GL_UNSIGNED_BYTE)
+        {
+            glBufferData(GL_ELEMENT_ARRAY_BUFFER, byteIndices.size(), byteIndices.data(),
+                         GL_STATIC_DRAW);
+            if (addOffset())
+            {
+                offset = 1;
+            }
+        }
+        else if (type() == GL_UNSIGNED_SHORT)
+        {
+            glBufferData(GL_ELEMENT_ARRAY_BUFFER, 2 * shortIndices.size(), shortIndices.data(),
+                         GL_STATIC_DRAW);
+            if (addOffset())
+            {
+                offset = 2;
+            }
+        }
+        else
+        {
+            glBufferData(GL_ELEMENT_ARRAY_BUFFER, 4 * intIndices.size(), intIndices.data(),
+                         GL_STATIC_DRAW);
+            if (addOffset())
+            {
+                offset = 4;
+            }
+        }
+        indices = reinterpret_cast<const void *>(offset);
+    }
+    ASSERT_GL_NO_ERROR();
+
+    glClear(GL_COLOR_BUFFER_BIT);
+
+    GLenum mode   = drawStrip() ? GL_TRIANGLE_STRIP : GL_TRIANGLES;
+    GLsizei count = byteIndices.size() - (addOffset() ? 1 : 0);
+    glDrawElements(mode, count, type(), indices);
+    ASSERT_GL_NO_ERROR();
+
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
+    EXPECT_PIXEL_COLOR_EQ(getWindowWidth() - 1, 0, GLColor::green);
+    EXPECT_PIXEL_COLOR_EQ(0, getWindowHeight() - 1, GLColor::green);
+    EXPECT_PIXEL_COLOR_EQ(getWindowWidth() - 1, getWindowHeight() - 1, GLColor::green);
+    ASSERT_GL_NO_ERROR();
+
+    // Test drawing again to verify caching behavior and buffer regeneration.
+    glClear(GL_COLOR_BUFFER_BIT);
+    glDrawElements(mode, count, type(), indices);
+    glDrawElements(mode, count, type(), indices);
+    ASSERT_GL_NO_ERROR();
+
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
+    EXPECT_PIXEL_COLOR_EQ(getWindowWidth() - 1, 0, GLColor::green);
+    EXPECT_PIXEL_COLOR_EQ(0, getWindowHeight() - 1, GLColor::green);
+    EXPECT_PIXEL_COLOR_EQ(getWindowWidth() - 1, getWindowHeight() - 1, GLColor::green);
+    ASSERT_GL_NO_ERROR();
+
+    // Test drawing again with a subrange, to check that possibly cached ranges
+    // are cropped correctly. Draw only one triangle.
+    glClear(GL_COLOR_BUFFER_BIT);
+    count = contentStartCount + 3 - (addOffset() ? 1 : 0);
+    glDrawElements(mode, count, type(), indices);
+    ASSERT_GL_NO_ERROR();
+
+    EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
+    EXPECT_PIXEL_COLOR_EQ(getWindowWidth() - 1, 0, GLColor::red);
+    EXPECT_PIXEL_COLOR_EQ(0, getWindowHeight() - 1, GLColor::red);
+    EXPECT_PIXEL_COLOR_EQ(getWindowWidth() - 1, getWindowHeight() - 1, GLColor::red);
+    ASSERT_GL_NO_ERROR();
 }
 
 class WebGLDrawElementsTest3 : public WebGLDrawElementsTest
@@ -1403,8 +1399,108 @@ TEST_P(DrawElementsTest, LargeIndexBufferSubData)
     EXPECT_PIXEL_COLOR_EQ(getWindowWidth() / 2, getWindowHeight() / 2, GLColor::green);
 }
 
+// Test that drawElements*BaseVertex* includes baseVertex in the vertex-buffer bounds check, so an
+// out-of-range baseVertex is rejected instead of fetching vertices past the end of the buffer.
+TEST_P(WebGLDrawElementsTest3, DrawElementsBaseVertexBaseInstanceValidatesBaseVertex)
+{
+    ANGLE_SKIP_TEST_IF(!EnsureGLExtensionEnabled("GL_ANGLE_base_vertex_base_instance"));
+
+    ANGLE_GL_PROGRAM(program, essl3_shaders::vs::Simple(), essl3_shaders::fs::Red());
+    glUseProgram(program);
+    GLint positionLoc = glGetAttribLocation(program, essl3_shaders::PositionAttrib());
+    glEnableVertexAttribArray(positionLoc);
+
+    // Viewport-covering triangle drawn with indices [0,1,2], so baseVertex shifts the fetch window.
+    constexpr GLfloat kVertices[] = {-1.0f, -1.0f, 3.0f, -1.0f, -1.0f, 3.0f};
+    GLBuffer vertexBuffer;
+    glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(kVertices), kVertices, GL_STATIC_DRAW);
+    glVertexAttribPointer(positionLoc, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+
+    constexpr GLushort kIndices[] = {0, 1, 2};
+    GLBuffer indexBuffer;
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(kIndices), kIndices, GL_STATIC_DRAW);
+
+    // In-range baseVertex draws and fills the viewport red.
+    glDrawElementsInstancedBaseVertexBaseInstanceANGLE(GL_TRIANGLES, 3, GL_UNSIGNED_SHORT, nullptr,
+                                                       1, 0, 0);
+    EXPECT_GL_NO_ERROR();
+    EXPECT_PIXEL_COLOR_EQ(getWindowWidth() / 2, getWindowHeight() / 2, GLColor::red);
+
+    // baseVertex past the end (9999) or underflowing (-1) must be rejected instead of fetching out
+    // of bounds. Only backends without robust buffer access (Metal) perform this validation.
+    if (isMetalRenderer())
+    {
+        glDrawElementsInstancedBaseVertexBaseInstanceANGLE(GL_TRIANGLES, 3, GL_UNSIGNED_SHORT,
+                                                           nullptr, 1, 9999, 0);
+        EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+
+        glDrawElementsInstancedBaseVertexBaseInstanceANGLE(GL_TRIANGLES, 3, GL_UNSIGNED_SHORT,
+                                                           nullptr, 1, -1, 0);
+        EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+
+        // Off-by-one: baseVertex 1 makes the max effective index equal the vertex count (3), which
+        // is out of bounds and must be rejected.
+        glDrawElementsInstancedBaseVertexBaseInstanceANGLE(GL_TRIANGLES, 3, GL_UNSIGNED_SHORT,
+                                                           nullptr, 1, 1, 0);
+        EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+
+        // The multi-draw variant shares the same validator (and forwards baseVertices per draw), so
+        // it must reject an out-of-range baseVertex too.
+        if (EnsureGLExtensionEnabled("GL_ANGLE_multi_draw"))
+        {
+            const GLsizei counts[]         = {3};
+            const void *const indices[]    = {nullptr};
+            const GLsizei instanceCounts[] = {1};
+            const GLint baseVertices[]     = {9999};
+            const GLuint baseInstances[]   = {0};
+            glMultiDrawElementsInstancedBaseVertexBaseInstanceANGLE(GL_TRIANGLES, counts,
+                                                                    GL_UNSIGNED_SHORT, indices,
+                                                                    instanceCounts, baseVertices,
+                                                                    baseInstances, 1);
+            EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+        }
+    }
+}
+
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(DrawElementsTest);
 ANGLE_INSTANTIATE_TEST_ES3(DrawElementsTest);
+
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(DrawElementsVariantsTest);
+
+ANGLE_INSTANTIATE_TEST_VARIANTS_COMBINE_7(
+    NoRestart,
+    DrawElementsVariantsTest,
+    DrawElementsVariantsTestPrint,
+    testing::Values(GL_UNSIGNED_BYTE, GL_UNSIGNED_SHORT, GL_UNSIGNED_INT),
+    testing::Bool(),                                  // useFlat
+    testing::Values(PrimitiveRestartMode::Disabled),  // primitiveRestartMode
+    testing::Bool(),                                  // drawStrip
+    testing::Values(IndicesMode::Buffer,
+                    IndicesMode::BufferAndOffset,
+                    IndicesMode::ClientSideArray),
+    testing::Values(RestartOption::None),  // restartOption
+    testing::Bool(),                       // useProvokingVertexFirst
+    ANGLE_ALL_TEST_PLATFORMS_ES3);
+
+ANGLE_INSTANTIATE_TEST_VARIANTS_COMBINE_7(
+    Restart,
+    DrawElementsVariantsTest,
+    DrawElementsVariantsTestPrint,
+    testing::Values(GL_UNSIGNED_BYTE, GL_UNSIGNED_SHORT, GL_UNSIGNED_INT),
+    testing::Bool(),  // useFlat
+    testing::Values(PrimitiveRestartMode::Enabled, PrimitiveRestartMode::EnabledSplitContent),
+    testing::Bool(),  // drawStrip
+    testing::Values(IndicesMode::Buffer,
+                    IndicesMode::BufferAndOffset,
+                    IndicesMode::ClientSideArray),
+    testing::Values(RestartOption::None,
+                    RestartOption::AtBegin,
+                    RestartOption::AtEnd,
+                    RestartOption::Degenerate),
+    testing::Bool(),  // useProvokingVertexFirst
+    ANGLE_ALL_TEST_PLATFORMS_ES3);
 
 ANGLE_INSTANTIATE_TEST_ES2(WebGLDrawElementsTest);
 ANGLE_INSTANTIATE_TEST_ES3(WebGLDrawElementsTest3);

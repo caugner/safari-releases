@@ -33,17 +33,28 @@
 #include <wtf/Hasher.h>
 #include <wtf/MemoryPressureHandler.h>
 #include <wtf/ZippedRange.h>
+#include <wtf/text/RapidHash.h>
 #include <wtf/text/StringCommon.h>
 #include <wtf/text/StringImpl.h>
-#include <wtf/text/WYHash.h>
+#include <wtf/unicode/CharacterNames.h>
 
 namespace WebCore {
+
+class FontCascade;
+
+struct TextShapingContext {
+    bool hasKerningOrLigatures { false };
+    bool hasWordSpacingOrLetterSpacing { false };
+    bool hasTextSpacing { false };
+
+    TextShapingContext(const FontCascade&);
+};
 
 namespace TextMeasurementCacheDefaults {
 static constexpr int minInterval = -3; // A cache hit pays for about 3 cache misses.
 static constexpr int maxInterval = 20; // Sampling at this interval has almost no overhead.
 static constexpr unsigned maxSize = 500000; // Just enough to guard against pathological growth.
-static constexpr unsigned maxTextLength = 16; // Maximum text length for SmallStringKey.
+static constexpr unsigned maxTextLength = 64; // Maximum text length for SmallStringKey.
 }
 
 template <typename CachedType,
@@ -74,10 +85,10 @@ private:
                 copySmallCharacters(std::span { m_characters }, string.span8());
             else
                 copySmallCharacters(std::span { m_characters }, string.span16());
-            m_hashAndLength = WYHash::computeHashAndMaskTop8Bits(std::span<const char16_t> { m_characters }.first(s_capacity)) | (length << 24);
+            m_hashAndLength = RapidHash::computeHashAndMaskTop8Bits(std::span<const char16_t> { m_characters }.first(s_capacity)) | (length << 24);
         }
 
-        const char16_t* characters() const { return m_characters.data(); }
+        const char16_t* characters() const LIFETIME_BOUND { return m_characters.data(); }
         unsigned length() const { return m_hashAndLength >> 24; }
         unsigned hash() const { return m_hashAndLength & 0x00ffffffU; }
 
@@ -123,6 +134,9 @@ public:
 
     CachedType* add(StringView text, CachedType&& entry)
     {
+        if (!isMainThread())
+            return nullptr;
+
         unsigned length = text.length();
 
         // Do not allow length = 0. This allows SmallStringKey empty-value-is-zero.
@@ -140,19 +154,22 @@ public:
         return addSlowCase(text, WTF::move(entry));
     }
 
-    CachedType* add(const TextRun& run, CachedType&& entry, bool hasKerningOrLigatures, bool hasWordSpacingOrLetterSpacing, bool hasTextSpacing)
+    CachedType* add(const TextRun& run, CachedType&& entry, TextShapingContext shapingContext)
     {
+        if (!isMainThread())
+            return nullptr;
+
         // The width cache is not really profitable unless we're doing expensive glyph transformations.
-        if (!hasKerningOrLigatures)
+        if (!shapingContext.hasKerningOrLigatures)
             return nullptr;
         // Word spacing and letter spacing can change the width of a word.
-        if (hasWordSpacingOrLetterSpacing)
+        if (shapingContext.hasWordSpacingOrLetterSpacing)
             return nullptr;
-        // If we allow tabs and a tab occurs inside a word, the width of the word varies based on its position on the line.
-        if (run.allowTabs())
+        // If a tab occurs inside a word, the width of the word varies based on its position on the line.
+        if (run.allowTabs() && run.text().contains(tabCharacter))
             return nullptr;
         // width calculation with text-spacing depends on context of adjacent characters.
-        if (hasTextSpacing && invalidateCacheForTextSpacing(run))
+        if (shapingContext.hasTextSpacing && invalidateCacheForTextSpacing(run))
             return nullptr;
 
         return add(run.text(), WTF::move(entry));
@@ -160,9 +177,12 @@ public:
 
     void clear()
     {
+        ASSERT(isMainThread());
         m_singleCharMap.clear();
         m_map.clear();
     }
+
+    bool isEmpty() const { return m_singleCharMap.isEmpty() && m_map.isEmpty(); }
 
 private:
 
@@ -214,7 +234,7 @@ private:
             return true;
         const auto& text = textRun.textAsString();
         for (unsigned index = 0; index < text.length(); ++index) {
-            if (TextSpacing::isIdeograph(text.characterAt(index))) {
+            if (TextSpacing::isIdeograph(text.codeUnitAt(index))) {
                 m_hasSeenIdeograph = true;
                 clear();
                 return true;

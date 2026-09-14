@@ -24,7 +24,7 @@
 
 #include "StyleComputedStyle+DifferenceLogging.h"
 #include "StyleComputedStyle+InitialInlines.h"
-#include "StylePrimitiveKeyword+Logging.h"
+#include "StyleKeyword+Logging.h"
 #include "StylePrimitiveNumericTypes+Logging.h"
 
 namespace WebCore {
@@ -80,15 +80,11 @@ NonInheritedRareData::NonInheritedRareData()
     , offsetRotate(ComputedStyle::initialOffsetRotate())
     , textDecorationColor(ComputedStyle::initialTextDecorationColor())
     , textDecorationThickness(ComputedStyle::initialTextDecorationThickness())
-    // scrollTimelines
-    , scrollTimelineAxes(ComputedStyle::initialScrollTimelineAxes())
-    , scrollTimelineNames(ComputedStyle::initialScrollTimelineNames())
-    // viewTimelines
-    , viewTimelineInsets(ComputedStyle::initialViewTimelineInsets())
-    , viewTimelineAxes(ComputedStyle::initialViewTimelineAxes())
-    , viewTimelineNames(ComputedStyle::initialViewTimelineNames())
+    , scrollTimelines { CSS::Keyword::None { } }
+    , viewTimelines { CSS::Keyword::None { } }
     , timelineScope(ComputedStyle::initialTimelineScope())
     , scrollbarGutter(ComputedStyle::initialScrollbarGutter())
+    , containerType(ComputedStyle::initialContainerType())
     , scrollSnapType(ComputedStyle::initialScrollSnapType())
     , scrollSnapAlign(ComputedStyle::initialScrollSnapAlign())
     , pseudoElementNameArgument(nullAtom())
@@ -98,6 +94,7 @@ NonInheritedRareData::NonInheritedRareData()
     , positionArea(ComputedStyle::initialPositionArea())
     , positionTryFallbacks(ComputedStyle::initialPositionTryFallbacks())
     , usedPositionOptionIndex()
+    , overflowClipMargin(ComputedStyle::initialOverflowClipMargin())
     , blockStepSize(ComputedStyle::initialBlockStepSize())
     , blockStepAlign(static_cast<unsigned>(ComputedStyle::initialBlockStepAlign()))
     , blockStepInsert(static_cast<unsigned>(ComputedStyle::initialBlockStepInsert()))
@@ -121,7 +118,6 @@ NonInheritedRareData::NonInheritedRareData()
     , breakBefore(static_cast<unsigned>(ComputedStyle::initialBreakBefore()))
     , breakAfter(static_cast<unsigned>(ComputedStyle::initialBreakAfter()))
     , breakInside(static_cast<unsigned>(ComputedStyle::initialBreakInside()))
-    , containerType(static_cast<unsigned>(ComputedStyle::initialContainerType()))
     , textBoxTrim(static_cast<unsigned>(ComputedStyle::initialTextBoxTrim()))
     , overflowAnchor(static_cast<unsigned>(ComputedStyle::initialOverflowAnchor()))
     , positionTryOrder(static_cast<unsigned>(ComputedStyle::initialPositionTryOrder()))
@@ -191,14 +187,10 @@ inline NonInheritedRareData::NonInheritedRareData(const NonInheritedRareData& o)
     , textDecorationColor(o.textDecorationColor)
     , textDecorationThickness(o.textDecorationThickness)
     , scrollTimelines(o.scrollTimelines)
-    , scrollTimelineAxes(o.scrollTimelineAxes)
-    , scrollTimelineNames(o.scrollTimelineNames)
     , viewTimelines(o.viewTimelines)
-    , viewTimelineInsets(o.viewTimelineInsets)
-    , viewTimelineAxes(o.viewTimelineAxes)
-    , viewTimelineNames(o.viewTimelineNames)
     , timelineScope(o.timelineScope)
     , scrollbarGutter(o.scrollbarGutter)
+    , containerType(o.containerType)
     , scrollSnapType(o.scrollSnapType)
     , scrollSnapAlign(o.scrollSnapAlign)
     , pseudoElementNameArgument(o.pseudoElementNameArgument)
@@ -208,6 +200,7 @@ inline NonInheritedRareData::NonInheritedRareData(const NonInheritedRareData& o)
     , positionArea(o.positionArea)
     , positionTryFallbacks(o.positionTryFallbacks)
     , usedPositionOptionIndex(o.usedPositionOptionIndex)
+    , overflowClipMargin(o.overflowClipMargin)
     , blockStepSize(o.blockStepSize)
     , blockStepAlign(o.blockStepAlign)
     , blockStepInsert(o.blockStepInsert)
@@ -231,7 +224,6 @@ inline NonInheritedRareData::NonInheritedRareData(const NonInheritedRareData& o)
     , breakBefore(o.breakBefore)
     , breakAfter(o.breakAfter)
     , breakInside(o.breakInside)
-    , containerType(o.containerType)
     , textBoxTrim(o.textBoxTrim)
     , overflowAnchor(o.overflowAnchor)
     , positionTryOrder(o.positionTryOrder)
@@ -306,14 +298,10 @@ bool NonInheritedRareData::operator==(const NonInheritedRareData& o) const
         && offsetRotate == o.offsetRotate
         && textDecorationThickness == o.textDecorationThickness
         && scrollTimelines == o.scrollTimelines
-        && scrollTimelineAxes == o.scrollTimelineAxes
-        && scrollTimelineNames == o.scrollTimelineNames
         && viewTimelines == o.viewTimelines
-        && viewTimelineInsets == o.viewTimelineInsets
-        && viewTimelineAxes == o.viewTimelineAxes
-        && viewTimelineNames == o.viewTimelineNames
         && timelineScope == o.timelineScope
         && scrollbarGutter == o.scrollbarGutter
+        && containerType == o.containerType
         && scrollSnapType == o.scrollSnapType
         && scrollSnapAlign == o.scrollSnapAlign
         && pseudoElementNameArgument == o.pseudoElementNameArgument
@@ -323,6 +311,7 @@ bool NonInheritedRareData::operator==(const NonInheritedRareData& o) const
         && positionArea == o.positionArea
         && positionTryFallbacks == o.positionTryFallbacks
         && usedPositionOptionIndex == o.usedPositionOptionIndex
+        && overflowClipMargin == o.overflowClipMargin
         && blockStepSize == o.blockStepSize
         && blockStepAlign == o.blockStepAlign
         && blockStepInsert == o.blockStepInsert
@@ -346,7 +335,6 @@ bool NonInheritedRareData::operator==(const NonInheritedRareData& o) const
         && breakAfter == o.breakAfter
         && breakBefore == o.breakBefore
         && breakInside == o.breakInside
-        && containerType == o.containerType
         && textBoxTrim == o.textBoxTrim
         && overflowAnchor == o.overflowAnchor
         && viewTransitionClasses == o.viewTransitionClasses
@@ -373,16 +361,10 @@ Contain NonInheritedRareData::usedContain() const
 {
     auto result = Contain::fromRaw(contain);
 
-    switch (static_cast<ContainerType>(containerType)) {
-    case ContainerType::Normal:
-        break;
-    case ContainerType::Size:
+    if (containerType.hasSize())
         result.add({ ContainValue::Style, ContainValue::Size });
-        break;
-    case ContainerType::InlineSize:
+    else if (containerType.hasInlineSize())
         result.add({ ContainValue::Style, ContainValue::InlineSize });
-        break;
-    };
 
     return result;
 }
@@ -458,17 +440,12 @@ void NonInheritedRareData::dumpDifferences(TextStream& ts, const NonInheritedRar
     LOG_IF_DIFFERENT(textDecorationThickness);
 
     LOG_IF_DIFFERENT(scrollTimelines);
-    LOG_IF_DIFFERENT(scrollTimelineAxes);
-    LOG_IF_DIFFERENT(scrollTimelineNames);
-
     LOG_IF_DIFFERENT(viewTimelines);
-    LOG_IF_DIFFERENT(viewTimelineInsets);
-    LOG_IF_DIFFERENT(viewTimelineAxes);
-    LOG_IF_DIFFERENT(viewTimelineNames);
 
     LOG_IF_DIFFERENT(timelineScope);
 
     LOG_IF_DIFFERENT(scrollbarGutter);
+    LOG_IF_DIFFERENT(containerType);
 
     LOG_IF_DIFFERENT(scrollSnapType);
     LOG_IF_DIFFERENT(scrollSnapAlign);
@@ -482,6 +459,8 @@ void NonInheritedRareData::dumpDifferences(TextStream& ts, const NonInheritedRar
     LOG_IF_DIFFERENT(positionTryFallbacks);
     LOG_IF_DIFFERENT(usedPositionOptionIndex);
     LOG_IF_DIFFERENT(positionVisibility);
+
+    LOG_IF_DIFFERENT(overflowClipMargin);
 
     LOG_IF_DIFFERENT(blockStepSize);
 
@@ -516,7 +495,6 @@ void NonInheritedRareData::dumpDifferences(TextStream& ts, const NonInheritedRar
     LOG_IF_DIFFERENT_WITH_CAST(BreakBetween, breakAfter);
     LOG_IF_DIFFERENT_WITH_CAST(BreakInside, breakInside);
 
-    LOG_IF_DIFFERENT_WITH_CAST(ContainerType, containerType);
     LOG_IF_DIFFERENT_WITH_CAST(TextBoxTrim, textBoxTrim);
     LOG_IF_DIFFERENT_WITH_CAST(OverflowAnchor, overflowAnchor);
     LOG_IF_DIFFERENT_WITH_CAST(PositionTryOrder, positionTryOrder);

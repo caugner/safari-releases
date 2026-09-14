@@ -91,6 +91,11 @@ private:
     void uppercaseWord() final;
     void lowercaseWord() final;
     void capitalizeWord() final;
+    bool canApplyCaseTransformations(const String&) final;
+    bool canConvertToTraditionalChinese(const String&) final;
+    bool canConvertToSimplifiedChinese(const String&) final;
+    void convertToTraditionalChinese() final;
+    void convertToSimplifiedChinese() final;
 #endif
 
 #if USE(AUTOMATIC_TEXT_REPLACEMENT)
@@ -184,7 +189,7 @@ private:
     void registerUndoOrRedoStep(WebCore::UndoStep&, bool isRedo);
 
 #if PLATFORM(IOS_FAMILY)
-    bool shouldAllowSingleClickToChangeSelection(WebCore::Node& targetNode, const WebCore::VisibleSelection& newSelection) const;
+    bool shouldAllowSingleClickToChangeSelection(WebCore::Node& targetNode, const WebCore::VisibleSelection& newSelection, WebCore::MouseEventInputSource) const;
 #endif
 
     WebView *m_webView;
@@ -214,7 +219,7 @@ private:
     EditorStateIsContentEditable m_lastEditorStateWasContentEditable { EditorStateIsContentEditable::Unset };
 };
 
-inline NSSelectionAffinity kit(WebCore::Affinity affinity)
+inline NSSelectionAffinity NODELETE kit(WebCore::Affinity affinity)
 {
     switch (affinity) {
     case WebCore::Affinity::Upstream:

@@ -31,7 +31,6 @@
 #include "CSSFunctionRule.h"
 #include "CSSGroupingRule.h"
 #include "CSSImportRule.h"
-#include "CSSInternalBaseAppearanceRule.h"
 #include "CSSKeyframeRule.h"
 #include "CSSKeyframesRule.h"
 #include "CSSLayerBlockRule.h"
@@ -46,6 +45,7 @@
 #include "CSSSerializationContext.h"
 #include "CSSStartingStyleRule.h"
 #include "CSSStyleRule.h"
+#include "CSSStyleSheet.h"
 #include "CSSSupportsRule.h"
 #include "CSSViewTransitionRule.h"
 #include "MediaList.h"
@@ -145,8 +145,6 @@ template<typename Visitor> constexpr decltype(auto) StyleRuleBase::visitDerived(
         return std::invoke(std::forward<Visitor>(visitor), uncheckedDowncast<StyleRuleFunction>(*this));
     case StyleRuleType::FunctionDeclarations:
         return std::invoke(std::forward<Visitor>(visitor), uncheckedDowncast<StyleRuleFunctionDeclarations>(*this));
-    case StyleRuleType::InternalBaseAppearance:
-        return std::invoke(std::forward<Visitor>(visitor), uncheckedDowncast<StyleRuleInternalBaseAppearance>(*this));
     case StyleRuleType::Margin:
         break;
     }
@@ -253,9 +251,6 @@ Ref<CSSRule> StyleRuleBase::createCSSOMWrapper(CSSStyleSheet* parentSheet, CSSRu
         [&](StyleRuleFunctionDeclarations& rule) -> Ref<CSSRule> {
             return CSSFunctionDeclarations::create(rule, parentSheet);
         },
-        [&](StyleRuleInternalBaseAppearance& rule) -> Ref<CSSRule> {
-            return CSSInternalBaseAppearanceRule::create(rule, parentSheet);
-        },
         [](StyleRuleCharset&) -> Ref<CSSRule> {
             RELEASE_ASSERT_NOT_REACHED();
         },
@@ -284,7 +279,7 @@ StyleRule::StyleRule(const StyleRule& o)
     : StyleRuleBase(o)
     , m_isSplitRule(o.m_isSplitRule)
     , m_isLastRuleInSplitRule(o.m_isLastRuleInSplitRule)
-    , m_properties(o.properties().mutableCopy())
+    , m_properties(protect(o.properties())->mutableCopy())
     , m_selectorList(o.m_selectorList)
 {
 }
@@ -301,11 +296,6 @@ Ref<StyleRule> StyleRule::copy() const
     return adoptRef(*new StyleRule(*this));
 }
 
-Ref<const StyleProperties> StyleRule::protectedProperties() const
-{
-    return m_properties;
-}
-
 void StyleRule::setProperties(Ref<StyleProperties>&& properties)
 {
     m_properties = WTF::move(properties);
@@ -314,7 +304,7 @@ void StyleRule::setProperties(Ref<StyleProperties>&& properties)
 MutableStyleProperties& StyleRule::mutableProperties()
 {
     if (!is<MutableStyleProperties>(m_properties))
-        m_properties = m_properties->mutableCopy();
+        m_properties = protect(m_properties)->mutableCopy();
     return uncheckedDowncast<MutableStyleProperties>(m_properties.get());
 }
 
@@ -368,7 +358,7 @@ Vector<Ref<StyleRule>> StyleRule::splitIntoMultipleRulesWithMaximumSelectorCompo
 
 String StyleRule::debugDescription() const
 {
-    return makeString(" StyleRule ["_s, " selector: "_s, selectorList().selectorsText(), " properties: "_s, m_properties->asText(CSS::defaultSerializationContext()), ']');
+    return makeString(" StyleRule ["_s, " selector: "_s, selectorList().selectorsText(), " properties: "_s, protect(m_properties)->asText(CSS::defaultSerializationContext()), ']');
 }
 
 StyleRuleWithNesting::~StyleRuleWithNesting() = default;
@@ -432,7 +422,7 @@ StyleRulePage::StyleRulePage(Ref<StyleProperties>&& properties, CSSSelectorList&
 
 StyleRulePage::StyleRulePage(const StyleRulePage& o)
     : StyleRuleBase(o)
-    , m_properties(o.m_properties->mutableCopy())
+    , m_properties(protect(o.m_properties)->mutableCopy())
     , m_selectorList(o.m_selectorList)
 {
 }
@@ -445,7 +435,7 @@ StyleRuleNestedDeclarations::StyleRuleNestedDeclarations(Ref<StyleProperties>&& 
 
 String StyleRuleNestedDeclarations::debugDescription() const
 {
-    return makeString("StyleRuleNestedDeclarations ["_s, properties().asText(CSS::defaultSerializationContext()), ']');
+    return makeString("StyleRuleNestedDeclarations ["_s, protect(properties())->asText(CSS::defaultSerializationContext()), ']');
 }
 
 StyleRulePage::~StyleRulePage() = default;
@@ -458,7 +448,7 @@ Ref<StyleRulePage> StyleRulePage::create(Ref<StyleProperties>&& properties, CSSS
 MutableStyleProperties& StyleRulePage::mutableProperties()
 {
     if (!is<MutableStyleProperties>(m_properties))
-        m_properties = m_properties->mutableCopy();
+        m_properties = protect(m_properties)->mutableCopy();
     return uncheckedDowncast<MutableStyleProperties>(m_properties.get());
 }
 
@@ -470,7 +460,7 @@ StyleRuleFontFace::StyleRuleFontFace(Ref<StyleProperties>&& properties)
 
 StyleRuleFontFace::StyleRuleFontFace(const StyleRuleFontFace& o)
     : StyleRuleBase(o)
-    , m_properties(o.m_properties->mutableCopy())
+    , m_properties(protect(o.m_properties)->mutableCopy())
 {
 }
 
@@ -479,7 +469,7 @@ StyleRuleFontFace::~StyleRuleFontFace() = default;
 MutableStyleProperties& StyleRuleFontFace::mutableProperties()
 {
     if (!is<MutableStyleProperties>(m_properties))
-        m_properties = m_properties->mutableCopy();
+        m_properties = protect(m_properties)->mutableCopy();
     return uncheckedDowncast<MutableStyleProperties>(m_properties.get());
 }
 
@@ -512,16 +502,6 @@ StyleRuleFontPaletteValues::StyleRuleFontPaletteValues(const AtomString& name, V
     , m_name(name)
     , m_fontFamilies(WTF::move(fontFamilies))
     , m_fontPaletteValues(basePalette, WTF::move(overrideColors))
-{
-}
-
-Ref<StyleRuleInternalBaseAppearance> StyleRuleInternalBaseAppearance::create(Vector<Ref<StyleRuleBase>>&& rules)
-{
-    return adoptRef(*new StyleRuleInternalBaseAppearance(WTF::move(rules)));
-}
-
-StyleRuleInternalBaseAppearance::StyleRuleInternalBaseAppearance(Vector<Ref<StyleRuleBase>>&& rules)
-    : StyleRuleGroup(StyleRuleType::InternalBaseAppearance, WTF::move(rules))
 {
 }
 

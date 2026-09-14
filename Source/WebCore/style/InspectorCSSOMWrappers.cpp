@@ -72,7 +72,7 @@ void InspectorCSSOMWrappers::collect(ListType* listType)
             collect(uncheckedDowncast<CSSContainerRule>(cssRule.get()));
             break;
         case StyleRuleType::Import:
-            collect(uncheckedDowncast<CSSImportRule>(*cssRule).styleSheet());
+            collect<CSSStyleSheet>(protect(uncheckedDowncast<CSSImportRule>(*cssRule).styleSheet()));
             break;
         case StyleRuleType::LayerBlock:
             collect(uncheckedDowncast<CSSLayerBlockRule>(cssRule.get()));
@@ -90,7 +90,7 @@ void InspectorCSSOMWrappers::collect(ListType* listType)
             collect(uncheckedDowncast<CSSStartingStyleRule>(cssRule.get()));
             break;
         case StyleRuleType::Style:
-            m_styleRuleToCSSOMWrapperMap.add(&uncheckedDowncast<CSSStyleRule>(*cssRule).styleRule(), uncheckedDowncast<CSSStyleRule>(cssRule.get()));
+            m_styleRuleToCSSOMWrapperMap.add(&uncheckedDowncast<CSSStyleRule>(*cssRule).styleRule(), uncheckedDowncast<CSSStyleRule>(*cssRule));
 
             // Eagerly collect rules nested in this style rule.
             collect(uncheckedDowncast<CSSStyleRule>(cssRule.get()));
@@ -129,22 +129,23 @@ void InspectorCSSOMWrappers::maybeCollectFromStyleSheets(const Vector<Ref<CSSSty
 void InspectorCSSOMWrappers::collectDocumentWrappers(ExtensionStyleSheets& extensionStyleSheets)
 {
     if (m_styleRuleToCSSOMWrapperMap.isEmpty()) {
-        collectFromStyleSheetContents(UserAgentStyle::defaultStyleSheet);
-        collectFromStyleSheetContents(UserAgentStyle::quirksStyleSheet);
-        collectFromStyleSheetContents(UserAgentStyle::svgStyleSheet);
-        collectFromStyleSheetContents(UserAgentStyle::mathMLStyleSheet);
-        collectFromStyleSheetContents(UserAgentStyle::mathMLCoreExtrasStyleSheet);
-        collectFromStyleSheetContents(UserAgentStyle::mathMLFontSizeMathStyleSheet);
-        collectFromStyleSheetContents(UserAgentStyle::mathMLLegacyFontSizeMathStyleSheet);
-        collectFromStyleSheetContents(UserAgentStyle::horizontalFormControlsStyleSheet);
-        collectFromStyleSheetContents(UserAgentStyle::viewTransitionsStyleSheet);
-        collectFromStyleSheetContents(UserAgentStyle::htmlSwitchControlStyleSheet);
+        collectFromStyleSheetContents(protect(UserAgentStyle::defaultStyleSheet));
+        collectFromStyleSheetContents(protect(UserAgentStyle::quirksStyleSheet));
+        collectFromStyleSheetContents(protect(UserAgentStyle::svgStyleSheet));
+        collectFromStyleSheetContents(protect(UserAgentStyle::mathMLStyleSheet));
+        collectFromStyleSheetContents(protect(UserAgentStyle::mathMLCoreExtrasStyleSheet));
+        collectFromStyleSheetContents(protect(UserAgentStyle::mathMLCoreMathvariantStyleSheet));
+        collectFromStyleSheetContents(protect(UserAgentStyle::mathMLFontSizeMathStyleSheet));
+        collectFromStyleSheetContents(protect(UserAgentStyle::mathMLLegacyFontSizeMathStyleSheet));
+        collectFromStyleSheetContents(protect(UserAgentStyle::horizontalFormControlsStyleSheet));
+        collectFromStyleSheetContents(protect(UserAgentStyle::viewTransitionsStyleSheet));
+        collectFromStyleSheetContents(protect(UserAgentStyle::htmlSwitchControlStyleSheet));
 #if ENABLE(FULLSCREEN_API)
-        collectFromStyleSheetContents(UserAgentStyle::fullscreenStyleSheet);
+        collectFromStyleSheetContents(protect(UserAgentStyle::fullscreenStyleSheet));
 #endif
-        collectFromStyleSheetContents(UserAgentStyle::mediaQueryStyleSheet);
+        collectFromStyleSheetContents(protect(UserAgentStyle::mediaQueryStyleSheet));
 
-        collect(extensionStyleSheets.pageUserSheet());
+        collect<CSSStyleSheet>(protect(extensionStyleSheets.pageUserSheet()));
         collectFromStyleSheets(extensionStyleSheets.injectedUserStyleSheets());
         collectFromStyleSheets(extensionStyleSheets.documentUserStyleSheets());
         collectFromStyleSheets(extensionStyleSheets.injectedAuthorStyleSheets());

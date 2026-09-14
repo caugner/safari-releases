@@ -48,7 +48,7 @@ void Download::resume(std::span<const uint8_t> resumeData, const String& path, S
     if (RefPtr extension = m_sandboxExtension)
         extension->consume();
 
-    CheckedPtr networkSession = m_downloadManager->protectedClient()->networkSession(m_sessionID);
+    CheckedPtr networkSession = m_downloadManager->client().networkSession(m_sessionID);
     if (!networkSession) {
         DOWNLOAD_RELEASE_LOG("resume: Could not find network session with given session ID");
         return;
@@ -156,7 +156,6 @@ void Download::publishProgress(const URL& url, std::span<const uint8_t> bookmark
     BOOL bookmarkIsStale = NO;
     NSError* error = nil;
     m_bookmarkURL = [NSURL URLByResolvingBookmarkData:m_bookmarkData.get() options:NSURLBookmarkResolutionWithoutUI relativeToURL:nil bookmarkDataIsStale:&bookmarkIsStale error:&error];
-    ASSERT(m_bookmarkURL);
     if (!m_bookmarkURL)
         DOWNLOAD_RELEASE_LOG("publishProgress: Unable to create bookmark URL, error = %@", error);
 

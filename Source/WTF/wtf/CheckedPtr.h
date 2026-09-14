@@ -25,20 +25,43 @@
 
 #pragma once
 
+#include <memory>
 #include <wtf/CheckedRef.h>
 #include <wtf/RawPtrTraits.h>
 #include <wtf/TypeTraits.h>
 
 namespace WTF {
 
-// CheckedPtr is used to verify that the object being pointed to outlives the CheckedPtr.
-// It does not affect the lifetime of the object being pointed to; it simply adds a runtime
-// check (via RELEASE_ASSERT) that when the object being pointed to is destroyed, there are
-// no outstanding CheckedPtrs that reference it.
-//
-// Use is similar to WeakPtr, but CheckedPtr is used in cases where the target is never
-// expected to become null, and CheckedPtr has less overhead.
-
+/**
+ * @brief A nullable smart pointer that prevents use-after-free by crashing instead.
+ *
+ * When an object is destroyed while CheckedPtr pointers still reference it, the
+ * object's memory is zeroed out (turning it into a "zombie") and then leaked.
+ * When the next CheckedPtr to the object goes out of scope, the CheckedPtr
+ * crashes safely (via RELEASE_ASSERT), showing you a backtrace to the code that
+ * held a pointer too long.
+ *
+ * CheckedPtr can only be used with heap-allocated classes that inherit from
+ * CanMakeCheckedPtr, CanMakeThreadSafeCheckedPtr, or AbstractCanMakeCheckedPtr
+ * (which provide the checked pointer implementation). These classes must also
+ * override their delete operator using the WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR()
+ * macro to enable the zombie mechanism.
+ *
+ * If you expect the pointer to never be null during its usage, consider using
+ * CheckedRef instead, which provides clearer non-nullable semantics.
+ *
+ * @note CheckedPtr may introduce RELEASE_ASSERT crashes even in cases where
+ * there is no actual use-after-free. The crash indicates that a pointer became
+ * stale (the referenced object was destroyed), not that there was an attempt
+ * to use the stale pointer.
+ *
+ * @note CheckedPtr is more efficient than WeakPtr because it does not involve
+ * an extra level of indirection when dereferencing (WeakPtr is a pointer to a
+ * pointer). This makes CheckedPtr a better choice for performance sensitive
+ * code where the weak reference semantics of WeakPtr are not needed. If you
+ * are looking for the semantics of a weak pointer but without the extra level
+ * of indirection, you may consider using InlineWeakPtr.
+ */
 template<typename T, typename PtrTraits>
 class CheckedPtr {
     WTF_DEPRECATED_MAKE_FAST_ALLOCATED(CheckedPtr);
@@ -103,6 +126,10 @@ public:
         ASSERT(get());
     }
 
+    template<typename X, typename Y, typename Z> CheckedPtr(const WeakPtr<X, Y, Z>& o) requires std::is_convertible_v<X*, T*>
+        : CheckedPtr(o.get())
+    { }
+
     CheckedPtr(HashTableDeletedValueType)
         : m_ptr(PtrTraits::hashTableDeletedValue())
     { }
@@ -113,6 +140,7 @@ public:
 
     ALWAYS_INLINE T* get() const LIFETIME_BOUND { return PtrTraits::unwrap(m_ptr); }
     ALWAYS_INLINE T* unsafeGet() const { return PtrTraits::unwrap(m_ptr); }
+    ALWAYS_INLINE operator T*() const LIFETIME_BOUND { return PtrTraits::unwrap(m_ptr); }
     ALWAYS_INLINE T& operator*() const LIFETIME_BOUND { RELEASE_ASSERT(m_ptr); return *get(); }
     ALWAYS_INLINE T* operator->() const LIFETIME_BOUND { RELEASE_ASSERT(m_ptr); return get(); }
 
@@ -191,6 +219,9 @@ private:
     typename PtrTraits::StorageType m_ptr;
 };
 
+template<typename X, typename Y, typename Z> CheckedPtr(WeakPtr<X, Y, Z>&) -> CheckedPtr<X>;
+template<typename X, typename Y, typename Z> CheckedPtr(const WeakPtr<X, Y, Z>&) -> CheckedPtr<X>;
+
 template <typename T, typename PtrTraits>
 struct GetPtrHelper<CheckedPtr<T, PtrTraits>> {
     using PtrType = T*;
@@ -201,8 +232,34 @@ struct GetPtrHelper<CheckedPtr<T, PtrTraits>> {
 template <typename T, typename U>
 struct IsSmartPtr<CheckedPtr<T, U>> {
     static constexpr bool value = true;
-    static constexpr bool isNullable = false;
+    static constexpr bool isNullable = true;
 };
+
+template<typename T, typename PtrTraits = RawPtrTraits<T>>
+    requires (HasCheckedPtrMemberFunctions<T>::value && !HasRefPtrMemberFunctions<T>::value)
+ALWAYS_INLINE CLANG_POINTER_CONVERSION CheckedPtr<T, PtrTraits> protect(T* ptr)
+{
+    return CheckedPtr<T, PtrTraits>(ptr);
+}
+
+template<typename T, typename PtrTraits>
+ALWAYS_INLINE CLANG_POINTER_CONVERSION CheckedPtr<T, PtrTraits> protect(const CheckedPtr<T, PtrTraits>& ptr)
+{
+    return ptr;
+}
+
+template<typename T, typename PtrTraits>
+CheckedPtr<T, PtrTraits> protect(CheckedPtr<T, PtrTraits>&&)
+{
+    static_assert(WTF::unreachableForType<T>, "Calling protect() on an rvalue is unnecessary; the caller already owns the value.");
+}
+
+template<typename T, typename Deleter, typename PtrTraits = RawPtrTraits<T>>
+    requires (HasCheckedPtrMemberFunctions<T>::value && !HasRefPtrMemberFunctions<T>::value)
+ALWAYS_INLINE CLANG_POINTER_CONVERSION CheckedPtr<T, PtrTraits> protect(const std::unique_ptr<T, Deleter>& ptr)
+{
+    return CheckedPtr<T, PtrTraits>(ptr.get());
+}
 
 template<typename ExpectedType, typename ArgType, typename ArgPtrTraits>
 inline bool is(CheckedPtr<ArgType, ArgPtrTraits>& source)
@@ -214,6 +271,54 @@ template<typename ExpectedType, typename ArgType, typename ArgPtrTraits>
 inline bool is(const CheckedPtr<ArgType, ArgPtrTraits>& source)
 {
     return is<ExpectedType>(source.get());
+}
+
+template<typename... ExpectedTypes, typename ArgType, typename ArgPtrTraits>
+inline bool isAnyOf(CheckedPtr<ArgType, ArgPtrTraits>& source)
+{
+    return isAnyOf<ExpectedTypes...>(source.get());
+}
+
+template<typename... ExpectedTypes, typename ArgType, typename ArgPtrTraits>
+inline bool isAnyOf(const CheckedPtr<ArgType, ArgPtrTraits>& source)
+{
+    return isAnyOf<ExpectedTypes...>(source.get());
+}
+
+template<typename ExpectedType, typename ArgType, typename ArgPtrTraits>
+inline ExpectedType& downcast(CheckedPtr<ArgType, ArgPtrTraits>& source LIFETIME_BOUND)
+{
+    return downcast<ExpectedType>(source.get());
+}
+
+template<typename ExpectedType, typename ArgType, typename ArgPtrTraits>
+inline ExpectedType& downcast(const CheckedPtr<ArgType, ArgPtrTraits>& source LIFETIME_BOUND)
+{
+    return downcast<ExpectedType>(source.get());
+}
+
+template<typename ExpectedType, typename ArgType, typename ArgPtrTraits>
+inline const ExpectedType& downcast(CheckedPtr<const ArgType, ArgPtrTraits>& source LIFETIME_BOUND)
+{
+    return downcast<ExpectedType>(source.get());
+}
+
+template<typename ExpectedType, typename ArgType, typename ArgPtrTraits>
+inline CheckedPtr<match_constness_t<ArgType, ExpectedType>> dynamicDowncast(CheckedPtr<ArgType, ArgPtrTraits>& source)
+{
+    return dynamicDowncast<ExpectedType>(source.get());
+}
+
+template<typename ExpectedType, typename ArgType, typename ArgPtrTraits>
+inline CheckedPtr<match_constness_t<ArgType, ExpectedType>> dynamicDowncast(const CheckedPtr<ArgType, ArgPtrTraits>& source)
+{
+    return dynamicDowncast<ExpectedType>(source.get());
+}
+
+template<typename ExpectedType, typename ArgType, typename ArgPtrTraits>
+inline const CheckedPtr<match_constness_t<ArgType, ExpectedType>> dynamicDowncast(CheckedPtr<const ArgType, ArgPtrTraits>& source)
+{
+    return dynamicDowncast<ExpectedType>(source.get());
 }
 
 template<typename P> struct HashTraits<CheckedPtr<P>> : SimpleClassHashTraits<CheckedPtr<P>> {
@@ -237,19 +342,6 @@ template<typename P> struct DefaultHash<CheckedPtr<P>> : PtrHash<CheckedPtr<P>> 
 
 template<typename> struct PackedPtrTraits;
 template<typename T> using PackedCheckedPtr = CheckedPtr<T, PackedPtrTraits<T>>;
-
-template<typename T, typename PtrTraits = RawPtrTraits<T>>
-    requires (HasCheckedPtrMemberFunctions<T>::value && !HasRefPtrMemberFunctions<T>::value)
-ALWAYS_INLINE CLANG_POINTER_CONVERSION CheckedPtr<T, PtrTraits> protect(T* ptr)
-{
-    return CheckedPtr<T, PtrTraits>(ptr);
-}
-
-template<typename T, typename PtrTraits>
-ALWAYS_INLINE CLANG_POINTER_CONVERSION CheckedPtr<T, PtrTraits> protect(const CheckedPtr<T, PtrTraits>& ptr)
-{
-    return ptr;
-}
 
 } // namespace WTF
 

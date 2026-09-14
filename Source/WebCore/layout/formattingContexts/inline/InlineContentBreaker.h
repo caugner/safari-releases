@@ -30,7 +30,9 @@
 
 namespace WebCore {
 
-class RenderStyle;
+namespace Style {
+class ComputedStyle;
+}
 
 namespace Layout {
 
@@ -94,26 +96,26 @@ public:
         bool isFullyTrimmable() const { return m_isFullyTrimmable; }
         bool isHangingContent() const { return m_hangingContentWidth && *m_hangingContentWidth == logicalWidth(); }
 
-        void append(const InlineItem&, const RenderStyle&, InlineLayoutUnit logicalWidth, InlineLayoutUnit textSpacingAdjustment = 0.f);
-        void appendTextContent(const InlineTextItem&, const RenderStyle&, InlineLayoutUnit logicalWidth);
+        void append(const InlineItem&, const Style::ComputedStyle&, InlineLayoutUnit logicalWidth, InlineLayoutUnit textSpacingAdjustment = 0.f);
+        void appendTextContent(const InlineTextItem&, const Style::ComputedStyle&, InlineLayoutUnit logicalWidth);
         void setHangingContentWidth(InlineLayoutUnit logicalWidth) { m_hangingContentWidth = logicalWidth; }
-        void setTrailingSoftHyphenWidth(InlineLayoutUnit);
+        void NODELETE setTrailingSoftHyphenWidth(InlineLayoutUnit);
         void setMinimumRequiredWidth(InlineLayoutUnit minimumRequiredWidth) { m_minimumRequiredWidth = minimumRequiredWidth; }
         void setHasShapedContent() { m_hasShapedContent = true; }
         bool hasShapedContent() const { return m_hasShapedContent; }
         void reset();
 
         struct Run {
-            Run(const InlineItem&, const RenderStyle&, InlineLayoutUnit offset, InlineLayoutUnit contentWidth, InlineLayoutUnit textSpacingAdjustment = 0.f);
+            Run(const InlineItem&, const Style::ComputedStyle&, InlineLayoutUnit offset, InlineLayoutUnit contentWidth, InlineLayoutUnit textSpacingAdjustment = 0.f);
             Run(const Run&);
-            Run& operator=(const Run&);
+            Run& operator=(const Run&) = delete;
 
             InlineLayoutUnit spaceRequired() const { return offset + contentWidth(); }
             void adjustContentWidth(InlineLayoutUnit contentWidth) { m_contentWidth = contentWidth; }
             InlineLayoutUnit contentWidth() const { return m_contentWidth; }
 
             const InlineItem& inlineItem;
-            const RenderStyle& style;
+            const Style::ComputedStyle& style;
             InlineLayoutUnit offset { 0 };
             InlineLayoutUnit textSpacingAdjustment { 0 };
             enum class ShapingBoundary : bool { Start, End };
@@ -123,12 +125,12 @@ public:
             InlineLayoutUnit m_contentWidth { 0 };
         };
         using RunList = Vector<Run, 3>;
-        const RunList& runs() const { return m_runs; }
-        RunList& runs() { return m_runs; }
+        const RunList& runs() const LIFETIME_BOUND { return m_runs; }
+        RunList& runs() LIFETIME_BOUND { return m_runs; }
 
     private:
-        void appendToRunList(const InlineItem&, const RenderStyle&, InlineLayoutUnit offset, InlineLayoutUnit contentWidth, InlineLayoutUnit textSpacingAdjustment = 0.f);
-        void resetTrailingTrimmableContent();
+        void appendToRunList(const InlineItem&, const Style::ComputedStyle&, InlineLayoutUnit offset, InlineLayoutUnit contentWidth, InlineLayoutUnit textSpacingAdjustment = 0.f);
+        void NODELETE resetTrailingTrimmableContent();
 
         RunList m_runs;
         InlineLayoutUnit m_logicalWidth { 0.f };
@@ -157,7 +159,6 @@ public:
     Result processInlineContent(const ContinuousContent&, const LineStatus&);
     void setHyphenationDisabled(bool hyphenationIsDisabled) { n_hyphenationIsDisabled = hyphenationIsDisabled; }
     void setIsMinimumInIntrinsicWidthMode(bool isMinimumInIntrinsicWidthMode) { m_isMinimumInIntrinsicWidthMode = isMinimumInIntrinsicWidthMode; }
-    static bool isWrappingAllowed(const ContinuousContent::Run&);
 
 private:
     Result processOverflowingContent(const ContinuousContent&, const LineStatus&) const;
@@ -190,7 +191,7 @@ private:
         AtArbitraryPosition,
         AtHyphenationOpportunities
     };
-    EnumSet<WordBreakRule> wordBreakBehavior(const RenderStyle&, bool hasWrapOpportunityAtPreviousPosition) const;
+    EnumSet<WordBreakRule> wordBreakBehavior(const Style::ComputedStyle&, bool hasWrapOpportunityAtPreviousPosition) const;
     bool isMinimumInIntrinsicWidthMode() const { return m_isMinimumInIntrinsicWidthMode; }
 
 private:
@@ -198,7 +199,7 @@ private:
     bool n_hyphenationIsDisabled { false };
 };
 
-inline InlineContentBreaker::ContinuousContent::Run::Run(const InlineItem& inlineItem, const RenderStyle& style, InlineLayoutUnit offset, InlineLayoutUnit contentWidth, InlineLayoutUnit textSpacingAdjustment)
+inline InlineContentBreaker::ContinuousContent::Run::Run(const InlineItem& inlineItem, const Style::ComputedStyle& style, InlineLayoutUnit offset, InlineLayoutUnit contentWidth, InlineLayoutUnit textSpacingAdjustment)
     : inlineItem(inlineItem)
     , style(style)
     , offset(offset)
@@ -212,6 +213,7 @@ inline InlineContentBreaker::ContinuousContent::Run::Run(const Run& other)
     , style(other.style)
     , offset(other.offset)
     , textSpacingAdjustment(other.textSpacingAdjustment)
+    , shapingBoundary(other.shapingBoundary)
     , m_contentWidth(other.contentWidth())
 {
 }

@@ -27,10 +27,12 @@
 #include <gst/gst.h>
 #include <gst/video/video-format.h>
 #include <gst/video/video-info.h>
+#include <wtf/Lock.h>
 #include <wtf/Logger.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/ThreadSafeRefCounted.h>
+#include <wtf/ThreadSafeWeakPtr.h>
 #include <wtf/text/CStringView.h>
 
 #if USE(GSTREAMER_GL)
@@ -55,10 +57,7 @@ using TrackID = uint64_t;
 template<typename MappedArg>
 using TrackIDHashMap = HashMap<TrackID, MappedArg, WTF::IntHash<TrackID>, WTF::UnsignedWithZeroKeyHashTraits<TrackID>>;
 
-#define GST_CHECK_VERSION_FULL(major, minor, micro, nano) \
-    (GST_CHECK_VERSION(major, minor, micro) && (GST_VERSION_NANO >= nano))
-
-#if !GST_CHECK_VERSION_FULL(1, 27, 2, 1)
+#if !GST_CHECK_VERSION(1, 27, 90)
 inline bool gst_check_version(guint major, guint minor, guint micro)
 {
     guint currentMajor, currentMinor, currentMicro, currentNano;
@@ -85,7 +84,7 @@ inline bool gst_check_version(guint major, guint minor, guint micro)
 #define GST_AUDIO_CAPS_TYPE_PREFIX  "audio/"_s
 #define GST_TEXT_CAPS_TYPE_PREFIX   "text/"_s
 
-WARN_UNUSED_RETURN GstPad* webkitGstGhostPadFromStaticTemplate(GstStaticPadTemplate*, CStringView name, GstPad* target);
+[[nodiscard]] GstPad* webkitGstGhostPadFromStaticTemplate(GstStaticPadTemplate*, CStringView name, GstPad* target);
 #if ENABLE(VIDEO)
 bool getVideoSizeAndFormatFromCaps(const GstCaps*, WebCore::IntSize&, GstVideoFormat&, int& pixelAspectRatioNumerator, int& pixelAspectRatioDenominator, int& stride, double& frameRate, PlatformVideoColorSpace&);
 std::optional<FloatSize> getVideoResolutionFromCaps(const GstCaps*);
@@ -227,7 +226,6 @@ class GstMappedFrame {
 
 public:
     GstMappedFrame(GstMappedFrame&&);
-    GstMappedFrame(GstBuffer*, const GstVideoInfo*, GstMapFlags);
     GstMappedFrame(const GRefPtr<GstSample>&, GstMapFlags);
 
     ~GstMappedFrame();
@@ -246,6 +244,7 @@ public:
     int format() const;
     std::span<uint8_t> planeData(uint32_t) const;
     int planeStride(uint32_t) const;
+    size_t planeHeight(uint32_t) const;
 
     bool isValid() const { return m_frame.buffer; }
     explicit operator bool() const { return m_frame.buffer; }
@@ -260,6 +259,8 @@ public:
 
 private:
     GstVideoFrame m_frame;
+    GstVideoAlignment m_alignment;
+    std::array<size_t, GST_VIDEO_MAX_PLANES> m_planeSizes { };
 };
 
 class GstMappedAudioBuffer {
@@ -286,13 +287,13 @@ enum class AsynchronousPipelineDumping : bool { No, Yes };
 void connectSimpleBusMessageCallback(GstElement*, Function<void(GstMessage*)>&& = [](GstMessage*) { }, AsynchronousPipelineDumping = AsynchronousPipelineDumping::No);
 void disconnectSimpleBusMessageCallback(GstElement*);
 
-enum class GstVideoDecoderPlatform { ImxVPU, Video4Linux, OpenMAX };
+enum class GstVideoDecoderPlatform { ImxVPU, Video4Linux, OpenMAX, Qualcomm };
 
 bool isGStreamerPluginAvailable(ASCIILiteral name);
 bool gstElementFactoryEquals(GstElement*, ASCIILiteral name);
 
 GstElement* createAutoAudioSink(const String& role);
-GstElement* createPlatformAudioSink(const String& role);
+GstElement* createPlatformAudioSink(const String& role, const String& deviceId = { }, const GRefPtr<GstDevice>& = { });
 
 bool webkitGstSetElementStateSynchronously(GstElement*, GstState, Function<bool(GstMessage*)>&& = [](GstMessage*) -> bool {
     return true;
@@ -329,7 +330,7 @@ void configureVideoDecoderForHarnessing(const GRefPtr<GstElement>&);
 
 void configureMediaStreamAudioDecoder(GstElement*);
 
-void configureMediaStreamVideoDecoder(GstElement*);
+String configureMediaStreamVideoDecoder(GstElement*);
 void configureVideoRTPDepayloader(GstElement*);
 
 bool gstObjectHasProperty(GstObject*, ASCIILiteral name);
@@ -342,8 +343,9 @@ GRefPtr<GstBuffer> wrapSpanData(const std::span<const uint8_t>&);
 
 std::optional<unsigned> gstGetAutoplugSelectResult(ASCIILiteral);
 
-void registerActivePipeline(const GRefPtr<GstElement>&);
+void registerActivePipeline(const GRefPtr<GstElement>&, const String& = emptyString());
 void unregisterPipeline(const GRefPtr<GstElement>&);
+void unregisterPipeline(const String&);
 
 class WebCoreLogObserver : public Logger::Observer {
     WTF_MAKE_TZONE_ALLOCATED(WebCoreLogObserver);
@@ -351,7 +353,7 @@ class WebCoreLogObserver : public Logger::Observer {
     friend NeverDestroyed<WebCoreLogObserver>;
 public:
     explicit WebCoreLogObserver() = default;
-    void didLogMessage(const WTFLogChannel&, WTFLogLevel, Vector<JSONLogValue>&&) final;
+    void didLogMessage(const WTFLogChannel&, WTFLogLevel, std::optional<WTFLogLocation>, Vector<JSONLogValue>&&) final;
 
     virtual GstDebugCategory* debugCategory() const = 0;
     virtual bool shouldEmitLogMessage(const WTFLogChannel&) const = 0;
@@ -376,7 +378,7 @@ String gstIdToString(GstId);
 void gstStructureFilterAndMapInPlace(GstStructure*, Function<bool(GstId, GValue*)>&&);
 
 #if USE(GBM)
-WARN_UNUSED_RETURN GRefPtr<GstCaps> buildDMABufCaps();
+[[nodiscard]] GRefPtr<GstCaps> buildDMABufCaps();
 #endif
 
 #if USE(GSTREAMER_GL)
@@ -386,6 +388,75 @@ bool setGstElementGLContext(GstElement*, ASCIILiteral contextType);
 GstStateChangeReturn gstElementLockAndSetState(GstElement*, GstState);
 
 GRefPtr<GstElement> createVideoConvertScaleElement(const String& name = emptyString());
+
+void dumpBinToDotFile(GstBin*, const String&, GstDebugGraphDetails = GST_DEBUG_GRAPH_SHOW_ALL);
+void dumpBinToDotFile(const GRefPtr<GstElement>&, const String&, GstDebugGraphDetails = GST_DEBUG_GRAPH_SHOW_ALL);
+
+GstDebugLevel gstDebugLevelFromWTFLogLevel(WTFLogLevel);
+
+template<class T>
+class PadProbeHandle : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<PadProbeHandle<T>, WTF::DestructionThread::Main> {
+public:
+    using PadProbeCallback = Function<GstPadProbeReturn(const RefPtr<T>&, const GRefPtr<GstPad>&, GstPadProbeInfo*)>;
+    static RefPtr<PadProbeHandle> create(const T& owner, GRefPtr<GstPad>&& pad, GstPadProbeType probeType, PadProbeCallback&& callback)
+    {
+        return adoptRef(*new PadProbeHandle<T>(owner, WTF::move(pad), probeType, WTF::move(callback)));
+    }
+
+    ~PadProbeHandle()
+    {
+        Locker locker { m_lock };
+        if (!m_id)
+            return;
+        gst_pad_remove_probe(m_pad.get(), m_id);
+    }
+
+    const GRefPtr<GstPad>& pad() const { return m_pad; }
+
+private:
+    PadProbeHandle(const T& owner, GRefPtr<GstPad>&& pad, GstPadProbeType probeType, PadProbeCallback&& callback)
+        : m_pad(WTF::move(pad))
+        , m_owner(owner)
+        , m_callback(WTF::move(callback))
+    {
+        // The m_lock cannot be taken right away because if we are adding an idle probe its callback
+        // might be triggered during the add_probe_call, potentially leading to a deadlock in cases
+        // where owner is nullptr and where result is GST_PAD_PROBE_REMOVE.
+        auto id = gst_pad_add_probe(m_pad.get(), probeType, reinterpret_cast<GstPadProbeCallback>(+[](GstPad*, GstPadProbeInfo* info, gpointer userData) -> GstPadProbeReturn {
+            RefPtr self = reinterpret_cast<ThreadSafeWeakPtr<PadProbeHandle<T>>*>(userData)->get();
+            if (!self)
+                return GST_PAD_PROBE_REMOVE;
+
+            RefPtr owner = self->m_owner.get();
+            if (!owner) {
+                self->setId(0);
+                return GST_PAD_PROBE_REMOVE;
+            }
+
+            auto result = self->m_callback(owner, self->m_pad, info);
+            if (result == GST_PAD_PROBE_REMOVE)
+                self->setId(0);
+
+            return result;
+        }), new ThreadSafeWeakPtr<PadProbeHandle<T>> { this }, reinterpret_cast<GDestroyNotify>(+[](gpointer data) {
+            delete static_cast<ThreadSafeWeakPtr<PadProbeHandle<T>>*>(data);
+        }));
+
+        setId(id);
+    }
+
+    void setId(unsigned long id)
+    {
+        Locker locker { m_lock };
+        m_id = id;
+    }
+
+    Lock m_lock;
+    unsigned long m_id WTF_GUARDED_BY_LOCK(m_lock);
+    GRefPtr<GstPad> m_pad;
+    WTF::ThreadSafeWeakPtr<T> m_owner;
+    PadProbeCallback m_callback;
+};
 
 } // namespace WebCore
 
@@ -494,9 +565,11 @@ private:
 GstBuffer* gst_buffer_new_memdup(gconstpointer data, gsize size);
 #endif
 
-#if !GST_CHECK_VERSION_FULL(1, 27, 2, 1) && !GST_CHECK_VERSION(1, 27, 3) && !GST_CHECK_VERSION(1, 28, 0)
+#if !GST_CHECK_VERSION(1, 28, 0)
 void gst_pad_probe_info_set_buffer(GstPadProbeInfo*, GstBuffer*);
 void gst_pad_probe_info_set_event(GstPadProbeInfo*, GstEvent*);
+#define gst_state_get_name gst_element_state_get_name
+#define gst_state_change_return_get_name gst_element_state_change_return_get_name
 #endif
 
 #endif // USE(GSTREAMER)

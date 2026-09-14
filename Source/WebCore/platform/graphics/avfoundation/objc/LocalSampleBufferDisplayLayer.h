@@ -60,14 +60,15 @@ public:
     void rootLayerBoundsDidChange();
 
     CGRect bounds() const;
+    CGRect sampleLayerBoundsForTesting() const;
+    void setVideoFrameRotationForTesting(WebCore::VideoFrameRotation);
 
-    PlatformLayer* displayLayer();
+    PlatformLayer* NODELETE displayLayer();
 
     void updateSampleLayerBoundsAndPosition(std::optional<CGRect>);
 
     // SampleBufferDisplayLayer.
     PlatformLayer* rootLayer() final;
-    RetainPtr<PlatformLayer> protectedRootLayer();
     void initialize(bool hideRootLayer, IntSize, bool shouldMaintainAspectRatio, CompletionHandler<void(bool didSucceed)>&&) final;
 #if !RELEASE_LOG_DISABLED
     void setLogIdentifier(uint64_t) final;
@@ -117,6 +118,7 @@ private:
 
     bool m_paused { false };
     bool m_didFail { false };
+    Seconds m_lastMetricsSampleTime WTF_GUARDED_BY_CAPABILITY(workQueue());
 #if !RELEASE_LOG_DISABLED
     uint64_t m_logIdentifier;
     FrameRateMonitor m_frameRateMonitor WTF_GUARDED_BY_CAPABILITY(workQueue());

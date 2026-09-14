@@ -36,20 +36,23 @@
 namespace WebKit {
 
 FrameProcess::FrameProcess(WebProcessProxy& process, BrowsingContextGroup& group, const std::optional<WebCore::Site>& site, const WebCore::Site& mainFrameSite,
-    const WebPreferences& preferences, LoadedWebArchive loadedWebArchive, InjectBrowsingContextIntoProcess injectBrowsingContextIntoProcess)
+    const WebPreferences& preferences, LoadedWebArchive loadedWebArchive, BrowsingContextGroupUpdate browsingContextGroupUpdate)
     : m_process(process)
     , m_browsingContextGroup(group)
     , m_site(site)
     , m_mainFrameSite(mainFrameSite)
     , m_isArchiveProcess(loadedWebArchive == LoadedWebArchive::Yes)
 {
+    m_process->incrementFrameProcessCount();
     if (!preferences.siteIsolationEnabled()) {
         m_browsingContextGroup = nullptr;
         return;
     }
 
-    if (injectBrowsingContextIntoProcess == InjectBrowsingContextIntoProcess::Yes)
+    if (browsingContextGroupUpdate == BrowsingContextGroupUpdate::AddProcessAndInjectBrowsingContext)
         group.addFrameProcess(*this);
+    else if (browsingContextGroupUpdate == BrowsingContextGroupUpdate::AddProcess)
+        group.addFrameProcessWithoutInjectingPageContext(*this);
 
     if (!m_isArchiveProcess)
         process.didStartUsingProcessForSiteIsolation(site, mainFrameSite);
@@ -59,8 +62,16 @@ FrameProcess::FrameProcess(WebProcessProxy& process, BrowsingContextGroup& group
 
 FrameProcess::~FrameProcess()
 {
+    m_process->decrementFrameProcessCount();
+    ASSERT(!m_frameCount);
+
     if (RefPtr group = m_browsingContextGroup.get())
         group->removeFrameProcess(*this);
+}
+
+BrowsingContextGroup* FrameProcess::browsingContextGroup() const
+{
+    return m_browsingContextGroup.get();
 }
 
 }

@@ -45,16 +45,12 @@
 #include <drm/drm_fourcc.h>
 #endif
 
-#if USE(SKIA)
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
 #include <skia/core/SkColorSpace.h>
 #include <skia/core/SkPixmap.h>
 #include <skia/core/SkStream.h>
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // Skia port
 #include <skia/encode/SkPngEncoder.h>
-WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
-#endif
 
 namespace WebKit {
 
@@ -81,6 +77,10 @@ AcceleratedBackingStore::AcceleratedBackingStore(WebPageProxy& webPage, WPEView*
     g_signal_connect(m_wpeView.get(), "buffer-released", G_CALLBACK(+[](WPEView*, WPEBuffer* buffer, gpointer userData) {
         auto& backingStore = *static_cast<AcceleratedBackingStore*>(userData);
         backingStore.bufferReleased(buffer);
+    }), this);
+    g_signal_connect(m_wpeView.get(), "notify::toplevel", G_CALLBACK(+[](WPEView* view, GParamSpec*, gpointer userData) {
+        auto& backingStore = *static_cast<AcceleratedBackingStore*>(userData);
+        backingStore.toplevelChanged();
     }), this);
 }
 
@@ -113,20 +113,43 @@ void AcceleratedBackingStore::updateSurfaceID(uint64_t surfaceID)
     m_surfaceID = surfaceID;
     if (m_surfaceID && m_webPage) {
         m_legacyMainFrameProcess = m_webPage->legacyMainFrameProcess();
-        Ref { *m_legacyMainFrameProcess }->addMessageReceiver(Messages::AcceleratedBackingStore::messageReceiverName(), m_surfaceID, *this);
+        protect(*m_legacyMainFrameProcess)->addMessageReceiver(Messages::AcceleratedBackingStore::messageReceiverName(), m_surfaceID, *this);
     }
 }
 
-void AcceleratedBackingStore::didCreateDMABufBuffer(uint64_t id, const WebCore::IntSize& size, uint32_t format, Vector<WTF::UnixFileDescriptor>&& fds, Vector<uint32_t>&& offsets, Vector<uint32_t>&& strides, uint64_t modifier, RendererBufferFormat::Usage usage)
+void AcceleratedBackingStore::didChangeBufferConfiguration(uint32_t bufferCount)
+{
+    m_targetBufferCount = bufferCount;
+}
+
+void AcceleratedBackingStore::notifyBufferConfigurationIfNeeded()
+{
+    if (!m_targetBufferCount || *m_targetBufferCount != m_buffers.size())
+        return;
+
+    m_targetBufferCount.reset();
+
+    Vector<WPEBuffer*, 2> buffers;
+    buffers.reserveInitialCapacity(m_buffers.size());
+    for (auto& value : m_buffers.values())
+        buffers.append(value.get());
+
+    auto buffersSpan = buffers.mutableSpan();
+    wpe_view_buffers_changed(m_wpeView.get(), buffersSpan.data(), buffersSpan.size());
+}
+
+void AcceleratedBackingStore::didCreateDMABufBuffer(uint64_t id, WebCore::DMABufBufferAttributes&& dmaBufAttributes, RendererBufferFormat::Usage usage)
 {
     Vector<int> fileDescriptors;
-    fileDescriptors.reserveInitialCapacity(fds.size());
-    for (auto& fd : fds)
+    fileDescriptors.reserveInitialCapacity(dmaBufAttributes.fds.size());
+    for (auto& fd : dmaBufAttributes.fds)
         fileDescriptors.append(fd.release());
-    GRefPtr<WPEBuffer> buffer = adoptGRef(WPE_BUFFER(wpe_buffer_dma_buf_new(wpe_view_get_display(m_wpeView.get()), size.width(), size.height(), format, fds.size(), fileDescriptors.mutableSpan().data(), offsets.mutableSpan().data(), strides.mutableSpan().data(), modifier)));
+    GRefPtr<WPEBuffer> buffer = adoptGRef(WPE_BUFFER(wpe_buffer_dma_buf_new(wpe_view_get_display(m_wpeView.get()), dmaBufAttributes.size.width(), dmaBufAttributes.size.height(), dmaBufAttributes.fourcc.value, dmaBufAttributes.fds.size(), fileDescriptors.mutableSpan().data(), dmaBufAttributes.offsets.mutableSpan().data(), dmaBufAttributes.strides.mutableSpan().data(), dmaBufAttributes.modifier)));
     g_object_set_data(G_OBJECT(buffer.get()), "wk-buffer-format-usage", GUINT_TO_POINTER(usage));
     m_bufferIDs.add(buffer.get(), id);
     m_buffers.add(id, WTF::move(buffer));
+
+    notifyBufferConfigurationIfNeeded();
 }
 
 void AcceleratedBackingStore::didCreateSHMBuffer(uint64_t id, WebCore::ShareableBitmap::Handle&& handle)
@@ -145,6 +168,8 @@ void AcceleratedBackingStore::didCreateSHMBuffer(uint64_t id, WebCore::Shareable
     GRefPtr<WPEBuffer> buffer = adoptGRef(WPE_BUFFER(wpe_buffer_shm_new(wpe_view_get_display(m_wpeView.get()), size.width(), size.height(), WPE_PIXEL_FORMAT_ARGB8888, bytes.get(), stride)));
     m_bufferIDs.add(buffer.get(), id);
     m_buffers.add(id, WTF::move(buffer));
+
+    notifyBufferConfigurationIfNeeded();
 }
 
 #if OS(ANDROID)
@@ -155,6 +180,8 @@ void AcceleratedBackingStore::didCreateAndroidBuffer(uint64_t id, RefPtr<AHardwa
     auto buffer = adoptGRef(WPE_BUFFER(wpe_buffer_android_new(wpe_view_get_display(m_wpeView.get()), hardwareBuffer.get())));
     m_bufferIDs.add(buffer.get(), id);
     m_buffers.add(id, WTF::move(buffer));
+
+    notifyBufferConfigurationIfNeeded();
 }
 #endif // OS(ANDROID)
 
@@ -162,6 +189,8 @@ void AcceleratedBackingStore::didDestroyBuffer(uint64_t id)
 {
     if (auto buffer = m_buffers.take(id))
         m_bufferIDs.remove(buffer.get());
+
+    notifyBufferConfigurationIfNeeded();
 }
 
 void AcceleratedBackingStore::frame(uint64_t bufferID, Rects&& damageRects, WTF::UnixFileDescriptor&& renderingFenceFD)
@@ -182,7 +211,6 @@ void AcceleratedBackingStore::frame(uint64_t bufferID, Rects&& damageRects, WTF:
         m_fenceMonitor.addFileDescriptor(WTF::move(renderingFenceFD));
 }
 
-#if USE(SKIA)
 static Expected<SkImageInfo, String> getImageInfoFromBuffer(const  GRefPtr<WPEBuffer>& buffer)
 {
     auto width = wpe_buffer_get_width(buffer.get());
@@ -250,10 +278,11 @@ Expected<Ref<ViewSnapshot>, String> AcceleratedBackingStore::takeSnapshot(std::o
     return saveBufferSnapshot(m_committedBuffer ? m_committedBuffer : m_pendingBuffer, WTF::move(clipRect));
 }
 
-#endif
-
 void AcceleratedBackingStore::renderPendingBuffer()
 {
+    if (!wpe_view_get_toplevel(m_wpeView.get()))
+        return;
+
     // Rely on the layout of IntRect matching that of WPERectangle
     // to pass directly a pointer below instead of using copies.
     static_assert(sizeof(WebCore::IntRect) == sizeof(WPERectangle));
@@ -266,7 +295,8 @@ void AcceleratedBackingStore::renderPendingBuffer()
         g_warning("Failed to render frame: %s", error->message);
         frameDone();
         m_pendingBuffer = nullptr;
-    }
+    } else
+        m_committedBuffer = WTF::move(m_pendingBuffer);
     m_pendingDamageRects = { };
 }
 
@@ -279,7 +309,6 @@ void AcceleratedBackingStore::frameDone()
 void AcceleratedBackingStore::bufferRendered()
 {
     frameDone();
-    m_committedBuffer = WTF::move(m_pendingBuffer);
 }
 
 void AcceleratedBackingStore::bufferReleased(WPEBuffer* buffer)
@@ -290,6 +319,17 @@ void AcceleratedBackingStore::bufferReleased(WPEBuffer* buffer)
         if (RefPtr legacyMainFrameProcess = m_legacyMainFrameProcess.get())
             legacyMainFrameProcess->send(Messages::AcceleratedSurface::ReleaseBuffer(id, WTF::move(releaseFence)), m_surfaceID);
     }
+}
+
+void AcceleratedBackingStore::toplevelChanged()
+{
+    if (!wpe_view_get_toplevel(m_wpeView.get()))
+        return;
+
+    if (!m_pendingBuffer || m_fenceMonitor.hasFileDescriptor())
+        return;
+
+    renderPendingBuffer();
 }
 
 RendererBufferDescription AcceleratedBackingStore::bufferDescription() const

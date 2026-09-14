@@ -49,12 +49,6 @@ class GPUDisplayBufferDisplayDelegate;
 class GPUCanvasContextCocoa final : public GPUCanvasContext {
     WTF_MAKE_TZONE_ALLOCATED(GPUCanvasContextCocoa);
 public:
-#if ENABLE(OFFSCREEN_CANVAS)
-    using CanvasType = Variant<RefPtr<HTMLCanvasElement>, RefPtr<OffscreenCanvas>>;
-#else
-    using CanvasType = Variant<RefPtr<HTMLCanvasElement>>;
-#endif
-
     static std::unique_ptr<GPUCanvasContextCocoa> create(CanvasBase&, GPU&, Document*);
 
     DestinationColorSpace colorSpace() const override;
@@ -64,16 +58,17 @@ public:
     void prepareForDisplay() override;
     PixelFormat pixelFormat() const override;
     bool isOpaque() const override;
-    void reshape() override;
-
+    void didUpdateCanvasSizeProperties(bool) override;
 
     RefPtr<ImageBuffer> surfaceBufferToImageBuffer(SurfaceBuffer) override;
+    bool isSurfaceBufferTransparentBlack(SurfaceBuffer) const final { return false; }
+
     // GPUCanvasContext methods:
     CanvasType canvas() override;
     ExceptionOr<void> configure(GPUCanvasConfiguration&&) override;
     void unconfigure() override;
     std::optional<GPUCanvasConfiguration> getConfiguration() const override;
-    ExceptionOr<RefPtr<GPUTexture>> getCurrentTexture() override;
+    ExceptionOr<Ref<GPUTexture>> getCurrentTexture() override;
     RefPtr<ImageBuffer> transferToImageBuffer() override;
 
 #if HAVE(SUPPORT_HDR_DISPLAY) && ENABLE(PIXEL_FORMAT_RGBA16F)
@@ -98,15 +93,17 @@ private:
     float computeContentsHeadroom();
     void updateContentsHeadroom();
     void updateScreenHeadroom(float, bool suppressEDR);
-    void updateScreenHeadroomFromScreenProperties();
+    void updateScreenHeadroomFromScreenPropertiesIfNeeded();
+    void updateHeadroomFromScreenProperties();
 #endif // HAVE(SUPPORT_HDR_DISPLAY)
+    void updateMemoryCost() const;
 
     struct Configuration {
         Ref<GPUDevice> device;
         GPUTextureFormat format { GPUTextureFormat::R8unorm };
         GPUTextureUsageFlags usage { GPUTextureUsage::RENDER_ATTACHMENT };
         Vector<GPUTextureFormat> viewFormats;
-        GPUPredefinedColorSpace colorSpace { GPUPredefinedColorSpace::SRGB };
+        PredefinedColorSpace colorSpace { PredefinedColorSpace::SRGB };
         GPUCanvasToneMapping toneMapping;
         GPUCanvasAlphaMode compositingAlphaMode { GPUCanvasAlphaMode::Opaque };
         Vector<MachSendRight> renderBuffers;
@@ -126,9 +123,12 @@ private:
     RefPtr<ScreenPropertiesChangedObserver> m_screenPropertiesChangedObserver;
     PlatformDynamicRangeLimit m_dynamicRangeLimit { PlatformDynamicRangeLimit::initialValue() };
     float m_currentEDRHeadroom { 1 };
+    float m_screenEDRHeadroom { 0.f };
+    bool m_screenSuppressEDR { false };
     bool m_suppressEDR { false };
 #endif // HAVE(SUPPORT_HDR_DISPLAY)
     bool m_compositingResultsNeedsUpdating { false };
+    RefPtr<ImageBuffer> m_readDisplayBuffer;
 };
 
 } // namespace WebCore

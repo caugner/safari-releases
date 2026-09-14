@@ -38,7 +38,7 @@
 namespace WebKit {
 using namespace WebCore;
 
-static WeakPtr<WebStorageNamespaceProvider>& existingStorageNameSpaceProvider()
+static WeakPtr<WebStorageNamespaceProvider>& NODELETE existingStorageNameSpaceProvider()
 {
     static NeverDestroyed<WeakPtr<WebStorageNamespaceProvider>> storageNameSpaceProvider;
     return storageNameSpaceProvider.get();
@@ -64,8 +64,7 @@ void WebStorageNamespaceProvider::decrementUseCount(const StorageNamespaceImpl::
 {
     if (auto& provider = existingStorageNameSpaceProvider()) {
         auto iterator = provider->m_sessionStorageNamespaces.find(identifier);
-        if (iterator == provider->m_sessionStorageNamespaces.end())
-            return;
+        ASSERT(iterator != provider->m_sessionStorageNamespaces.end());
         auto& sessionStorageNamespaces = iterator->value;
         ASSERT(sessionStorageNamespaces.useCount);
         if (!--sessionStorageNamespaces.useCount)
@@ -114,10 +113,10 @@ RefPtr<WebCore::StorageNamespace> WebStorageNamespaceProvider::sessionStorageNam
     if (it == sessionStorageNamespacesMap.end()) {
         if (shouldCreate == ShouldCreateNamespace::No)
             return nullptr;
-        auto sessionStorageNamespace = StorageNamespaceImpl::createSessionStorageNamespace(webPage->sessionStorageNamespaceIdentifier(), webPage->identifier(), topLevelOrigin, sessionStorageQuota());
+        Ref sessionStorageNamespace = StorageNamespaceImpl::createSessionStorageNamespace(webPage->sessionStorageNamespaceIdentifier(), webPage->identifier(), topLevelOrigin, sessionStorageQuota());
         it = sessionStorageNamespacesMap.set(topLevelOrigin.data(), WTF::move(sessionStorageNamespace)).iterator;
     }
-    return it->value;
+    return it->value.ptr();
 }
 
 }

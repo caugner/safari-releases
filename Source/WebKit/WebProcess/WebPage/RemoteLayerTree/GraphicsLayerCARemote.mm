@@ -32,9 +32,11 @@
 #include "PlatformCALayerRemoteHost.h"
 #include "RemoteLayerTreeContext.h"
 #include "RemoteLayerTreeDrawingAreaProxyMessages.h"
+#include "WebPage.h"
 #include "WebProcess.h"
 #include <WebCore/GraphicsLayerContentsDisplayDelegate.h>
 #include <WebCore/HTMLVideoElement.h>
+#include <WebCore/LocalFrameView.h>
 #include <WebCore/Model.h>
 #include <WebCore/PlatformCALayerDelegatedContents.h>
 #include <WebCore/PlatformScreen.h>
@@ -74,7 +76,7 @@ Ref<PlatformCALayer> GraphicsLayerCARemote::createPlatformCALayer(PlatformCALaye
     Ref result = PlatformCALayerRemote::create(layerType, owner, context.get());
 
     if (result->canHaveBackingStore()) {
-        RefPtr localMainFrameView = context->protectedWebPage()->localMainFrameView();
+        RefPtr localMainFrameView = protect(context->webPage())->localMainFrameView();
         result->setContentsFormat(PlatformCALayer::contentsFormatForLayer(owner));
     }
     return WTF::move(result);
@@ -181,7 +183,7 @@ public:
         }
     }
 
-    void setDestinationLayerID(WebCore::PlatformLayerIdentifier layerID)
+    void NODELETE setDestinationLayerID(WebCore::PlatformLayerIdentifier layerID)
     {
         m_layerID = layerID;
     }
@@ -227,7 +229,7 @@ RefPtr<WebCore::GraphicsLayerAsyncContentsDisplayDelegate> GraphicsLayerCARemote
 
 bool GraphicsLayerCARemote::shouldDirectlyCompositeImageBuffer(ImageBuffer* image) const
 {
-    return !!dynamicDowncast<ImageBufferBackendHandleSharing>(image->toBackendSharing());
+    return is<ImageBufferBackendHandleSharing>(image->toBackendSharing());
 }
 
 class ImageBufferFlusherFence final : public WebCore::PlatformCALayerDelegatedContentsFence {
@@ -252,7 +254,7 @@ private:
     std::unique_ptr<ThreadSafeImageBufferFlusher> m_flusher;
 };
 
-void GraphicsLayerCARemote::setLayerContentsToImageBuffer(PlatformCALayer* layer, ImageBuffer* image)
+void GraphicsLayerCARemote::setLayerContentsToImageBuffer(PlatformCALayer& layer, ImageBuffer* image)
 {
     if (!image)
         return;
@@ -270,11 +272,11 @@ void GraphicsLayerCARemote::setLayerContentsToImageBuffer(PlatformCALayer* layer
     auto backendHandle = sharing->createBackendHandle(SharedMemory::Protection::ReadOnly);
     ASSERT(backendHandle);
 
-    layer->setAcceleratesDrawing(true);
+    layer.setAcceleratesDrawing(true);
 #if HAVE(SUPPORT_HDR_DISPLAY)
-    layer->setTonemappingEnabled(true);
+    layer.setTonemappingEnabled(true);
 #endif
-    downcast<PlatformCALayerRemote>(layer)->setRemoteDelegatedContents({ ImageBufferBackendHandle { *backendHandle }, fence, std::nullopt });
+    downcast<PlatformCALayerRemote>(layer).setRemoteDelegatedContents({ ImageBufferBackendHandle { *backendHandle }, fence, std::nullopt });
 }
 
 GraphicsLayer::LayerMode GraphicsLayerCARemote::layerMode() const

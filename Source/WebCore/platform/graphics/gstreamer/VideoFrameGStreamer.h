@@ -28,6 +28,10 @@
 #include <gst/video/video-info.h>
 #include <wtf/glib/GRefPtr.h>
 
+#if USE(GBM)
+#include "DMABufBuffer.h"
+#endif
+
 typedef struct _GstSample GstSample;
 
 namespace WebCore {
@@ -63,7 +67,7 @@ public:
 
     static Ref<VideoFrameGStreamer> create(GRefPtr<GstSample>&&, const CreateOptions&, PlatformVideoColorSpace&& = { });
 
-    static Ref<VideoFrameGStreamer> createWrappedSample(const GRefPtr<GstSample>&, const MediaTime& presentationTime = MediaTime::invalidTime(), Rotation videoRotation = Rotation::None);
+    static Ref<VideoFrameGStreamer> createWrappedSample(const GRefPtr<GstSample>&, std::optional<CreateOptions> = std::nullopt);
 
     static RefPtr<VideoFrameGStreamer> createFromPixelBuffer(Ref<PixelBuffer>&&, const IntSize& destinationSize, double frameRate, const CreateOptions&, PlatformVideoColorSpace&& = { });
 
@@ -79,7 +83,7 @@ public:
 
     GRefPtr<GstSample> downloadSample(std::optional<GstVideoFormat> = { });
 
-    GstSample* sample() const { return m_sample.get(); }
+    const GRefPtr<GstSample>& sample() const LIFETIME_BOUND { return m_sample; }
 
     RefPtr<ImageGStreamer> convertToImage();
 
@@ -98,10 +102,16 @@ public:
     };
     MemoryType memoryType() const { return m_memoryType; }
 
-    const GstVideoInfo& info() const { return m_info.info; }
+#if USE(GBM) && GST_CHECK_VERSION(1, 24, 0)
+    RefPtr<DMABufBuffer> getDMABuf();
+#endif
+    const GstVideoInfo& info() const LIFETIME_BOUND { return m_info.info; }
     std::optional<DMABufFormat> dmaBufFormat() const { return m_info.dmaBufFormat; }
 
     VideoFrameContentHint contentHint() const;
+
+    bool isEncoded() const final;
+    bool hasSameEncodedFormat(const VideoFrame&) const final;
 
 private:
     VideoFrameGStreamer(GRefPtr<GstSample>&&, const CreateOptions&, PlatformVideoColorSpace&&);

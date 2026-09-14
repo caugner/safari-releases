@@ -26,7 +26,9 @@
 #include "config.h"
 #include "WebTransportSendGroup.h"
 
+#include "JSDOMConvertDictionary.h"
 #include "JSDOMPromiseDeferred.h"
+#include "ScriptExecutionContextInlines.h"
 #include "JSWebTransportSendStreamStats.h"
 #include "WebTransportSendStreamStats.h"
 #include "WebTransportSession.h"

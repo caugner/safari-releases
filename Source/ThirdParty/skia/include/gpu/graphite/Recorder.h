@@ -210,9 +210,12 @@ public:
     /**
      * Purge GPU resources on the Recorder that haven't been used in the past 'msNotUsed'
      * milliseconds or are otherwise marked for deletion, regardless of whether the context is under
-     * budget.
+     * budget. Optionally provide a `microsMaxPurgingDur` after which Skia should stop purging
+     * resources.
      */
-    void performDeferredCleanup(std::chrono::milliseconds msNotUsed);
+    void performDeferredCleanup(
+            std::chrono::milliseconds msNotUsed,
+            std::optional<std::chrono::microseconds> microsMaxPurgingDur = std::nullopt);
 
     /**
      * Returns the number of bytes of the Recorder's gpu memory cache budget that are currently in
@@ -291,7 +294,7 @@ private:
 
     // NOTE: These are stored by pointer to allow them to be forward declared.
     std::unique_ptr<TaskList> fRootTaskList;
-    // Aggregated one-time uploads that preceed all tasks in the root task list.
+    // Aggregated one-time uploads that precede all tasks in the root task list.
     std::unique_ptr<UploadList> fRootUploads;
 
     std::unique_ptr<DrawBufferManager> fDrawBufferManager;
@@ -329,6 +332,9 @@ private:
     std::unique_ptr<Recording::LazyProxyData> fTargetProxyData;
 
     skia_private::TArray<sk_sp<RefCntedCallback>> fFinishedProcs;
+
+    // Tracks the flushing state to ensure recursive flushing does not occur.
+    SkDEBUGCODE(bool fIsFlushingTrackedDevices = false;)
 
 #if defined(GPU_TEST_UTILS)
     // For testing use only -- the Context used to create this Recorder

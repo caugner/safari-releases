@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2018-2023 Apple Inc. All rights reserved.
+ * Copyright (C) 2026 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -44,23 +45,24 @@ const CSSParserContext& strictCSSParserContext()
     return strictContext;
 }
 
-static void applyUASheetBehaviorsToContext(CSSParserContext& context)
+static void NODELETE applyUASheetBehaviorsToContext(CSSParserContext& context)
 {
     // FIXME: We should turn all of the features on from their WebCore Settings defaults.
     context.cssAppearanceBaseEnabled = true;
+    context.cssRubyDisplayTypesEnabled = true;
     context.cssTextTransformMathAutoEnabled = true;
     context.popoverAttributeEnabled = true;
     context.propertySettings.cssInputSecurityEnabled = true;
     context.propertySettings.supportHDRDisplayEnabled = true;
-    context.propertySettings.viewTransitionsEnabled = true;
     context.propertySettings.cssFieldSizingEnabled = true;
     context.cssMathDepthEnabled = true;
     context.propertySettings.cssMathDepthEnabled = true;
 #if HAVE(CORE_MATERIAL)
     context.propertySettings.useSystemAppearance = true;
 #endif
-    context.thumbAndTrackPseudoElementsEnabled = true;
+    context.propertySettings.cssAnchorPositioningEnabled = true;
     context.cssInternalAutoBaseParsingEnabled = true;
+    context.htmlEnhancedSelectEnabled = true;
 }
 
 CSSParserContext::CSSParserContext(CSSParserMode mode, const URL& baseURL)
@@ -85,7 +87,7 @@ CSSParserContext::CSSParserContext(const Document& document, const URL& sheetBas
     this->charset = charset;
     mode = document.inQuirksMode() ? HTMLQuirksMode : HTMLStandardMode;
     isHTMLDocument = document.isHTMLDocument();
-    hasDocumentSecurityOrigin = sheetBaseURL.isNull() || document.protectedSecurityOrigin()->canRequest(baseURL, OriginAccessPatternsForWebProcess::singleton());
+    hasDocumentSecurityOrigin = sheetBaseURL.isNull() || protect(document.securityOrigin())->canRequest(baseURL, OriginAccessPatternsForWebProcess::singleton());
     webkitMediaTextTrackDisplayQuirkEnabled = document.quirks().needsWebKitMediaTextTrackDisplayQuirk();
 }
 
@@ -100,22 +102,20 @@ CSSParserContext::CSSParserContext(const Settings& settings)
     , gridLanesEnabled { settings.gridLanesEnabled() }
     , cssAppearanceBaseEnabled { settings.cssAppearanceBaseEnabled() }
     , cssPaintingAPIEnabled { settings.cssPaintingAPIEnabled() }
-    , cssShapeFunctionEnabled { settings.cssShapeFunctionEnabled() }
     , cssTextDecorationLineErrorValues { settings.cssTextDecorationLineErrorValues() }
-    , cssBackgroundClipBorderAreaEnabled { settings.cssBackgroundClipBorderAreaEnabled() }
     , cssWordBreakAutoPhraseEnabled { settings.cssWordBreakAutoPhraseEnabled() }
     , popoverAttributeEnabled { settings.popoverAttributeEnabled() }
-    , sidewaysWritingModesEnabled { settings.sidewaysWritingModesEnabled() }
     , cssTextWrapPrettyEnabled { settings.cssTextWrapPrettyEnabled() }
-    , thumbAndTrackPseudoElementsEnabled { settings.thumbAndTrackPseudoElementsEnabled() }
 #if ENABLE(SERVICE_CONTROLS)
     , imageControlsEnabled { settings.imageControlsEnabled() }
 #endif
     , colorLayersEnabled { settings.cssColorLayersEnabled() }
-    , contrastColorEnabled { settings.cssContrastColorEnabled() }
+    , cssPickerPseudoElementEnabled { settings.cssPickerPseudoElementEnabled() }
     , targetTextPseudoElementEnabled { settings.targetTextPseudoElementEnabled() }
-    , cssProgressFunctionEnabled { settings.cssProgressFunctionEnabled() }
+    , htmlEnhancedSelectEnabled { settings.htmlEnhancedSelectEnabled() }
     , cssRandomFunctionEnabled { settings.cssRandomFunctionEnabled() }
+    , cssRandomItemFunctionEnabled { settings.cssRandomItemFunctionEnabled() }
+    , cssRubyDisplayTypesEnabled { settings.cssRubyDisplayTypesInAuthorStylesEnabled() }
     , cssTreeCountingFunctionsEnabled { settings.cssTreeCountingFunctionsEnabled() }
     , cssURLModifiersEnabled { settings.cssURLModifiersEnabled() }
     , cssURLIntegrityModifierEnabled { settings.cssURLIntegrityModifierEnabled() }
@@ -123,54 +123,66 @@ CSSParserContext::CSSParserContext(const Settings& settings)
     , cssDynamicRangeLimitMixEnabled { settings.cssDynamicRangeLimitMixEnabled() }
     , cssConstrainedDynamicRangeLimitEnabled { settings.cssConstrainedDynamicRangeLimitEnabled() }
     , cssTextTransformMathAutoEnabled { settings.cssTextTransformMathAutoEnabled() }
+    , cssFontSynthesisStyleObliqueOnlyEnabled { settings.cssFontSynthesisStyleObliqueOnlyEnabled() }
     , cssInternalAutoBaseParsingEnabled { settings.cssInternalAutoBaseParsingEnabled() }
     , cssMathDepthEnabled { settings.cssMathDepthEnabled() }
     , openPseudoClassEnabled { settings.openPseudoClassEnabled() }
+    , cssAttrSubstitutionFunctionEnabled { settings.cssAttrSubstitutionFunctionEnabled() }
+    , cssScrollStateContainerQueriesEnabled { settings.cssScrollStateContainerQueriesEnabled() }
+    , cssCalcMixEnabled { settings.cssCalcMixEnabled() }
+    , cssIdentFunctionEnabled { settings.cssIdentFunctionEnabled() }
     , propertySettings { CSSPropertySettings { settings } }
 {
 }
 
 void add(Hasher& hasher, const CSSParserContext& context)
 {
-    uint32_t bits = context.isHTMLDocument                  << 0
-        | context.hasDocumentSecurityOrigin                 << 1
-        | static_cast<bool>(context.loadedFromOpaqueSource) << 2
-        | context.useSystemAppearance                       << 3
-        | context.springTimingFunctionEnabled               << 4
+    auto bits = WTF::packBools(
+        context.isHTMLDocument,
+        context.hasDocumentSecurityOrigin,
+        static_cast<bool>(context.loadedFromOpaqueSource),
+        context.useSystemAppearance,
+        context.shouldIgnoreImportRules,
+        context.counterStyleAtRuleImageSymbolsEnabled,
+        context.springTimingFunctionEnabled,
 #if HAVE(CORE_ANIMATION_SEPARATED_LAYERS)
-        | context.cssTransformStyleSeparatedEnabled         << 5
+        context.cssTransformStyleSeparatedEnabled,
 #endif
-        | context.gridLanesEnabled                          << 6
-        | context.cssAppearanceBaseEnabled                  << 7
-        | context.cssPaintingAPIEnabled                     << 8
-        | context.cssShapeFunctionEnabled                   << 9
-        | context.cssBackgroundClipBorderAreaEnabled        << 10
-        | context.cssWordBreakAutoPhraseEnabled             << 11
-        | context.popoverAttributeEnabled                   << 12
-        | context.sidewaysWritingModesEnabled               << 13
-        | context.cssTextWrapPrettyEnabled                  << 14
-        | context.thumbAndTrackPseudoElementsEnabled        << 15
+        context.gridLanesEnabled,
+        context.cssAppearanceBaseEnabled,
+        context.cssPaintingAPIEnabled,
+        context.cssWordBreakAutoPhraseEnabled,
+        context.popoverAttributeEnabled,
+        context.cssTextWrapPrettyEnabled,
 #if ENABLE(SERVICE_CONTROLS)
-        | context.imageControlsEnabled                      << 16
+        context.imageControlsEnabled,
 #endif
-        | context.colorLayersEnabled                        << 17
-        | context.contrastColorEnabled                      << 18
-        | context.targetTextPseudoElementEnabled            << 19
-        | context.cssProgressFunctionEnabled                << 20
-        | context.cssRandomFunctionEnabled                  << 21
-        | context.cssTreeCountingFunctionsEnabled           << 22
-        | context.cssURLModifiersEnabled                    << 23
-        | context.cssURLIntegrityModifierEnabled            << 24
-        | context.cssAxisRelativePositionKeywordsEnabled    << 25
-        | context.cssDynamicRangeLimitMixEnabled            << 26
-        | context.cssConstrainedDynamicRangeLimitEnabled    << 27
-        | context.cssTextDecorationLineErrorValues          << 28
-        | context.cssTextTransformMathAutoEnabled           << 29
-        | context.cssInternalAutoBaseParsingEnabled         << 30
-        | context.cssTextTransformMathAutoEnabled           << 31;
-    uint32_t bits2 = context.cssMathDepthEnabled            << 0
-        | context.openPseudoClassEnabled                    << 1;
-    add(hasher, context.baseURL, context.charset, context.propertySettings, context.mode, bits, bits2);
+        context.colorLayersEnabled,
+        context.cssPickerPseudoElementEnabled,
+        context.targetTextPseudoElementEnabled,
+        context.htmlEnhancedSelectEnabled,
+        context.cssRandomFunctionEnabled,
+        context.cssRandomItemFunctionEnabled,
+        context.cssRubyDisplayTypesEnabled,
+        context.cssTreeCountingFunctionsEnabled,
+        context.cssURLModifiersEnabled,
+        context.cssURLIntegrityModifierEnabled,
+        context.cssAxisRelativePositionKeywordsEnabled,
+        context.cssDynamicRangeLimitMixEnabled,
+        context.cssConstrainedDynamicRangeLimitEnabled,
+        context.cssTextDecorationLineErrorValues,
+        context.cssTextTransformMathAutoEnabled,
+        context.cssFontSynthesisStyleObliqueOnlyEnabled,
+        context.cssInternalAutoBaseParsingEnabled,
+        context.webkitMediaTextTrackDisplayQuirkEnabled,
+        context.cssMathDepthEnabled,
+        context.openPseudoClassEnabled,
+        context.cssAttrSubstitutionFunctionEnabled,
+        context.cssScrollStateContainerQueriesEnabled,
+        context.cssCalcMixEnabled,
+        context.cssIdentFunctionEnabled
+    );
+    add(hasher, context.baseURL, context.charset, context.propertySettings, context.mode, context.enclosingRuleType, bits);
 }
 
 void CSSParserContext::setUASheetMode()

@@ -41,15 +41,15 @@ async function dispatchMouseActions(actions, pointerType)
                 origin.y = bounds.top + (bounds.height / 2.0);
             }
             logDebug(`eventSender.mouseMoveTo(${action.x + origin.x}, ${action.y + origin.y})`);
-            eventSender.mouseMoveTo(action.x + origin.x, action.y + origin.y, pointerType);
+            await eventSender.asyncMouseMoveTo(action.x + origin.x, action.y + origin.y, pointerType);
             break;
         case "pointerDown":
             logDebug(`eventSender.mouseDown()`);
-            eventSender.mouseDown(action.button, [], pointerType);
+            await eventSender.asyncMouseDown(action.button, [], pointerType);
             break;
         case "pointerUp":
             logDebug(`eventSender.mouseUp()`);
-            eventSender.mouseUp(action.button, [], pointerType);
+            await eventSender.asyncMouseUp(action.button, [], pointerType);
             break;
         case "pause":
             logDebug(`pause(${action.duration})`);
@@ -148,8 +148,9 @@ async function dispatchTouchActions(actions, options = { insertPauseAfterPointer
     logDebug(stream);
 
     return new Promise(resolve => testRunner.runUIScript(`(function() {
-        (function() { uiController.sendEventStream('${stream}') })();
-        uiController.uiScriptComplete();
+        uiController.sendEventStream('${stream}', function() {
+            uiController.uiScriptComplete();
+        });
     })();`, resolve));
 }
 
@@ -325,7 +326,7 @@ const SeleniumCharCodeToEventSenderKey = {
     0xE050: { key: 'rightShift', modifier: 'shiftKey' },
     0xE051: { key: 'rightControl', modifier: 'ctrlKey' },
     0xE052: { key: 'rightAlt', modifier: 'altKey' },
-    0xE052: { key: 'rightMeta', modifier: 'metaKey' }, // a.k.a. commandKey
+    0xE053: { key: 'rightMeta', modifier: 'metaKey' }, // a.k.a. commandKey
 };
 
 function convertSeleniumKeyCode(key)
@@ -364,7 +365,7 @@ window.test_driver_internal.send_keys = async function(element, keys)
     }
 
     for (const key of keyList)
-        eventSender.keyDown(key, modifiers);
+        await eventSender.asyncKeyDown(key, modifiers);
 }
 
 /**
@@ -385,9 +386,14 @@ window.test_driver_internal.click = async function (element, coords)
         return;
     }
 
-    eventSender.mouseMoveTo(coords.x, coords.y);
-    eventSender.mouseDown();
-    eventSender.mouseUp();
+    // Use the eventSender from the element's window so that events are
+    // dispatched to the correct view (e.g. a popup opened via window.open).
+    const targetWindow = element.ownerDocument.defaultView || window;
+    const targetEventSender = targetWindow.eventSender || eventSender;
+
+    await targetEventSender.asyncMouseMoveTo(coords.x, coords.y);
+    await targetEventSender.asyncMouseDown();
+    await targetEventSender.asyncMouseUp();
 }
 
 /**
@@ -718,4 +724,22 @@ window.test_driver_internal.set_storage_access = async function (origin, embeddi
 
     context = context ?? window;
     await context.testRunner.setStorageAccess(blocked);
+}
+
+/**
+ *
+ * @returns {Promise<boolean>}
+ */
+window.test_driver_internal.get_global_privacy_control = function() {
+    return Promise.resolve({ gpc: testRunner.getGlobalPrivacyControl() });
+}
+
+/**
+ *
+ * @param {value} bool
+ * @returns {Promise<void>}
+ */
+window.test_driver_internal.set_global_privacy_control = function(value) {
+    testRunner.setGlobalPrivacyControl(value);
+    return Promise.resolve({ gpc: value });
 }

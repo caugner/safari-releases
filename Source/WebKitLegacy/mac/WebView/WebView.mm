@@ -126,7 +126,6 @@
 #import <Foundation/NSURLConnection.h>
 #import <JavaScriptCore/APICast.h>
 #import <JavaScriptCore/ArrayPrototype.h>
-#import <JavaScriptCore/CatchScope.h>
 #import <JavaScriptCore/DateInstance.h>
 #import <JavaScriptCore/Exception.h>
 #import <JavaScriptCore/InitializeThreading.h>
@@ -134,6 +133,7 @@
 #import <JavaScriptCore/JSGlobalObjectInlines.h>
 #import <JavaScriptCore/JSLock.h>
 #import <JavaScriptCore/JSValueRef.h>
+#import <JavaScriptCore/TopExceptionScope.h>
 #import <WebCore/AlternativeTextUIController.h>
 #import <WebCore/BackForwardCache.h>
 #import <WebCore/BackForwardController.h>
@@ -157,6 +157,7 @@
 #import <WebCore/DocumentView.h>
 #import <WebCore/DragController.h>
 #import <WebCore/DragData.h>
+#import <WebCore/DragEventTargetData.h>
 #import <WebCore/DragItem.h>
 #import <WebCore/DummyCredentialRequestCoordinatorClient.h>
 #import <WebCore/DummyModelPlayerProvider.h>
@@ -219,7 +220,6 @@
 #import <WebCore/RemoteFrameClient.h>
 #import <WebCore/RemoteFrameGeometryTransformer.h>
 #import <WebCore/RemoteUserInputEventData.h>
-#import <WebCore/RenderStyle+GettersInlines.h>
 #import <WebCore/RenderTheme.h>
 #import <WebCore/RenderView.h>
 #import <WebCore/RenderWidget.h>
@@ -233,6 +233,11 @@
 #import <WebCore/Settings.h>
 #import <WebCore/ShouldTreatAsContinuingLoad.h>
 #import <WebCore/StringUtilities.h>
+#import <WebCore/StyleComputedStyle.h>
+#import <WebCore/StyleFontStyle.h>
+#import <WebCore/StyleFontWeight.h>
+#import <WebCore/StyleTextAlign.h>
+#import <WebCore/StyleTextDecorationLine.h>
 #import <WebCore/TextResourceDecoder.h>
 #import <WebCore/ThreadCheck.h>
 #import <WebCore/TranslationContextMenuInfo.h>
@@ -392,7 +397,10 @@
 #endif
 
 #if HAVE(TOUCH_BAR) && ENABLE(WEB_PLAYBACK_CONTROLS_MANAGER)
+#if !defined(WebKitLegacy_AVKitLibrary_SoftLinked)
+#define WebKitLegacy_AVKitLibrary_SoftLinked
 SOFT_LINK_FRAMEWORK(AVKit)
+#endif
 SOFT_LINK_CLASS(AVKit, AVTouchBarPlaybackControlsProvider)
 SOFT_LINK_CLASS(AVKit, AVTouchBarScrubber)
 #endif
@@ -568,10 +576,6 @@ static Class s_pdfRepresentationClass;
 static Class s_pdfViewClass;
 #endif
 
-#ifndef NDEBUG
-static const char webViewIsOpen[] = "At least one WebView is still open.";
-#endif
-
 #if PLATFORM(IOS_FAMILY)
 @interface WebView(WebViewPrivate)
 - (void)_preferencesChanged:(WebPreferences *)preferences;
@@ -612,7 +616,7 @@ static const char webViewIsOpen[] = "At least one WebView is still open.";
 @end
 
 #if ENABLE(DRAG_SUPPORT)
-static OptionSet<WebCore::DragDestinationAction> coreDragDestinationActionMask(WebDragDestinationAction actionMask)
+static OptionSet<WebCore::DragDestinationAction> NODELETE coreDragDestinationActionMask(WebDragDestinationAction actionMask)
 {
     OptionSet<WebCore::DragDestinationAction> result;
     if (actionMask & WebDragDestinationActionDHTML)
@@ -633,7 +637,7 @@ typedef NS_OPTIONS(NSUInteger, _UIDragOperation) {
 };
 #endif
 
-OptionSet<WebCore::DragOperation> coreDragOperationMask(CocoaDragOperation operation)
+OptionSet<WebCore::DragOperation> NODELETE coreDragOperationMask(CocoaDragOperation operation)
 {
     OptionSet<WebCore::DragOperation> result;
 
@@ -661,7 +665,7 @@ OptionSet<WebCore::DragOperation> coreDragOperationMask(CocoaDragOperation opera
 }
 
 #if USE(APPKIT)
-static NSDragOperation kit(std::optional<WebCore::DragOperation> dragOperation)
+static NSDragOperation NODELETE kit(std::optional<WebCore::DragOperation> dragOperation)
 {
     if (!dragOperation)
         return NSDragOperationNone;
@@ -710,7 +714,7 @@ static _UIDragOperation kit(std::optional<WebCore::DragOperation> dragOperation)
 }
 #endif // USE(APPKIT)
 
-WebDragSourceAction kit(std::optional<WebCore::DragSourceAction> action)
+WebDragSourceAction NODELETE kit(std::optional<WebCore::DragSourceAction> action)
 {
     if (!action)
         return WebDragSourceActionNone;
@@ -741,7 +745,7 @@ WebDragSourceAction kit(std::optional<WebCore::DragSourceAction> action)
 }
 #endif // ENABLE(DRAG_SUPPORT)
 
-WebCore::FindOptions coreOptions(WebFindOptions options)
+WebCore::FindOptions NODELETE coreOptions(WebFindOptions options)
 {
     WebCore::FindOptions findOptions;
     if (options & WebFindOptionsCaseInsensitive)
@@ -759,7 +763,7 @@ WebCore::FindOptions coreOptions(WebFindOptions options)
     return findOptions;
 }
 
-OptionSet<WebCore::LayoutMilestone> coreLayoutMilestones(WebLayoutMilestones milestones)
+OptionSet<WebCore::LayoutMilestone> NODELETE coreLayoutMilestones(WebLayoutMilestones milestones)
 {
     OptionSet<WebCore::LayoutMilestone> layoutMilestone;
     if (milestones & WebDidFirstLayout)
@@ -771,14 +775,14 @@ OptionSet<WebCore::LayoutMilestone> coreLayoutMilestones(WebLayoutMilestones mil
     return layoutMilestone;
 }
 
-WebLayoutMilestones kitLayoutMilestones(OptionSet<WebCore::LayoutMilestone> milestones)
+WebLayoutMilestones NODELETE kitLayoutMilestones(OptionSet<WebCore::LayoutMilestone> milestones)
 {
     return (milestones & WebCore::LayoutMilestone::DidFirstLayout ? WebDidFirstLayout : 0)
         | (milestones & WebCore::LayoutMilestone::DidFirstVisuallyNonEmptyLayout ? WebDidFirstVisuallyNonEmptyLayout : 0)
         | (milestones & WebCore::LayoutMilestone::DidHitRelevantRepaintedObjectsAreaThreshold ? WebDidHitRelevantRepaintedObjectsAreaThreshold : 0);
 }
 
-static WebPageVisibilityState kit(WebCore::VisibilityState visibilityState)
+static WebPageVisibilityState NODELETE kit(WebCore::VisibilityState visibilityState)
 {
     switch (visibilityState) {
     case WebCore::VisibilityState::Visible:
@@ -791,7 +795,7 @@ static WebPageVisibilityState kit(WebCore::VisibilityState visibilityState)
     return WebPageVisibilityStateVisible;
 }
 
-static WebCore::StorageBlockingPolicy core(WebStorageBlockingPolicy storageBlockingPolicy)
+static WebCore::StorageBlockingPolicy NODELETE core(WebStorageBlockingPolicy storageBlockingPolicy)
 {
     switch (storageBlockingPolicy) {
     case WebAllowAllStorage:
@@ -934,7 +938,7 @@ enum { WebViewVersion = 4 };
 
 #define timedLayoutSize 4096
 
-static RetainPtr<NSMutableSet>& schemesWithRepresentationsSet()
+static RetainPtr<NSMutableSet>& NODELETE schemesWithRepresentationsSet()
 {
     static NeverDestroyed<RetainPtr<NSMutableSet>> schemesWithRepresentationsSet;
     return schemesWithRepresentationsSet;
@@ -1018,22 +1022,22 @@ static const NSUInteger orderedListSegment = 2;
 
     _webView = webView;
 
-    NSSegmentedControl *insertListControl = [NSSegmentedControl segmentedControlWithLabels:@[ WebCore::insertListTypeNone().createNSString().get(), WebCore::insertListTypeBulleted().createNSString().get(), WebCore::insertListTypeNumbered().createNSString().get() ] trackingMode:NSSegmentSwitchTrackingSelectOne target:self action:@selector(_selectList:)];
+    RetainPtr insertListControl = [NSSegmentedControl segmentedControlWithLabels:@[ WebCore::insertListTypeNone().createNSString().get(), WebCore::insertListTypeBulleted().createNSString().get(), WebCore::insertListTypeNumbered().createNSString().get() ] trackingMode:NSSegmentSwitchTrackingSelectOne target:self action:@selector(_selectList:)];
     [insertListControl setWidth:listControlSegmentWidth forSegment:noListSegment];
     [insertListControl setWidth:listControlSegmentWidth forSegment:unorderedListSegment];
     [insertListControl setWidth:listControlSegmentWidth forSegment:orderedListSegment];
-    insertListControl.font = [NSFont systemFontOfSize:15];
+    insertListControl.get().font = [NSFont systemFontOfSize:15];
 
 ALLOW_DEPRECATED_DECLARATIONS_BEGIN
-    id segmentElement = NSAccessibilityUnignoredDescendant(insertListControl);
-    NSArray *segments = [segmentElement accessibilityAttributeValue:NSAccessibilityChildrenAttribute];
+    RetainPtr<id> segmentElement = NSAccessibilityUnignoredDescendant(insertListControl.get());
+    NSArray *segments = [segmentElement.get() accessibilityAttributeValue:NSAccessibilityChildrenAttribute];
     ASSERT(segments.count == 3);
     [segments[noListSegment] accessibilitySetOverrideValue:WebCore::insertListTypeNone().createNSString().get() forAttribute:NSAccessibilityDescriptionAttribute];
     [segments[unorderedListSegment] accessibilitySetOverrideValue:WebCore::insertListTypeBulletedAccessibilityTitle().createNSString().get() forAttribute:NSAccessibilityDescriptionAttribute];
     [segments[orderedListSegment] accessibilitySetOverrideValue:WebCore::insertListTypeNumberedAccessibilityTitle().createNSString().get() forAttribute:NSAccessibilityDescriptionAttribute];
 ALLOW_DEPRECATED_DECLARATIONS_END
 
-    self.view = insertListControl;
+    self.view = insertListControl.get();
 
     return self;
 }
@@ -1044,7 +1048,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     if (![documentView isKindOfClass:[WebHTMLView class]])
         return;
 
-    WebHTMLView *webHTMLView = (WebHTMLView *)documentView;
+    RetainPtr webHTMLView = (WebHTMLView *)documentView;
     NSSegmentedControl *insertListControl = (NSSegmentedControl *)self.view;
     switch (insertListControl.selectedSegment) {
     case noListSegment:
@@ -1052,15 +1056,15 @@ ALLOW_DEPRECATED_DECLARATIONS_END
         // behave as toggles, so we can invoke the appropriate method depending on our _currentListType
         // to remove an existing list. We don't have to do anything if _currentListType is WebListType::None.
         if (_currentListType == WebListType::Ordered)
-            [webHTMLView _insertOrderedList];
+            [webHTMLView.get() _insertOrderedList];
         else if (_currentListType == WebListType::Unordered)
-            [webHTMLView _insertUnorderedList];
+            [webHTMLView.get() _insertUnorderedList];
         break;
     case unorderedListSegment:
-        [webHTMLView _insertUnorderedList];
+        [webHTMLView.get() _insertUnorderedList];
         break;
     case orderedListSegment:
-        [webHTMLView _insertOrderedList];
+        [webHTMLView.get() _insertOrderedList];
         break;
     }
 
@@ -1135,15 +1139,15 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     if (isTextFormatItem || [identifier isEqualToString:NSTouchBarItemIdentifierTextAlignment])
         self.textAlignments.action = @selector(_webChangeTextAlignment:);
 
-    NSColorPickerTouchBarItem *colorPickerItem = nil;
+    RetainPtr<NSColorPickerTouchBarItem> colorPickerItem;
     if ([identifier isEqualToString:NSTouchBarItemIdentifierTextColorPicker] && [item isKindOfClass:[NSColorPickerTouchBarItem class]])
         colorPickerItem = (NSColorPickerTouchBarItem *)item;
     if (isTextFormatItem)
         colorPickerItem = self.colorPickerItem;
     if (colorPickerItem) {
-        colorPickerItem.target = self;
-        colorPickerItem.action = @selector(_webChangeColor:);
-        colorPickerItem.showsAlpha = NO;
+        colorPickerItem.get().target = self;
+        colorPickerItem.get().action = @selector(_webChangeColor:);
+        colorPickerItem.get().showsAlpha = NO;
     }
 
     return item;
@@ -1274,7 +1278,7 @@ static CFSetCallBacks NonRetainingSetCallbacks = {
     CFHash
 };
 
-static RetainPtr<CFMutableSetRef>& allWebViewsSet()
+static RetainPtr<CFMutableSetRef>& NODELETE allWebViewsSet()
 {
     static NeverDestroyed<RetainPtr<CFMutableSetRef>> allWebViewsSet;
     return allWebViewsSet;
@@ -1477,6 +1481,7 @@ static void WebKitInitializeGamepadProviderIfNecessary()
     auto storageProvider = PageStorageSessionProvider::create();
     WebCore::PageConfiguration pageConfiguration(
         WebCore::PageIdentifier::generate(),
+        std::nullopt,
         [[self preferences] privateBrowsingEnabled] ? PAL::SessionID::legacyPrivateSessionID() : PAL::SessionID::defaultSessionID(),
         makeUniqueRef<WebEditorClient>(self),
         LegacySocketProvider::create(),
@@ -1514,7 +1519,7 @@ static void WebKitInitializeGamepadProviderIfNecessary()
 #endif
         makeUniqueRef<WebCryptoClient>(self),
         makeUniqueRef<WebCore::DocumentSyncClient>()
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
         , WebCore::DummyCredentialRequestCoordinatorClient::create()
 #endif
     );
@@ -1742,6 +1747,7 @@ static void WebKitInitializeGamepadProviderIfNecessary()
     auto storageProvider = PageStorageSessionProvider::create();
     WebCore::PageConfiguration pageConfiguration(
         WebCore::PageIdentifier::generate(),
+        std::nullopt,
         [[self preferences] privateBrowsingEnabled] ? PAL::SessionID::legacyPrivateSessionID() : PAL::SessionID::defaultSessionID(),
         makeUniqueRef<WebEditorClient>(self),
         LegacySocketProvider::create(),
@@ -1772,7 +1778,7 @@ static void WebKitInitializeGamepadProviderIfNecessary()
         makeUniqueRef<WebChromeClientIOS>(self),
         makeUniqueRef<WebCryptoClient>(self),
         makeUniqueRef<WebCore::DocumentSyncClient>()
-#if HAVE(DIGITAL_CREDENTIALS_UI)
+#if ENABLE(WEB_AUTHN)
         , WebCore::DummyCredentialRequestCoordinatorClient::create()
 #endif
     );
@@ -2014,7 +2020,16 @@ static void WebKitInitializeGamepadProviderIfNecessary()
 {
     WebThreadLock();
     auto dragData = [self dragDataForSession:session client:clientPosition global:globalPosition operation:operation];
-    return _private->page->dragController().performDragOperation(WTF::move(dragData));
+    RefPtr page = _private->page;
+    if (!page)
+        return false;
+    RefPtr frame = page->focusController().focusedOrMainFrame();
+    if (!frame)
+        return false;
+    auto dragEventTargetData = _private->page->dragController().performDragOperation(WTF::move(dragData), *frame);
+    if (auto handled = std::get_if<WebCore::DragEventHandled>(&dragEventTargetData); handled && *handled == WebCore::DragEventHandled::Yes)
+        return true;
+    return false;
 }
 
 - (void)_endedDataInteraction:(CGPoint)clientPosition global:(CGPoint)globalPosition
@@ -2218,7 +2233,7 @@ static NSMutableSet *knownPluginMIMETypes()
 
 + (void)_setAlwaysUsesComplexTextCodePath:(BOOL)f
 {
-    WebCore::FontCascade::setCodePath(f ? WebCore::FontCascade::CodePath::Complex : WebCore::FontCascade::CodePath::Auto);
+    WebCore::FontCascade::setForcedCodePath(f ? Markable(WebCore::FontCascade::CodePath::Complex) : std::nullopt);
 }
 
 + (BOOL)canCloseAllWebViews
@@ -2702,7 +2717,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
 - (NSMenu *)_menuForElement:(NSDictionary *)element defaultItems:(NSArray *)items
 {
     NSArray *defaultMenuItems = [[WebDefaultUIDelegate sharedUIDelegate] webView:self contextMenuItemsForElement:element defaultMenuItems:items];
-    NSArray *menuItems = defaultMenuItems;
+    RetainPtr menuItems = defaultMenuItems;
 
     // CallUIDelegate returns nil if UIDelegate is nil or doesn't respond to the selector. So we need to check that here
     // to distinguish between using defaultMenuItems or the delegate really returning nil to say "no context menu".
@@ -2713,13 +2728,13 @@ ALLOW_DEPRECATED_DECLARATIONS_END
             return nil;
     }
 
-    unsigned count = [menuItems count];
+    unsigned count = [menuItems.get() count];
     if (!count)
         return nil;
 
     auto menu = adoptNS([[NSMenu alloc] init]);
     for (unsigned i = 0; i < count; i++)
-        [menu addItem:[menuItems objectAtIndex:i]];
+        [menu addItem:[menuItems.get() objectAtIndex:i]];
 
     return menu.autorelease();
 }
@@ -2970,88 +2985,88 @@ static inline IMP getMethod(id o, SEL s)
 - (void)_cacheResourceLoadDelegateImplementations
 {
     WebResourceDelegateImplementationCache *cache = &_private->resourceLoadDelegateImplementations;
-    id delegate = _private->resourceProgressDelegate;
+    RetainPtr<id> delegate = _private->resourceProgressDelegate;
 
     if (!delegate) {
         bzero(cache, sizeof(WebResourceDelegateImplementationCache));
         return;
     }
 
-    cache->didFailLoadingWithErrorFromDataSourceFunc = getMethod(delegate, @selector(webView:resource:didFailLoadingWithError:fromDataSource:));
-    cache->didFinishLoadingFromDataSourceFunc = getMethod(delegate, @selector(webView:resource:didFinishLoadingFromDataSource:));
-    cache->didLoadResourceFromMemoryCacheFunc = getMethod(delegate, @selector(webView:didLoadResourceFromMemoryCache:response:length:fromDataSource:));
-    cache->didReceiveAuthenticationChallengeFunc = getMethod(delegate, @selector(webView:resource:didReceiveAuthenticationChallenge:fromDataSource:));
+    cache->didFailLoadingWithErrorFromDataSourceFunc = getMethod(delegate.get(), @selector(webView:resource:didFailLoadingWithError:fromDataSource:));
+    cache->didFinishLoadingFromDataSourceFunc = getMethod(delegate.get(), @selector(webView:resource:didFinishLoadingFromDataSource:));
+    cache->didLoadResourceFromMemoryCacheFunc = getMethod(delegate.get(), @selector(webView:didLoadResourceFromMemoryCache:response:length:fromDataSource:));
+    cache->didReceiveAuthenticationChallengeFunc = getMethod(delegate.get(), @selector(webView:resource:didReceiveAuthenticationChallenge:fromDataSource:));
 #if USE(PROTECTION_SPACE_AUTH_CALLBACK)
-    cache->canAuthenticateAgainstProtectionSpaceFunc = getMethod(delegate, @selector(webView:resource:canAuthenticateAgainstProtectionSpace:forDataSource:));
+    cache->canAuthenticateAgainstProtectionSpaceFunc = getMethod(delegate.get(), @selector(webView:resource:canAuthenticateAgainstProtectionSpace:forDataSource:));
 #endif
 
 #if PLATFORM(IOS_FAMILY)
-    cache->connectionPropertiesFunc = getMethod(delegate, @selector(webView:connectionPropertiesForResource:dataSource:));
-    cache->webThreadDidFinishLoadingFromDataSourceFunc = getMethod(delegate, @selector(webThreadWebView:resource:didFinishLoadingFromDataSource:));
-    cache->webThreadDidFailLoadingWithErrorFromDataSourceFunc = getMethod(delegate, @selector(webThreadWebView:resource:didFailLoadingWithError:fromDataSource:));
-    cache->webThreadIdentifierForRequestFunc = getMethod(delegate, @selector(webThreadWebView:identifierForInitialRequest:fromDataSource:));
-    cache->webThreadDidLoadResourceFromMemoryCacheFunc = getMethod(delegate, @selector(webThreadWebView:didLoadResourceFromMemoryCache:response:length:fromDataSource:));
-    cache->webThreadWillSendRequestFunc = getMethod(delegate, @selector(webThreadWebView:resource:willSendRequest:redirectResponse:fromDataSource:));
-    cache->webThreadDidReceiveResponseFunc = getMethod(delegate, @selector(webThreadWebView:resource:didReceiveResponse:fromDataSource:));
-    cache->webThreadDidReceiveContentLengthFunc = getMethod(delegate, @selector(webThreadWebView:resource:didReceiveContentLength:fromDataSource:));
-    cache->webThreadWillCacheResponseFunc = getMethod(delegate, @selector(webThreadWebView:resource:willCacheResponse:fromDataSource:));
+    cache->connectionPropertiesFunc = getMethod(delegate.get(), @selector(webView:connectionPropertiesForResource:dataSource:));
+    cache->webThreadDidFinishLoadingFromDataSourceFunc = getMethod(delegate.get(), @selector(webThreadWebView:resource:didFinishLoadingFromDataSource:));
+    cache->webThreadDidFailLoadingWithErrorFromDataSourceFunc = getMethod(delegate.get(), @selector(webThreadWebView:resource:didFailLoadingWithError:fromDataSource:));
+    cache->webThreadIdentifierForRequestFunc = getMethod(delegate.get(), @selector(webThreadWebView:identifierForInitialRequest:fromDataSource:));
+    cache->webThreadDidLoadResourceFromMemoryCacheFunc = getMethod(delegate.get(), @selector(webThreadWebView:didLoadResourceFromMemoryCache:response:length:fromDataSource:));
+    cache->webThreadWillSendRequestFunc = getMethod(delegate.get(), @selector(webThreadWebView:resource:willSendRequest:redirectResponse:fromDataSource:));
+    cache->webThreadDidReceiveResponseFunc = getMethod(delegate.get(), @selector(webThreadWebView:resource:didReceiveResponse:fromDataSource:));
+    cache->webThreadDidReceiveContentLengthFunc = getMethod(delegate.get(), @selector(webThreadWebView:resource:didReceiveContentLength:fromDataSource:));
+    cache->webThreadWillCacheResponseFunc = getMethod(delegate.get(), @selector(webThreadWebView:resource:willCacheResponse:fromDataSource:));
 #endif
 
-    cache->didReceiveContentLengthFunc = getMethod(delegate, @selector(webView:resource:didReceiveContentLength:fromDataSource:));
-    cache->didReceiveResponseFunc = getMethod(delegate, @selector(webView:resource:didReceiveResponse:fromDataSource:));
-    cache->identifierForRequestFunc = getMethod(delegate, @selector(webView:identifierForInitialRequest:fromDataSource:));
-    cache->plugInFailedWithErrorFunc = getMethod(delegate, @selector(webView:plugInFailedWithError:dataSource:));
-    cache->willCacheResponseFunc = getMethod(delegate, @selector(webView:resource:willCacheResponse:fromDataSource:));
-    cache->willSendRequestFunc = getMethod(delegate, @selector(webView:resource:willSendRequest:redirectResponse:fromDataSource:));
-    cache->shouldUseCredentialStorageFunc = getMethod(delegate, @selector(webView:resource:shouldUseCredentialStorageForDataSource:));
-    cache->shouldPaintBrokenImageForURLFunc = getMethod(delegate, @selector(webView:shouldPaintBrokenImageForURL:));
+    cache->didReceiveContentLengthFunc = getMethod(delegate.get(), @selector(webView:resource:didReceiveContentLength:fromDataSource:));
+    cache->didReceiveResponseFunc = getMethod(delegate.get(), @selector(webView:resource:didReceiveResponse:fromDataSource:));
+    cache->identifierForRequestFunc = getMethod(delegate.get(), @selector(webView:identifierForInitialRequest:fromDataSource:));
+    cache->plugInFailedWithErrorFunc = getMethod(delegate.get(), @selector(webView:plugInFailedWithError:dataSource:));
+    cache->willCacheResponseFunc = getMethod(delegate.get(), @selector(webView:resource:willCacheResponse:fromDataSource:));
+    cache->willSendRequestFunc = getMethod(delegate.get(), @selector(webView:resource:willSendRequest:redirectResponse:fromDataSource:));
+    cache->shouldUseCredentialStorageFunc = getMethod(delegate.get(), @selector(webView:resource:shouldUseCredentialStorageForDataSource:));
+    cache->shouldPaintBrokenImageForURLFunc = getMethod(delegate.get(), @selector(webView:shouldPaintBrokenImageForURL:));
 }
 
 - (void)_cacheFrameLoadDelegateImplementations
 {
     WebFrameLoadDelegateImplementationCache *cache = &_private->frameLoadDelegateImplementations;
-    id delegate = _private->frameLoadDelegate;
+    RetainPtr<id> delegate = _private->frameLoadDelegate;
 
     if (!delegate) {
         bzero(cache, sizeof(WebFrameLoadDelegateImplementationCache));
         return;
     }
 
-    cache->didCancelClientRedirectForFrameFunc = getMethod(delegate, @selector(webView:didCancelClientRedirectForFrame:));
-    cache->didChangeLocationWithinPageForFrameFunc = getMethod(delegate, @selector(webView:didChangeLocationWithinPageForFrame:));
-    cache->didPushStateWithinPageForFrameFunc = getMethod(delegate, @selector(webView:didPushStateWithinPageForFrame:));
-    cache->didReplaceStateWithinPageForFrameFunc = getMethod(delegate, @selector(webView:didReplaceStateWithinPageForFrame:));
-    cache->didPopStateWithinPageForFrameFunc = getMethod(delegate, @selector(webView:didPopStateWithinPageForFrame:));
+    cache->didCancelClientRedirectForFrameFunc = getMethod(delegate.get(), @selector(webView:didCancelClientRedirectForFrame:));
+    cache->didChangeLocationWithinPageForFrameFunc = getMethod(delegate.get(), @selector(webView:didChangeLocationWithinPageForFrame:));
+    cache->didPushStateWithinPageForFrameFunc = getMethod(delegate.get(), @selector(webView:didPushStateWithinPageForFrame:));
+    cache->didReplaceStateWithinPageForFrameFunc = getMethod(delegate.get(), @selector(webView:didReplaceStateWithinPageForFrame:));
+    cache->didPopStateWithinPageForFrameFunc = getMethod(delegate.get(), @selector(webView:didPopStateWithinPageForFrame:));
 #if JSC_OBJC_API_ENABLED
-    cache->didCreateJavaScriptContextForFrameFunc = getMethod(delegate, @selector(webView:didCreateJavaScriptContext:forFrame:));
+    cache->didCreateJavaScriptContextForFrameFunc = getMethod(delegate.get(), @selector(webView:didCreateJavaScriptContext:forFrame:));
 #endif
-    cache->didClearWindowObjectForFrameFunc = getMethod(delegate, @selector(webView:didClearWindowObject:forFrame:));
-    cache->didClearWindowObjectForFrameInScriptWorldFunc = getMethod(delegate, @selector(webView:didClearWindowObjectForFrame:inScriptWorld:));
-    cache->didClearInspectorWindowObjectForFrameFunc = getMethod(delegate, @selector(webView:didClearInspectorWindowObject:forFrame:));
-    cache->didCommitLoadForFrameFunc = getMethod(delegate, @selector(webView:didCommitLoadForFrame:));
-    cache->didFailLoadWithErrorForFrameFunc = getMethod(delegate, @selector(webView:didFailLoadWithError:forFrame:));
-    cache->didFailProvisionalLoadWithErrorForFrameFunc = getMethod(delegate, @selector(webView:didFailProvisionalLoadWithError:forFrame:));
-    cache->didFinishDocumentLoadForFrameFunc = getMethod(delegate, @selector(webView:didFinishDocumentLoadForFrame:));
-    cache->didFinishLoadForFrameFunc = getMethod(delegate, @selector(webView:didFinishLoadForFrame:));
-    cache->didFirstLayoutInFrameFunc = getMethod(delegate, @selector(webView:didFirstLayoutInFrame:));
-    cache->didFirstVisuallyNonEmptyLayoutInFrameFunc = getMethod(delegate, @selector(webView:didFirstVisuallyNonEmptyLayoutInFrame:));
-    cache->didLayoutFunc = getMethod(delegate, @selector(webView:didLayout:));
-    cache->didHandleOnloadEventsForFrameFunc = getMethod(delegate, @selector(webView:didHandleOnloadEventsForFrame:));
+    cache->didClearWindowObjectForFrameFunc = getMethod(delegate.get(), @selector(webView:didClearWindowObject:forFrame:));
+    cache->didClearWindowObjectForFrameInScriptWorldFunc = getMethod(delegate.get(), @selector(webView:didClearWindowObjectForFrame:inScriptWorld:));
+    cache->didClearInspectorWindowObjectForFrameFunc = getMethod(delegate.get(), @selector(webView:didClearInspectorWindowObject:forFrame:));
+    cache->didCommitLoadForFrameFunc = getMethod(delegate.get(), @selector(webView:didCommitLoadForFrame:));
+    cache->didFailLoadWithErrorForFrameFunc = getMethod(delegate.get(), @selector(webView:didFailLoadWithError:forFrame:));
+    cache->didFailProvisionalLoadWithErrorForFrameFunc = getMethod(delegate.get(), @selector(webView:didFailProvisionalLoadWithError:forFrame:));
+    cache->didFinishDocumentLoadForFrameFunc = getMethod(delegate.get(), @selector(webView:didFinishDocumentLoadForFrame:));
+    cache->didFinishLoadForFrameFunc = getMethod(delegate.get(), @selector(webView:didFinishLoadForFrame:));
+    cache->didFirstLayoutInFrameFunc = getMethod(delegate.get(), @selector(webView:didFirstLayoutInFrame:));
+    cache->didFirstVisuallyNonEmptyLayoutInFrameFunc = getMethod(delegate.get(), @selector(webView:didFirstVisuallyNonEmptyLayoutInFrame:));
+    cache->didLayoutFunc = getMethod(delegate.get(), @selector(webView:didLayout:));
+    cache->didHandleOnloadEventsForFrameFunc = getMethod(delegate.get(), @selector(webView:didHandleOnloadEventsForFrame:));
 #if PLATFORM(MAC)
-    cache->didReceiveIconForFrameFunc = getMethod(delegate, @selector(webView:didReceiveIcon:forFrame:));
+    cache->didReceiveIconForFrameFunc = getMethod(delegate.get(), @selector(webView:didReceiveIcon:forFrame:));
 #endif
-    cache->didReceiveServerRedirectForProvisionalLoadForFrameFunc = getMethod(delegate, @selector(webView:didReceiveServerRedirectForProvisionalLoadForFrame:));
-    cache->didReceiveTitleForFrameFunc = getMethod(delegate, @selector(webView:didReceiveTitle:forFrame:));
-    cache->didStartProvisionalLoadForFrameFunc = getMethod(delegate, @selector(webView:didStartProvisionalLoadForFrame:));
-    cache->willCloseFrameFunc = getMethod(delegate, @selector(webView:willCloseFrame:));
-    cache->willPerformClientRedirectToURLDelayFireDateForFrameFunc = getMethod(delegate, @selector(webView:willPerformClientRedirectToURL:delay:fireDate:forFrame:));
-    cache->windowScriptObjectAvailableFunc = getMethod(delegate, @selector(webView:windowScriptObjectAvailable:));
-    cache->didDisplayInsecureContentFunc = getMethod(delegate, @selector(webViewDidDisplayInsecureContent:));
-    cache->didRunInsecureContentFunc = getMethod(delegate, @selector(webView:didRunInsecureContent:));
-    cache->didDetectXSSFunc = getMethod(delegate, @selector(webView:didDetectXSS:));
-    cache->didRemoveFrameFromHierarchyFunc = getMethod(delegate, @selector(webView:didRemoveFrameFromHierarchy:));
+    cache->didReceiveServerRedirectForProvisionalLoadForFrameFunc = getMethod(delegate.get(), @selector(webView:didReceiveServerRedirectForProvisionalLoadForFrame:));
+    cache->didReceiveTitleForFrameFunc = getMethod(delegate.get(), @selector(webView:didReceiveTitle:forFrame:));
+    cache->didStartProvisionalLoadForFrameFunc = getMethod(delegate.get(), @selector(webView:didStartProvisionalLoadForFrame:));
+    cache->willCloseFrameFunc = getMethod(delegate.get(), @selector(webView:willCloseFrame:));
+    cache->willPerformClientRedirectToURLDelayFireDateForFrameFunc = getMethod(delegate.get(), @selector(webView:willPerformClientRedirectToURL:delay:fireDate:forFrame:));
+    cache->windowScriptObjectAvailableFunc = getMethod(delegate.get(), @selector(webView:windowScriptObjectAvailable:));
+    cache->didDisplayInsecureContentFunc = getMethod(delegate.get(), @selector(webViewDidDisplayInsecureContent:));
+    cache->didRunInsecureContentFunc = getMethod(delegate.get(), @selector(webView:didRunInsecureContent:));
+    cache->didDetectXSSFunc = getMethod(delegate.get(), @selector(webView:didDetectXSS:));
+    cache->didRemoveFrameFromHierarchyFunc = getMethod(delegate.get(), @selector(webView:didRemoveFrameFromHierarchy:));
 #if PLATFORM(IOS_FAMILY)
-    cache->webThreadDidLayoutFunc = getMethod(delegate, @selector(webThreadWebView:didLayout:));
+    cache->webThreadDidLayoutFunc = getMethod(delegate.get(), @selector(webThreadWebView:didLayout:));
 #endif
 
     // It would be nice to get rid of this code and transition all clients to using didLayout instead of
@@ -3073,50 +3088,50 @@ static inline IMP getMethod(id o, SEL s)
 - (void)_cacheScriptDebugDelegateImplementations
 {
     WebScriptDebugDelegateImplementationCache *cache = &_private->scriptDebugDelegateImplementations;
-    id delegate = _private->scriptDebugDelegate;
+    RetainPtr<id> delegate = _private->scriptDebugDelegate;
 
     if (!delegate) {
         bzero(cache, sizeof(WebScriptDebugDelegateImplementationCache));
         return;
     }
 
-    cache->didParseSourceFunc = getMethod(delegate, @selector(webView:didParseSource:baseLineNumber:fromURL:sourceId:forWebFrame:));
+    cache->didParseSourceFunc = getMethod(delegate.get(), @selector(webView:didParseSource:baseLineNumber:fromURL:sourceId:forWebFrame:));
     if (cache->didParseSourceFunc)
         cache->didParseSourceExpectsBaseLineNumber = YES;
     else {
         cache->didParseSourceExpectsBaseLineNumber = NO;
-        cache->didParseSourceFunc = getMethod(delegate, @selector(webView:didParseSource:fromURL:sourceId:forWebFrame:));
+        cache->didParseSourceFunc = getMethod(delegate.get(), @selector(webView:didParseSource:fromURL:sourceId:forWebFrame:));
     }
 
-    cache->failedToParseSourceFunc = getMethod(delegate, @selector(webView:failedToParseSource:baseLineNumber:fromURL:withError:forWebFrame:));
+    cache->failedToParseSourceFunc = getMethod(delegate.get(), @selector(webView:failedToParseSource:baseLineNumber:fromURL:withError:forWebFrame:));
 
-    cache->exceptionWasRaisedFunc = getMethod(delegate, @selector(webView:exceptionWasRaised:hasHandler:sourceId:line:forWebFrame:));
+    cache->exceptionWasRaisedFunc = getMethod(delegate.get(), @selector(webView:exceptionWasRaised:hasHandler:sourceId:line:forWebFrame:));
     if (cache->exceptionWasRaisedFunc)
         cache->exceptionWasRaisedExpectsHasHandlerFlag = YES;
     else {
         cache->exceptionWasRaisedExpectsHasHandlerFlag = NO;
-        cache->exceptionWasRaisedFunc = getMethod(delegate, @selector(webView:exceptionWasRaised:sourceId:line:forWebFrame:));
+        cache->exceptionWasRaisedFunc = getMethod(delegate.get(), @selector(webView:exceptionWasRaised:sourceId:line:forWebFrame:));
     }
 }
 
 - (void)_cacheHistoryDelegateImplementations
 {
     WebHistoryDelegateImplementationCache *cache = &_private->historyDelegateImplementations;
-    id delegate = _private->historyDelegate;
+    RetainPtr<id> delegate = _private->historyDelegate;
 
     if (!delegate) {
         bzero(cache, sizeof(WebHistoryDelegateImplementationCache));
         return;
     }
 
-    cache->navigatedFunc = getMethod(delegate, @selector(webView:didNavigateWithNavigationData:inFrame:));
-    cache->clientRedirectFunc = getMethod(delegate, @selector(webView:didPerformClientRedirectFromURL:toURL:inFrame:));
-    cache->serverRedirectFunc = getMethod(delegate, @selector(webView:didPerformServerRedirectFromURL:toURL:inFrame:));
+    cache->navigatedFunc = getMethod(delegate.get(), @selector(webView:didNavigateWithNavigationData:inFrame:));
+    cache->clientRedirectFunc = getMethod(delegate.get(), @selector(webView:didPerformClientRedirectFromURL:toURL:inFrame:));
+    cache->serverRedirectFunc = getMethod(delegate.get(), @selector(webView:didPerformServerRedirectFromURL:toURL:inFrame:));
 IGNORE_WARNINGS_BEGIN("undeclared-selector")
-    cache->deprecatedSetTitleFunc = getMethod(delegate, @selector(webView:updateHistoryTitle:forURL:));
+    cache->deprecatedSetTitleFunc = getMethod(delegate.get(), @selector(webView:updateHistoryTitle:forURL:));
 IGNORE_WARNINGS_END
-    cache->setTitleFunc = getMethod(delegate, @selector(webView:updateHistoryTitle:forURL:inFrame:));
-    cache->populateVisitedLinksFunc = getMethod(delegate, @selector(populateVisitedLinksForWebView:));
+    cache->setTitleFunc = getMethod(delegate.get(), @selector(webView:updateHistoryTitle:forURL:inFrame:));
+    cache->populateVisitedLinksFunc = getMethod(delegate.get(), @selector(populateVisitedLinksForWebView:));
 }
 
 - (id)_policyDelegateForwarder
@@ -3404,11 +3419,11 @@ IGNORE_WARNINGS_END
 {
     RetainPtr<NSMutableURLRequest> request = adoptNS([[NSMutableURLRequest alloc] initWithURL:URL]);
     [request _web_setHTTPUserAgent:[self userAgentForURL:URL]];
-    NSCachedURLResponse *cachedResponse;
+    RetainPtr<NSCachedURLResponse> cachedResponse;
 
     if (!_private->page)
         return nil;
-    
+
     auto* localMainFrame = dynamicDowncast<WebCore::LocalFrame>(_private->page->mainFrame());
     if (!localMainFrame)
         return nil;
@@ -3418,7 +3433,7 @@ IGNORE_WARNINGS_END
     else
         cachedResponse = [[NSURLCache sharedURLCache] cachedResponseForRequest:request.get()];
 
-    return cachedResponse;
+    return cachedResponse.autorelease();
 }
 
 - (void)_writeImageForElement:(NSDictionary *)element withPasteboardTypes:(NSArray *)types toPasteboard:(NSPasteboard *)pasteboard
@@ -5017,7 +5032,7 @@ IGNORE_WARNINGS_END
 
     WebCore::initializeMainThreadIfNeeded();
 
-    WTF::RefCountDebugger::enableThreadingChecksGlobally();
+    WTF::RefCountDebuggerBase::enableThreadingChecksGlobally();
 
     WTF::setProcessPrivileges(allPrivileges());
     WebCore::NetworkStorageSession::permitProcessToUseCookieAPI(true);
@@ -6009,8 +6024,8 @@ static bool needsWebViewInitThreadWorkaround()
 {
     id docView = [[[self mainFrame] frameView] documentView];
     if ([docView conformsToProtocol:@protocol(_WebDocumentZooming)]) {
-        id <_WebDocumentZooming> zoomingDocView = (id <_WebDocumentZooming>)docView;
-        return [zoomingDocView _canZoomOut];
+        RetainPtr<id<_WebDocumentZooming>> zoomingDocView = (id <_WebDocumentZooming>)docView;
+        return [zoomingDocView.get() _canZoomOut];
     }
     return [self _zoomMultiplier:isTextOnly] / ZoomMultiplierRatio > MinimumZoomMultiplier;
 }
@@ -6020,8 +6035,8 @@ static bool needsWebViewInitThreadWorkaround()
 {
     id docView = [[[self mainFrame] frameView] documentView];
     if ([docView conformsToProtocol:@protocol(_WebDocumentZooming)]) {
-        id <_WebDocumentZooming> zoomingDocView = (id <_WebDocumentZooming>)docView;
-        return [zoomingDocView _canZoomIn];
+        RetainPtr<id<_WebDocumentZooming>> zoomingDocView = (id <_WebDocumentZooming>)docView;
+        return [zoomingDocView.get() _canZoomIn];
     }
     return [self _zoomMultiplier:isTextOnly] * ZoomMultiplierRatio < MaximumZoomMultiplier;
 }
@@ -6030,8 +6045,8 @@ static bool needsWebViewInitThreadWorkaround()
 {
     id docView = [[[self mainFrame] frameView] documentView];
     if ([docView conformsToProtocol:@protocol(_WebDocumentZooming)]) {
-        id <_WebDocumentZooming> zoomingDocView = (id <_WebDocumentZooming>)docView;
-        return [zoomingDocView _zoomOut:sender];
+        RetainPtr<id<_WebDocumentZooming>> zoomingDocView = (id <_WebDocumentZooming>)docView;
+        return [zoomingDocView.get() _zoomOut:sender];
     }
     float newScale = [self _zoomMultiplier:isTextOnly] / ZoomMultiplierRatio;
     if (newScale > MinimumZoomMultiplier)
@@ -6042,8 +6057,8 @@ static bool needsWebViewInitThreadWorkaround()
 {
     id docView = [[[self mainFrame] frameView] documentView];
     if ([docView conformsToProtocol:@protocol(_WebDocumentZooming)]) {
-        id <_WebDocumentZooming> zoomingDocView = (id <_WebDocumentZooming>)docView;
-        return [zoomingDocView _zoomIn:sender];
+        RetainPtr<id<_WebDocumentZooming>> zoomingDocView = (id <_WebDocumentZooming>)docView;
+        return [zoomingDocView.get() _zoomIn:sender];
     }
     float newScale = [self _zoomMultiplier:isTextOnly] * ZoomMultiplierRatio;
     if (newScale < MaximumZoomMultiplier)
@@ -6054,8 +6069,8 @@ static bool needsWebViewInitThreadWorkaround()
 {
     id docView = [[[self mainFrame] frameView] documentView];
     if ([docView conformsToProtocol:@protocol(_WebDocumentZooming)]) {
-        id <_WebDocumentZooming> zoomingDocView = (id <_WebDocumentZooming>)docView;
-        return [zoomingDocView _canResetZoom];
+        RetainPtr<id<_WebDocumentZooming>> zoomingDocView = (id <_WebDocumentZooming>)docView;
+        return [zoomingDocView.get() _canResetZoom];
     }
     return [self _zoomMultiplier:isTextOnly] != 1.0f;
 }
@@ -6064,8 +6079,8 @@ static bool needsWebViewInitThreadWorkaround()
 {
     id docView = [[[self mainFrame] frameView] documentView];
     if ([docView conformsToProtocol:@protocol(_WebDocumentZooming)]) {
-        id <_WebDocumentZooming> zoomingDocView = (id <_WebDocumentZooming>)docView;
-        return [zoomingDocView _resetZoom:sender];
+        RetainPtr<id<_WebDocumentZooming>> zoomingDocView = (id <_WebDocumentZooming>)docView;
+        return [zoomingDocView.get() _resetZoom:sender];
     }
     if ([self _zoomMultiplier:isTextOnly] != 1.0f)
         [self _setZoomMultiplier:1.0f isTextOnly:isTextOnly];
@@ -6371,7 +6386,7 @@ static bool needsWebViewInitThreadWorkaround()
             return false;
         }
 
-        NSString *dropDestinationPath = FileSystem::createTemporaryDirectory(@"WebKitDropDestination");
+        RetainPtr dropDestinationPath = FileSystem::createTemporaryDirectory(@"WebKitDropDestination");
         if (!dropDestinationPath) {
             delete dragData;
             return false;
@@ -6379,7 +6394,7 @@ static bool needsWebViewInitThreadWorkaround()
 
         size_t fileCount = files.count;
         Vector<String> *fileNames = new Vector<String>;
-        NSURL *dropDestination = [NSURL fileURLWithPath:dropDestinationPath isDirectory:YES];
+        NSURL *dropDestination = [NSURL fileURLWithPath:dropDestinationPath.get() isDirectory:YES];
         [draggingInfo enumerateDraggingItemsWithOptions:0 forView:self classes:@[[NSFilePromiseReceiver class]] searchOptions:@{ } usingBlock:^(NSDraggingItem * __nonnull draggingItem, NSInteger idx, BOOL * __nonnull stop) {
             NSFilePromiseReceiver *item = draggingItem.item;
             NSDictionary *options = @{ };
@@ -6393,7 +6408,8 @@ static bool needsWebViewInitThreadWorkaround()
                     fileNames->append(path.get());
                     if (fileNames->size() == fileCount) {
                         dragData->setFileNames(*fileNames);
-                        core(self)->dragController().performDragOperation(WebCore::DragData { *dragData });
+                        RefPtr localMainFrame = dynamicDowncast<WebCore::LocalFrame>(_private->page->mainFrame());
+                        core(self)->dragController().performDragOperation(WebCore::DragData { *dragData }, *localMainFrame);
                         delete dragData;
                         delete fileNames;
                     }
@@ -6403,10 +6419,12 @@ static bool needsWebViewInitThreadWorkaround()
 
         return true;
     }
-    bool returnValue = core(self)->dragController().performDragOperation(WebCore::DragData { *dragData });
+    RefPtr localMainFrame = dynamicDowncast<WebCore::LocalFrame>(_private->page->mainFrame());
+    auto dragEventTargetData = core(self)->dragController().performDragOperation(WebCore::DragData { *dragData }, *localMainFrame);
     delete dragData;
-
-    return returnValue;
+    if (auto handled = std::get_if<WebCore::DragEventHandled>(&dragEventTargetData); handled && *handled == WebCore::DragEventHandled::Yes)
+        return true;
+    return false;
 }
 
 - (NSView *)_hitTest:(NSPoint *)point dragTypes:(NSSet *)types
@@ -6767,14 +6785,14 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     RetainPtr<CFMutableSetRef> visitedViews = adoptCF(CFSetCreateMutable(0, 0, 0));
     CFSetAddValue(visitedViews.get(), result);
 
-    NSView *previousView = self;
+    RetainPtr<NSView> previousView = self;
     do {
-        CFSetAddValue(visitedViews.get(), previousView);
-        previousView = [previousView previousKeyView];
-        if (!previousView || CFSetGetValue(visitedViews.get(), previousView))
+        CFSetAddValue(visitedViews.get(), previousView.get());
+        previousView = [previousView.get() previousKeyView];
+        if (!previousView || CFSetGetValue(visitedViews.get(), previousView.get()))
             return result;
-    } while ([result isDescendantOf:previousView]);
-    return [previousView previousValidKeyView];
+    } while ([result isDescendantOf:previousView.get()]);
+    return [previousView.get() previousValidKeyView];
 }
 
 #if HAVE(TOUCH_BAR)
@@ -6798,7 +6816,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     return nil;
 }
 
-constexpr WebCore::TextCheckingType coreTextCheckingType(NSTextCheckingType type)
+constexpr WebCore::TextCheckingType NODELETE coreTextCheckingType(NSTextCheckingType type)
 {
     switch (type) {
     case NSTextCheckingTypeCorrection:
@@ -6924,9 +6942,9 @@ static WebFrameView *containingFrameView(NSView *view)
 {
     NSResponder *resp = [[self window] firstResponder];
     if (resp && [resp isKindOfClass:[NSView class]] && [(NSView *)resp isDescendantOf:[[self mainFrame] frameView]]) {
-        WebFrameView *frameView = containingFrameView((NSView *)resp);
-        ASSERT(frameView != nil);
-        return [frameView webFrame];
+        RetainPtr frameView = containingFrameView((NSView *)resp);
+        ASSERT(frameView);
+        return [frameView.get() webFrame];
     }
 
     return nil;
@@ -6951,9 +6969,9 @@ static WebFrameView *containingFrameView(NSView *view)
 #endif
     if (![view isDescendantOf:[[self mainFrame] frameView]])
         return nil;
-    WebFrameView *frameView = containingFrameView(view);
+    RetainPtr frameView = containingFrameView(view);
     ASSERT(frameView);
-    return frameView;
+    return frameView.autorelease();
 }
 
 + (void)_preflightSpellCheckerNow:(id)sender
@@ -7296,19 +7314,19 @@ static BOOL findString(NSView <WebDocumentSearching> *searchView, NSString *stri
 
     // Search the first frame, then all the other frames, in order
     NSView <WebDocumentSearching> *startSearchView = nil;
-    WebFrame *frame = startFrame;
+    RetainPtr frame = startFrame;
     do {
-        WebFrame *nextFrame = incrementFrame(frame, options);
+        RetainPtr nextFrame = incrementFrame(frame.get(), options);
 
-        BOOL onlyOneFrame = (frame == nextFrame);
-        ASSERT(!onlyOneFrame || frame == startFrame);
+        BOOL onlyOneFrame = (frame.get() == nextFrame.get());
+        ASSERT(!onlyOneFrame || frame.get() == startFrame);
 
-        id <WebDocumentView> view = [[frame frameView] documentView];
+        id <WebDocumentView> view = [[frame.get() frameView] documentView];
         if ([view conformsToProtocol:@protocol(WebDocumentSearching)]) {
-            NSView <WebDocumentSearching> *searchView = (NSView <WebDocumentSearching> *)view;
+            RetainPtr<NSView<WebDocumentSearching>> searchView = (NSView <WebDocumentSearching> *)view;
 
-            if (frame == startFrame)
-                startSearchView = searchView;
+            if (frame.get() == startFrame)
+                startSearchView = searchView.get();
 
             // In some cases we have to search some content twice; see comment later in this method.
             // We can avoid ever doing this in the common one-frame case by passing the wrap option through
@@ -7316,10 +7334,10 @@ static BOOL findString(NSView <WebDocumentSearching> *searchView, NSString *stri
             // same content.
             WebFindOptions optionsForThisPass = onlyOneFrame ? options : (options & ~WebFindOptionsWrapAround);
 
-            if (findString(searchView, string, optionsForThisPass)) {
+            if (findString(searchView.get(), string, optionsForThisPass)) {
                 if (frame != startFrame)
                     [startFrame _clearSelection];
-                [[self window] makeFirstResponder:searchView];
+                [[self window] makeFirstResponder:searchView.get()];
                 return YES;
             }
 
@@ -7327,7 +7345,7 @@ static BOOL findString(NSView <WebDocumentSearching> *searchView, NSString *stri
                 return NO;
         }
         frame = nextFrame;
-    } while (frame && frame != startFrame);
+    } while (frame && frame.get() != startFrame);
 
     // If there are multiple frames and WebFindOptionsWrapAround is set and we've visited each one without finding a result, we still need to search in the
     // first-searched frame up to the selection. However, the API doesn't provide a way to search only up to a particular point. The only
@@ -7417,7 +7435,7 @@ static NSAppleEventDescriptor* aeDescFromJSValue(JSC::JSGlobalObject* lexicalGlo
 {
     using namespace JSC;
     VM& vm = lexicalGlobalObject->vm();
-    auto scope = DECLARE_CATCH_SCOPE(vm);
+    auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
 
     NSAppleEventDescriptor* aeDesc = 0;
     if (jsValue.isBoolean())
@@ -7487,13 +7505,13 @@ static NSAppleEventDescriptor* aeDescFromJSValue(JSC::JSGlobalObject* lexicalGlo
     if (_private->closed)
         return NO;
 
-    WebFrame *frame = [self mainFrame];
+    RetainPtr frame = [self mainFrame];
     do {
-        id <WebDocumentView> view = [[frame frameView] documentView];
+        id <WebDocumentView> view = [[frame.get() frameView] documentView];
         if (view && ![view conformsToProtocol:@protocol(WebMultipleTextMatches)])
             return NO;
 
-        frame = incrementFrame(frame);
+        frame = incrementFrame(frame.get());
     } while (frame);
 
     return YES;
@@ -7509,10 +7527,10 @@ static NSAppleEventDescriptor* aeDescFromJSValue(JSC::JSGlobalObject* lexicalGlo
     if (_private->closed)
         return 0;
 
-    WebFrame *frame = [self mainFrame];
+    RetainPtr frame = [self mainFrame];
     unsigned matchCount = 0;
     do {
-        id <WebDocumentView> view = [[frame frameView] documentView];
+        id <WebDocumentView> view = [[frame.get() frameView] documentView];
         if ([view conformsToProtocol:@protocol(WebMultipleTextMatches)]) {
             if (markMatches)
                 [(NSView <WebMultipleTextMatches>*)view setMarkedTextMatchesAreHighlighted:highlight];
@@ -7525,7 +7543,7 @@ static NSAppleEventDescriptor* aeDescFromJSValue(JSC::JSGlobalObject* lexicalGlo
                 break;
         }
 
-        frame = incrementFrame(frame);
+        frame = incrementFrame(frame.get());
     } while (frame);
 
     return matchCount;
@@ -7536,13 +7554,13 @@ static NSAppleEventDescriptor* aeDescFromJSValue(JSC::JSGlobalObject* lexicalGlo
     if (_private->closed)
         return;
 
-    WebFrame *frame = [self mainFrame];
+    RetainPtr frame = [self mainFrame];
     do {
-        id <WebDocumentView> view = [[frame frameView] documentView];
+        id <WebDocumentView> view = [[frame.get() frameView] documentView];
         if ([view conformsToProtocol:@protocol(WebMultipleTextMatches)])
             [(NSView <WebMultipleTextMatches>*)view unmarkAllTextMatches];
 
-        frame = incrementFrame(frame);
+        frame = incrementFrame(frame.get());
     } while (frame);
 }
 
@@ -7552,13 +7570,13 @@ static NSAppleEventDescriptor* aeDescFromJSValue(JSC::JSGlobalObject* lexicalGlo
         return @[];
 
     NSMutableArray *result = [NSMutableArray array];
-    WebFrame *frame = [self mainFrame];
+    RetainPtr frame = [self mainFrame];
     do {
-        id <WebDocumentView> view = [[frame frameView] documentView];
+        id <WebDocumentView> view = [[frame.get() frameView] documentView];
         if ([view conformsToProtocol:@protocol(WebMultipleTextMatches)]) {
-            NSView <WebMultipleTextMatches> *documentView = (NSView <WebMultipleTextMatches> *)view;
-            NSRect documentViewVisibleRect = [documentView visibleRect];
-            for (NSValue *rect in [documentView rectsForTextMatches]) {
+            RetainPtr<NSView<WebMultipleTextMatches>> documentView = (NSView <WebMultipleTextMatches> *)view;
+            NSRect documentViewVisibleRect = [documentView.get() visibleRect];
+            for (NSValue *rect in [documentView.get() rectsForTextMatches]) {
                 NSRect r = [rect rectValue];
                 // Clip rect to document view's visible rect so rect is confined to subframe
                 r = NSIntersectionRect(r, documentViewVisibleRect);
@@ -7567,13 +7585,13 @@ static NSAppleEventDescriptor* aeDescFromJSValue(JSC::JSGlobalObject* lexicalGlo
 
                 @autoreleasepool {
                     // Convert rect to our coordinate system
-                    r = [documentView convertRect:r toView:self];
+                    r = [documentView.get() convertRect:r toView:self];
                     [result addObject:[NSValue valueWithRect:r]];
                 }
             }
         }
 
-        frame = incrementFrame(frame);
+        frame = incrementFrame(frame.get());
     } while (frame);
 
     return result;
@@ -7670,15 +7688,15 @@ static NSAppleEventDescriptor* aeDescFromJSValue(JSC::JSGlobalObject* lexicalGlo
 #if PLATFORM(MAC)
 - (BOOL)_allowsLinkPreview
 {
-    if (WebImmediateActionController *immediateActionController = _private->immediateActionController.get())
-        return immediateActionController.enabled;
+    if (RetainPtr immediateActionController = _private->immediateActionController.get())
+        return immediateActionController.get().enabled;
     return NO;
 }
 
 - (void)_setAllowsLinkPreview:(BOOL)allowsLinkPreview
 {
-    if (WebImmediateActionController *immediateActionController = _private->immediateActionController.get())
-        immediateActionController.enabled = allowsLinkPreview;
+    if (RetainPtr immediateActionController = _private->immediateActionController.get())
+        immediateActionController.get().enabled = allowsLinkPreview;
 }
 #endif
 
@@ -9225,8 +9243,8 @@ FORWARD(toggleUnderline)
         }
     }
 
-    if (auto* touchBarItem = dynamic_objc_cast<NSPopoverTouchBarItem>(foundItem))
-        [touchBarItem dismissPopover:nil];
+    if (RetainPtr touchBarItem = dynamic_objc_cast<NSPopoverTouchBarItem>(foundItem))
+        [touchBarItem.get() dismissPopover:nil];
 }
 
 - (NSArray<NSString *> *)_textTouchBarCustomizationAllowedIdentifiers
@@ -9308,8 +9326,8 @@ FORWARD(toggleUnderline)
     if (![documentView isKindOfClass:[WebHTMLView class]])
         return NO;
 
-    WebHTMLView *webHTMLView = (WebHTMLView *)documentView;
-    return webHTMLView._isEditable && webHTMLView._canEditRichly;
+    RetainPtr webHTMLView = (WebHTMLView *)documentView;
+    return webHTMLView.get()._isEditable && webHTMLView.get()._canEditRichly;
 }
 
 - (NSTouchBar *)textTouchBar
@@ -9324,10 +9342,10 @@ FORWARD(toggleUnderline)
     return self._isRichlyEditable ? _private->_richTextTouchBar.get() : _private->_plainTextTouchBar.get();
 }
 
-static NSTextAlignment nsTextAlignmentFromRenderStyle(const WebCore::RenderStyle* style)
+static NSTextAlignment NODELETE nsTextAlignmentFromRenderStyle(const WebCore::Style::ComputedStyle* style)
 {
     NSTextAlignment textAlignment;
-    switch (style->textAlign()) {
+    switch (WebCore::Style::textAlign(*style)) {
     case WebCore::Style::TextAlign::Right:
     case WebCore::Style::TextAlign::WebKitRight:
         textAlignment = NSTextAlignmentRight;
@@ -9344,10 +9362,10 @@ static NSTextAlignment nsTextAlignmentFromRenderStyle(const WebCore::RenderStyle
         textAlignment = NSTextAlignmentJustified;
         break;
     case WebCore::Style::TextAlign::Start:
-        textAlignment = style->isLeftToRightDirection() ? NSTextAlignmentLeft : NSTextAlignmentRight;
+        textAlignment = style->writingMode().deprecatedIsLeftToRightDirection() ? NSTextAlignmentLeft : NSTextAlignmentRight;
         break;
     case WebCore::Style::TextAlign::End:
-        textAlignment = style->isLeftToRightDirection() ? NSTextAlignmentRight : NSTextAlignmentLeft;
+        textAlignment = style->writingMode().deprecatedIsLeftToRightDirection() ? NSTextAlignmentRight : NSTextAlignmentLeft;
         break;
     default:
         ASSERT_NOT_REACHED();
@@ -9369,8 +9387,8 @@ static NSTextAlignment nsTextAlignmentFromRenderStyle(const WebCore::RenderStyle
     if (![documentView isKindOfClass:[WebHTMLView class]])
         return;
 
-    WebHTMLView *webHTMLView = (WebHTMLView *)documentView;
-    if (![webHTMLView _isEditable])
+    RetainPtr webHTMLView = (WebHTMLView *)documentView;
+    if (![webHTMLView.get() _isEditable])
         return;
 
     auto* coreFrame = core([self _selectedOrMainFrame]);
@@ -9435,20 +9453,20 @@ static NSTextAlignment nsTextAlignmentFromRenderStyle(const WebCore::RenderStyle
 
     // Set current typing attributes for rich text. This will ensure that the buttons reflect the state of
     // the text when changing selection throughout the document.
-    if (webHTMLView._canEditRichly) {
+    if (webHTMLView.get()._canEditRichly) {
         const VisibleSelection& selection = coreFrame->selection().selection();
         if (!selection.isNone()) {
             RefPtr<Node> nodeToRemove;
             if (auto* style = coreFrame->editor().styleForSelectionStart(nodeToRemove)) {
-                [_private->_textTouchBarItemController setTextIsBold:style->fontWeight().isConsideredBold()];
-                [_private->_textTouchBarItemController setTextIsItalic:style->fontStyle().isConsideredItalic()];
+                [_private->_textTouchBarItemController setTextIsBold:WebCore::Style::fontWeight(*style).isConsideredBold()];
+                [_private->_textTouchBarItemController setTextIsItalic:WebCore::Style::fontStyle(*style).isConsideredItalic()];
 
                 RefPtr<EditingStyle> typingStyle = coreFrame->selection().typingStyle();
                 if (typingStyle && typingStyle->style()) {
                     String value = typingStyle->style()->getPropertyValue(CSSPropertyWebkitTextDecorationsInEffect);
                     [_private->_textTouchBarItemController setTextIsUnderlined:value.contains("underline"_s)];
                 } else
-                    [_private->_textTouchBarItemController setTextIsUnderlined:style->textDecorationLineInEffect().hasUnderline()];
+                    [_private->_textTouchBarItemController setTextIsUnderlined:WebCore::Style::textDecorationLineInEffect(*style).hasUnderline()];
 
                 auto textColor = style->visitedDependentColor();
                 if (textColor.isValid())
@@ -9484,9 +9502,9 @@ static NSTextAlignment nsTextAlignmentFromRenderStyle(const WebCore::RenderStyle
 
     if (![_private->mediaTouchBarProvider playbackControlsController]) {
         ASSERT(_private->playbackSessionInterface);
-        WebPlaybackControlsManager *manager = _private->playbackSessionInterface->playBackControlsManager();
-        [_private->mediaTouchBarProvider setPlaybackControlsController:(id <AVTouchBarPlaybackControlsControlling>)manager];
-        [_private->mediaPlaybackControlsView setPlaybackControlsController:(id <AVTouchBarPlaybackControlsControlling>)manager];
+        RetainPtr manager = _private->playbackSessionInterface->playBackControlsManager();
+        [_private->mediaTouchBarProvider setPlaybackControlsController:(id <AVTouchBarPlaybackControlsControlling>)manager.get()];
+        [_private->mediaPlaybackControlsView setPlaybackControlsController:(id <AVTouchBarPlaybackControlsControlling>)manager.get()];
     }
 #endif
 }
@@ -9503,8 +9521,8 @@ static NSTextAlignment nsTextAlignmentFromRenderStyle(const WebCore::RenderStyle
     NSTouchBar *touchBar = nil;
     NSView *documentView = [[[self _selectedOrMainFrame] frameView] documentView];
     if ([documentView isKindOfClass:[WebHTMLView class]]) {
-        WebHTMLView *webHTMLView = (WebHTMLView *)documentView;
-        if ([webHTMLView _isEditable]) {
+        RetainPtr webHTMLView = (WebHTMLView *)documentView;
+        if ([webHTMLView.get() _isEditable]) {
             [self updateTextTouchBar];
             touchBar = [self textTouchBar];
         }

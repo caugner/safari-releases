@@ -1057,7 +1057,7 @@ void jsc_value_object_define_property_data(JSCValue* value, const char* property
     JSC::JSGlobalObject* globalObject = toJS(jsContext);
     Ref vm = globalObject->vm();
     JSC::JSLockHolder locker(vm);
-    auto scope = DECLARE_CATCH_SCOPE(vm);
+    auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
 
     JSC::JSValue jsValue = toJS(globalObject, priv->jsValue);
     JSC::JSObject* object = jsValue.toObject(globalObject);
@@ -1090,7 +1090,7 @@ static void jscValueObjectDefinePropertyAccessor(JSCValue* value, const char* pr
     JSC::JSGlobalObject* globalObject = toJS(jsContext);
     Ref vm = globalObject->vm();
     JSC::JSLockHolder locker(vm);
-    auto scope = DECLARE_CATCH_SCOPE(vm);
+    auto scope = DECLARE_TOP_EXCEPTION_SCOPE(vm);
 
     JSC::JSValue jsValue = toJS(globalObject, priv->jsValue);
     JSC::JSObject* object = jsValue.toObject(globalObject);
@@ -1553,7 +1553,7 @@ gboolean jsc_value_is_array_buffer(JSCValue* value)
     if (!jsValue.isObject())
         return FALSE;
 
-    return !!jsDynamicCast<JSArrayBuffer*>(jsValue.getObject());
+    return is<JSArrayBuffer>(jsValue.getObject());
 }
 
 /**
@@ -1902,7 +1902,7 @@ JSCTypedArrayType jsc_value_typed_array_get_type(JSCValue *value)
  *     g_error ("Only arrays of uint32_t are supported");
  *
  * gsize count = 0;
- * uint32_t *elements = jsc_value_typed_array_get_contents (value, &count);
+ * uint32_t *elements = jsc_value_typed_array_get_data (value, &count);
  * for (gsize i = 0; i < count; i++)
  *      g_print ("index %zu, value %" PRIu32 "\n", i, elements[i]);
  * ]|

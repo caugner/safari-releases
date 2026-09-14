@@ -159,9 +159,9 @@ void PluginDocumentParser::appendBytes(DocumentWriter&, std::span<const uint8_t>
     // recurse too many times and delay its post-layout tasks (such as creating
     // the widget). Here we kick off the pending post-layout tasks so that we
     // can synchronously redirect data to the plugin.
-    frame->protectedView()->flushAnyPendingPostLayoutTasks();
+    protect(frame->view())->flushAnyPendingPostLayoutTasks();
 
-    if (CheckedPtr renderer = Ref { *m_embedElement }->renderWidget()) {
+    if (CheckedPtr renderer = m_embedElement->renderWidget()) {
         if (RefPtr widget = renderer->widget()) {
             renderer = nullptr;
             frame->loader().client().redirectDataToPlugin(*widget);
@@ -169,7 +169,7 @@ void PluginDocumentParser::appendBytes(DocumentWriter&, std::span<const uint8_t>
             // In a plugin document, the main resource is the plugin. If we have a null widget, that means
             // the loading of the plugin was cancelled, which gives us a null mainResourceLoader(), so we
             // need to have this call in a null check of the widget or of mainResourceLoader().
-            if (RefPtr loader = frame->loader().activeDocumentLoader())
+            if (auto* loader = frame->loader().activeDocumentLoader())
                 loader->setMainResourceDataBufferingPolicy(DataBufferingPolicy::DoNotBufferData);
         }
     }

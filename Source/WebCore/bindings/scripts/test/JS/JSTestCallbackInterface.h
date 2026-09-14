@@ -28,6 +28,7 @@
 #include "JSDOMConvertEnumeration.h"
 #include "TestCallbackInterface.h"
 #include <wtf/Forward.h>
+#include <wtf/TypeCasts.h>
 
 namespace WebCore {
 
@@ -72,9 +73,11 @@ private:
 
     bool hasCallback() const final { return m_data && m_data->callback(); }
 
-    void visitJSFunction(JSC::AbstractSlotVisitor&) override;
+    bool isJSTestCallbackInterface() const final { return true; }
 
-    void visitJSFunction(JSC::SlotVisitor&) override;
+    void visitJSFunctionInGCThread(JSC::AbstractSlotVisitor&) override;
+
+    void visitJSFunctionInGCThread(JSC::SlotVisitor&) override;
 
     JSCallbackData* m_data;
 };
@@ -95,5 +98,9 @@ template<> ASCIILiteral expectedEnumerationValues<TestCallbackInterface::Enum>()
 template<> ConversionResult<IDLDictionary<TestCallbackInterface::Dictionary>> convertDictionary<TestCallbackInterface::Dictionary>(JSC::JSGlobalObject&, JSC::JSValue);
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::JSTestCallbackInterface)
+    static bool isType(const WebCore::TestCallbackInterface& callback) { return callback.isJSTestCallbackInterface(); }
+SPECIALIZE_TYPE_TRAITS_END()
 
 #endif // ENABLE(TEST_CONDITIONAL)

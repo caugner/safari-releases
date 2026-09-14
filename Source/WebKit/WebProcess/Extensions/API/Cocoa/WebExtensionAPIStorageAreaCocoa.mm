@@ -29,6 +29,7 @@
 
 #import "config.h"
 #import "WebExtensionAPIStorageArea.h"
+#import "WebExtensionAPIKeys.h"
 
 #if ENABLE(WK_WEB_EXTENSIONS)
 
@@ -44,15 +45,12 @@
 #import "WebProcess.h"
 #import <wtf/cocoa/VectorCocoa.h>
 
-static NSString * const accessLevelKey = @"accessLevel";
-static NSString * const accessLevelTrustedContexts = @"TRUSTED_CONTEXTS";
-static NSString * const accessLevelTrustedAndUntrustedContexts = @"TRUSTED_AND_UNTRUSTED_CONTEXTS";
 
 namespace WebKit {
 
 bool WebExtensionAPIStorageArea::isPropertyAllowed(const ASCIILiteral& propertyName, WebPage*)
 {
-    if (protectedExtensionContext()->isUnsupportedAPI(propertyPath(), propertyName)) [[unlikely]]
+    if (protect(extensionContext())->isUnsupportedAPI(propertyPath(), propertyName)) [[unlikely]]
         return false;
 
     static NeverDestroyed<HashSet<AtomString>> syncStorageProperties { HashSet { AtomString("QUOTA_BYTES_PER_ITEM"_s), AtomString("MAX_ITEMS"_s), AtomString("MAX_WRITE_OPERATIONS_PER_HOUR"_s), AtomString("MAX_WRITE_OPERATIONS_PER_MINUTE"_s) } };

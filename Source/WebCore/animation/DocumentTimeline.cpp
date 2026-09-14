@@ -70,10 +70,12 @@ DocumentTimeline::DocumentTimeline(Document& document, Seconds originTime)
     , m_document(document)
     , m_originTime(originTime)
 {
-    document.ensureCheckedTimelinesController()->addTimeline(*this);
+    protect(document.ensureTimelinesController())->addTimeline(*this);
 }
 
 DocumentTimeline::~DocumentTimeline() = default;
+
+Document* DocumentTimeline::document() const { return m_document.get(); }
 
 AnimationTimelinesController* DocumentTimeline::controller() const
 {
@@ -97,7 +99,7 @@ Seconds DocumentTimeline::animationInterval() const
     if (!m_document || !m_document->page())
         return Seconds::infinity();
 
-    return m_document->page()->preferredRenderingUpdateInterval();
+    return protect(m_document->page())->preferredRenderingUpdateInterval();
 }
 
 void DocumentTimeline::suspendAnimations()
@@ -128,7 +130,7 @@ unsigned DocumentTimeline::numberOfActiveAnimationsForTesting() const
 
 std::optional<WebAnimationTime> DocumentTimeline::currentTime(UseCachedCurrentTime useCachedCurrentTime)
 {
-    if (auto* controller = this->controller()) {
+    if (CheckedPtr controller = this->controller()) {
         if (auto currentTime = controller->currentTime(useCachedCurrentTime))
             return *currentTime - m_originTime;
         return std::nullopt;
@@ -163,7 +165,7 @@ void DocumentTimeline::scheduleAnimationResolution()
     if (!havePendingActivity)
         return;
 
-    m_document->page()->scheduleRenderingUpdate(RenderingUpdateStep::Animations);
+    protect(m_document->page())->scheduleRenderingUpdate(RenderingUpdateStep::Animations);
     m_animationResolutionScheduled = true;
 }
 
@@ -242,20 +244,20 @@ bool DocumentTimeline::animationCanBeRemoved(WebAnimation& animation)
         return false;
 
     auto target = keyframeEffect->targetStyleable();
-    if (!target || !target->protectedElement()->isDescendantOf(Ref { *m_document }))
+    if (!target || !target->element.isDescendantOf(*m_document))
         return false;
 
 IGNORE_GCC_WARNINGS_BEGIN("dangling-reference")
-    auto& style = [&]() -> const RenderStyle& {
+    CheckedRef style = [&]() -> const Style::ComputedStyle& {
         if (auto* renderer = target->renderer())
             return renderer->style();
-        return RenderStyle::defaultStyleSingleton();
+        return Style::ComputedStyle::defaultStyleSingleton();
     }();
 IGNORE_GCC_WARNINGS_END
 
     auto resolvedProperty = [&] (AnimatableCSSProperty property) -> AnimatableCSSProperty {
         if (std::holds_alternative<CSSPropertyID>(property))
-            return CSSProperty::resolveDirectionAwareProperty(std::get<CSSPropertyID>(property), style.writingMode());
+            return CSSProperty::resolveDirectionAwareProperty(std::get<CSSPropertyID>(property), style->writingMode());
         return property;
     };
 
@@ -362,7 +364,7 @@ void DocumentTimeline::scheduleNextTick()
 
     auto timeUntilNextTickForAnimationsWithFrameRate = [&](std::optional<FramesPerSecond> frameRate) -> std::optional<Seconds> {
         if (frameRate) {
-            if (auto* controller = this->controller())
+            if (CheckedPtr controller = this->controller())
                 return controller->timeUntilNextTickForAnimationsWithFrameRate(*frameRate);
         }
         return std::nullopt;
@@ -419,7 +421,7 @@ void DocumentTimeline::scheduleAcceleratedEffectStackUpdate()
 
 void DocumentTimeline::animationAcceleratedRunningStateDidChange(WebAnimation& animation)
 {
-    m_acceleratedAnimationsPendingRunningStateChange.add(&animation);
+    m_acceleratedAnimationsPendingRunningStateChange.add(animation);
 
     if (shouldRunUpdateAnimationsAndSendEventsIgnoringSuspensionState())
         scheduleAnimationResolution();
@@ -484,7 +486,7 @@ unsigned DocumentTimeline::numberOfAnimationTimelineInvalidationsForTesting() co
     return m_numberOfAnimationTimelineInvalidationsForTesting;
 }
 
-ExceptionOr<Ref<WebAnimation>> DocumentTimeline::animate(Ref<CustomEffectCallback>&& callback, std::optional<Variant<double, CustomAnimationOptions>>&& options)
+ExceptionOr<Ref<WebAnimation>> DocumentTimeline::animate(Ref<CustomEffectCallback>&& callback, Variant<double, CustomAnimationOptions>&& options)
 {
     RefPtr document = m_document.get();
     if (!document)
@@ -492,20 +494,17 @@ ExceptionOr<Ref<WebAnimation>> DocumentTimeline::animate(Ref<CustomEffectCallbac
 
     String id = emptyString();
     Variant<FramesPerSecond, AnimationFrameRatePreset> frameRate = AnimationFrameRatePreset::Auto;
-    std::optional<Variant<double, EffectTiming>> customEffectOptions;
 
-    if (options) {
-        Variant<double, EffectTiming> customEffectOptionsVariant;
-        if (std::holds_alternative<double>(*options))
-            customEffectOptionsVariant = std::get<double>(*options);
-        else {
-            auto customEffectOptions = std::get<CustomAnimationOptions>(*options);
-            id = customEffectOptions.id;
-            frameRate = customEffectOptions.frameRate;
-            customEffectOptionsVariant = WTF::move(customEffectOptions);
+    auto customEffectOptions = WTF::switchOn(options,
+        [](double value) -> Variant<double, EffectTiming> {
+            return value;
+        },
+        [&](const CustomAnimationOptions& options) -> Variant<double, EffectTiming> {
+            id = options.id;
+            frameRate = options.frameRate;
+            return options;
         }
-        customEffectOptions = customEffectOptionsVariant;
-    }
+    );
 
     auto customEffectResult = CustomEffect::create(*document, WTF::move(callback), WTF::move(customEffectOptions));
     if (customEffectResult.hasException())
@@ -536,6 +535,11 @@ Seconds DocumentTimeline::convertTimelineTimeToOriginRelativeTime(Seconds timeli
 }
 
 #if ENABLE(THREADED_ANIMATIONS)
+bool DocumentTimeline::canBeAccelerated() const
+{
+    return m_document && m_document->window();
+}
+
 Ref<AcceleratedTimeline> DocumentTimeline::createAcceleratedRepresentation() const
 {
     // The origin time of a document timeline is relative to the time origin
@@ -544,9 +548,8 @@ Ref<AcceleratedTimeline> DocumentTimeline::createAcceleratedRepresentation() con
     ASSERT(m_document);
     ASSERT(m_document->window());
     ASSERT(m_document->settings().threadedTimeBasedAnimationsEnabled());
-    Ref window = *Ref { *m_document }->window();
-    auto monotonicOriginTime = MonotonicTime::fromRawSeconds(m_originTime.seconds());
-    auto convertedOriginTime = m_originTime - window->performance().relativeTimeFromTimeOriginInReducedResolutionSeconds(monotonicOriginTime);
+    Ref window = *m_document->window();
+    auto convertedOriginTime = protect(window->performance())->monotonicTimeFromOriginRelative(m_originTime).secondsSinceEpoch();
     return AcceleratedTimeline::create(m_acceleratedTimelineIdentifier, convertedOriginTime);
 }
 #endif

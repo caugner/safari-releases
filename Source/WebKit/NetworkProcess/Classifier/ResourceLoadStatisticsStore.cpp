@@ -334,7 +334,7 @@ static String buildList(const ContainerType& values)
     return builder.toString();
 }
 
-static WeakHashSet<ResourceLoadStatisticsStore>& allStores()
+static WeakHashSet<ResourceLoadStatisticsStore>& NODELETE allStores()
 {
     ASSERT(!RunLoop::isMain());
 
@@ -980,7 +980,7 @@ void ResourceLoadStatisticsStore::addMissingTablesIfNecessary()
         ITP_RELEASE_LOG_ERROR("addMissingTablesIfNecessary: failed to create unique indices");
 }
 
-template<typename T, typename U, size_t size> bool vectorEqualsArray(const Vector<T>& vector, const std::array<U, size> array)
+template<typename T, typename U, size_t size> bool NODELETE vectorEqualsArray(const Vector<T>& vector, const std::array<U, size> array)
 {
     if (vector.size() != size)
         return false;
@@ -1211,7 +1211,7 @@ bool ResourceLoadStatisticsStore::insertObservedDomain(const ResourceLoadStatist
     ASSERT(!RunLoop::isMain());
 
     if (domainID(loadStatistics.registrableDomain)) {
-        ITP_RELEASE_LOG_ERROR("insertObservedDomain: failed to find domain");
+        ITP_RELEASE_LOG_ERROR("insertObservedDomain: domain already exists");
         return false;
     }
     auto scopedStatement = this->scopedStatement(m_insertObservedDomainStatement, insertObservedDomainQuery, "insertObservedDomain"_s);
@@ -1446,7 +1446,7 @@ Vector<ITPThirdPartyDataForSpecificFirstParty> ResourceLoadStatisticsStore::getT
     return thirdPartyDataForSpecificFirstPartyDomains;
 }
 
-static bool hasBeenThirdParty(unsigned timesUnderFirstParty)
+static bool NODELETE hasBeenThirdParty(unsigned timesUnderFirstParty)
 {
     return timesUnderFirstParty > 0;
 }
@@ -1456,7 +1456,12 @@ Vector<ITPThirdPartyData> ResourceLoadStatisticsStore::aggregatedThirdPartyData(
     ASSERT(!RunLoop::isMain());
 
     Vector<ITPThirdPartyData> thirdPartyDataList;
-    const auto prevalentDomainsBindParameter = thirdPartyCookieBlockingMode() == ThirdPartyCookieBlockingMode::All ? "%"_s : "1"_s;
+    auto mode = thirdPartyCookieBlockingMode();
+    bool isBlockAll = mode == ThirdPartyCookieBlockingMode::All;
+#if ENABLE(OPT_IN_PARTITIONED_COOKIES)
+    isBlockAll = isBlockAll || mode == ThirdPartyCookieBlockingMode::AllExceptPartitioned;
+#endif
+    const auto prevalentDomainsBindParameter = isBlockAll ? "%"_s : "1"_s;
     auto sortedStatistics = m_database->prepareStatement(joinSubStatisticsForSorting());
     if (!sortedStatistics
         || sortedStatistics->bindText(1, prevalentDomainsBindParameter)
@@ -2530,7 +2535,12 @@ std::pair<ResourceLoadStatisticsStore::AddedRecord, std::optional<unsigned>> Res
         return { AddedRecord::No, std::nullopt };
     }
 
-    return { AddedRecord::Yes, domainID(domain).value() };
+    auto domainID = this->domainID(domain);
+    if (!domainID) {
+        ITP_RELEASE_LOG_ERROR("ensureResourceStatisticsForRegistrableDomain: reason %" PUBLIC_LOG_STRING ", failed to retrieve domain ID after successful insertion", reason.characters());
+        return { AddedRecord::No, std::nullopt };
+    }
+    return { AddedRecord::Yes, domainID.value() };
 }
 
 void ResourceLoadStatisticsStore::clearDatabaseContents()
@@ -2851,7 +2861,7 @@ bool ResourceLoadStatisticsStore::shouldEnforceSameSiteStrictFor(DomainData& res
     return false;
 }
 
-std::optional<WallTime> ResourceLoadStatisticsStore::mostRecentUserInteractionTime(const DomainData& statistic)
+SUPPRESS_NODELETE std::optional<WallTime> ResourceLoadStatisticsStore::mostRecentUserInteractionTime(const DomainData& statistic)
 {
     if (statistic.mostRecentUserInteractionTime.secondsSinceEpoch().value() <= 0)
         return std::nullopt;
@@ -3132,7 +3142,7 @@ void ResourceLoadStatisticsStore::appendSubStatisticList(StringBuilder& builder,
     }
 }
 
-static bool hasHadRecentUserInteraction(WTF::Seconds interactionTimeSeconds, WallTime now)
+SUPPRESS_NODELETE static bool NODELETE hasHadRecentUserInteraction(WTF::Seconds interactionTimeSeconds, WallTime now)
 {
     return interactionTimeSeconds > Seconds(0) && now.secondsSinceEpoch() - interactionTimeSeconds < 24_h;
 }

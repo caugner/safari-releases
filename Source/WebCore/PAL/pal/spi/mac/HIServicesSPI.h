@@ -25,6 +25,8 @@
 
 #pragma once
 
+#ifdef __cplusplus
+
 #include <wtf/Compiler.h>
 #include <wtf/Platform.h>
 
@@ -178,8 +180,14 @@ WTF_EXTERN_C_BEGIN
 
 typedef Boolean (*AXAuditTokenIsAuthenticatedCallback)(audit_token_t);
 
+#if ENABLE(ACCESSIBILITY_THREAD_DISPATCHING)
+AXError _AXUIElementPerformBlockOnSecondaryAXThread(void (^block)(void));
+#endif
+
 WTF_EXTERN_C_END
 
 #define kAXClientTypeWebKitTesting 999999
 
 #endif // PLATFORM(MAC) || PLATFORM(MACCATALYST)
+
+#endif // __cplusplus

@@ -506,7 +506,8 @@ bool ValidateDrawElementsBaseVertexEXT(const Context *context,
                                        const void *indices,
                                        GLint basevertex)
 {
-    return ValidateDrawElementsCommon(context, entryPoint, mode, count, type, indices, 1);
+    return ValidateDrawElementsCommon(context, entryPoint, mode, count, type, indices, 1,
+                                      basevertex);
 }
 
 bool ValidateDrawElementsInstancedBaseVertexEXT(const Context *context,
@@ -527,7 +528,7 @@ bool ValidateDrawElementsInstancedBaseVertexEXT(const Context *context,
     }
 
     return ValidateDrawElementsInstancedBase(context, entryPoint, mode, count, type, indices,
-                                             instancecount, 0);
+                                             instancecount, basevertex, 0);
 }
 
 bool ValidateDrawRangeElementsBaseVertexEXT(const Context *context,
@@ -552,7 +553,7 @@ bool ValidateDrawRangeElementsBaseVertexEXT(const Context *context,
         return false;
     }
 
-    if (!ValidateDrawElementsCommon(context, entryPoint, mode, count, type, indices, 1))
+    if (!ValidateDrawElementsCommon(context, entryPoint, mode, count, type, indices, 1, basevertex))
     {
         return false;
     }
@@ -709,7 +710,7 @@ bool ValidateDrawElementsInstancedBaseInstanceEXT(const Context *context,
                                                   GLuint baseinstance)
 {
     return ValidateDrawElementsInstancedBase(context, entryPoint, mode, count, type, indices,
-                                             instancecount, baseinstance);
+                                             instancecount, 0, baseinstance);
 }
 
 bool ValidateDrawElementsInstancedBaseVertexBaseInstanceEXT(const Context *context,
@@ -723,7 +724,7 @@ bool ValidateDrawElementsInstancedBaseVertexBaseInstanceEXT(const Context *conte
                                                             GLuint baseinstance)
 {
     return ValidateDrawElementsInstancedBase(context, entryPoint, mode, count, typePacked, indices,
-                                             instancecount, baseinstance);
+                                             instancecount, basevertex, baseinstance);
 }
 
 bool ValidateDrawElementsBaseVertexOES(const Context *context,
@@ -734,7 +735,8 @@ bool ValidateDrawElementsBaseVertexOES(const Context *context,
                                        const void *indices,
                                        GLint basevertex)
 {
-    return ValidateDrawElementsCommon(context, entryPoint, mode, count, type, indices, 1);
+    return ValidateDrawElementsCommon(context, entryPoint, mode, count, type, indices, 1,
+                                      basevertex);
 }
 
 bool ValidateDrawElementsInstancedBaseVertexOES(const Context *context,
@@ -755,7 +757,7 @@ bool ValidateDrawElementsInstancedBaseVertexOES(const Context *context,
     }
 
     return ValidateDrawElementsInstancedBase(context, entryPoint, mode, count, type, indices,
-                                             instancecount, 0);
+                                             instancecount, basevertex, 0);
 }
 
 bool ValidateDrawRangeElementsBaseVertexOES(const Context *context,
@@ -780,7 +782,7 @@ bool ValidateDrawRangeElementsBaseVertexOES(const Context *context,
         return false;
     }
 
-    if (!ValidateDrawElementsCommon(context, entryPoint, mode, count, type, indices, 1))
+    if (!ValidateDrawElementsCommon(context, entryPoint, mode, count, type, indices, 1, basevertex))
     {
         return false;
     }
@@ -802,23 +804,6 @@ bool ValidateDrawRangeElementsBaseVertexOES(const Context *context,
         ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kExceedsElementRange);
         return false;
     }
-    return true;
-}
-
-// GL_KHR_blend_equation_advanced
-bool ValidateBlendBarrierKHR(const Context *context, angle::EntryPoint entryPoint)
-{
-    return true;
-}
-
-bool ValidateGetGraphicsResetStatusKHR(const Context *context, angle::EntryPoint entryPoint)
-{
-    if (context->getClientVersion() < ES_2_0)
-    {
-        ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kES2Required);
-        return false;
-    }
-
     return true;
 }
 
@@ -1208,13 +1193,6 @@ bool ValidateGetUnsignedBytei_vEXT(const Context *context,
     return false;
 }
 
-bool ValidateIsMemoryObjectEXT(const Context *context,
-                               angle::EntryPoint entryPoint,
-                               MemoryObjectID memoryObject)
-{
-    return true;
-}
-
 bool ValidateMemoryObjectParameterivEXT(const Context *context,
                                         angle::EntryPoint entryPoint,
                                         MemoryObjectID memoryObject,
@@ -1245,7 +1223,7 @@ bool ValidateMemoryObjectParameterivEXT(const Context *context,
 
 bool ValidateTexStorageMem2DEXT(const Context *context,
                                 angle::EntryPoint entryPoint,
-                                TextureType target,
+                                TextureType targetPacked,
                                 GLsizei levels,
                                 GLenum internalFormat,
                                 GLsizei width,
@@ -1253,14 +1231,14 @@ bool ValidateTexStorageMem2DEXT(const Context *context,
                                 MemoryObjectID memory,
                                 GLuint64 offset)
 {
-    if (context->getClientVersion() < ES_3_0)
+    if (!ValidateTexStorage(context, entryPoint, targetPacked, levels, internalFormat, width,
+                            height, 1, TexImageDimension::_2D))
     {
-        return ValidateES2TexStorageParametersBase(context, entryPoint, target, levels,
-                                                   internalFormat, width, height);
+        // Error already generated.
+        return false;
     }
 
-    return ValidateES3TexStorage2DParameters(context, entryPoint, target, levels, internalFormat,
-                                             width, height, 1);
+    return true;
 }
 
 bool ValidateTexStorageMem3DEXT(const Context *context,
@@ -1342,13 +1320,6 @@ bool ValidateGetSemaphoreParameterui64vEXT(const Context *context,
 {
     UNIMPLEMENTED();
     return false;
-}
-
-bool ValidateIsSemaphoreEXT(const Context *context,
-                            angle::EntryPoint entryPoint,
-                            SemaphoreID semaphore)
-{
-    return true;
 }
 
 bool ValidateSemaphoreParameterui64vEXT(const Context *context,
@@ -1939,58 +1910,6 @@ bool ValidatePLSTextureType(const Context *context,
     }
 }
 
-bool ValidatePLSActiveBlendFunc(const Context *context,
-                                angle::EntryPoint entryPoint,
-                                gl::BlendFactorType blendFunc)
-{
-    // INVALID_OPERATION is generated if BLEND_DST_ALPHA, BLEND_DST_RGB, BLEND_SRC_ALPHA, or
-    // BLEND_SRC_RGB, for any draw buffer, is a blend function requiring the secondary color input,
-    // as specified in EXT_blend_func_extended.
-    ASSERT(context->getState().getExtensions().blendFuncExtendedEXT);
-    switch (blendFunc)
-    {
-        case gl::BlendFactorType::Src1Color:
-        case gl::BlendFactorType::OneMinusSrc1Color:
-        case gl::BlendFactorType::Src1Alpha:
-        case gl::BlendFactorType::OneMinusSrc1Alpha:
-            ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kPLSSecondaryBlendEnabled);
-            return false;
-        default:
-            return true;
-    }
-}
-bool ValidatePLSActiveBlendEquation(const Context *context,
-                                    angle::EntryPoint entryPoint,
-                                    gl::BlendEquationType blendEquation)
-{
-    // INVALID_OPERATION is generated if BLEND_EQUATION_RGB and/or BLEND_EQUATION_ALPHA is an
-    // advanced blend equation defined in KHR_blend_equation_advanced.
-    ASSERT(context->getState().getExtensions().blendEquationAdvancedKHR ||
-           context->getClientVersion() >= ES_3_2);
-    switch (blendEquation)
-    {
-        case gl::BlendEquationType::Multiply:
-        case gl::BlendEquationType::Screen:
-        case gl::BlendEquationType::Overlay:
-        case gl::BlendEquationType::Darken:
-        case gl::BlendEquationType::Lighten:
-        case gl::BlendEquationType::Colordodge:
-        case gl::BlendEquationType::Colorburn:
-        case gl::BlendEquationType::Hardlight:
-        case gl::BlendEquationType::Softlight:
-        case gl::BlendEquationType::Difference:
-        case gl::BlendEquationType::Exclusion:
-        case gl::BlendEquationType::HslHue:
-        case gl::BlendEquationType::HslSaturation:
-        case gl::BlendEquationType::HslColor:
-        case gl::BlendEquationType::HslLuminosity:
-            ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kPLSAdvancedBlendEnabled);
-            return false;
-        default:
-            return true;
-    }
-}
-
 bool ValidatePLSLoadOperation(const Context *context, angle::EntryPoint entryPoint, GLenum loadop)
 {
     // INVALID_ENUM is generated if <loadops>[0..<n>-1] is not one of the Load Operations enumerated
@@ -2074,32 +1993,18 @@ bool ValidateBeginAndRestorePixelLocalStorageGlobalState(const Context *context,
     // INVALID_OPERATION is generated if BLEND_DST_ALPHA, BLEND_DST_RGB, BLEND_SRC_ALPHA, or
     // BLEND_SRC_RGB, for any draw buffer, is a blend function requiring the secondary color input,
     // as specified in EXT_blend_func_extended.
-    if (state.getExtensions().blendFuncExtendedEXT)
+    if (ANGLE_UNLIKELY(state.getBlendStateExt().getUsesExtendedBlendFactorMask().any()))
     {
-        for (GLsizei i = 0; i < state.getCaps().maxDrawBuffers; ++i)
-        {
-            const BlendStateExt &blend = state.getBlendStateExt();
-            if (!ValidatePLSActiveBlendFunc(context, entryPoint, blend.getDstAlphaIndexed(i)) ||
-                !ValidatePLSActiveBlendFunc(context, entryPoint, blend.getDstColorIndexed(i)) ||
-                !ValidatePLSActiveBlendFunc(context, entryPoint, blend.getSrcAlphaIndexed(i)) ||
-                !ValidatePLSActiveBlendFunc(context, entryPoint, blend.getSrcColorIndexed(i)))
-            {
-                return false;
-            }
-        }
+        ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kPLSSecondaryBlendEnabled);
+        return false;
     }
 
     // INVALID_OPERATION is generated if BLEND_EQUATION_RGB and/or BLEND_EQUATION_ALPHA is an
     // advanced blend equation defined in KHR_blend_equation_advanced.
-    if (state.getExtensions().blendEquationAdvancedKHR || context->getClientVersion() >= ES_3_2)
+    if (ANGLE_UNLIKELY(state.getBlendStateExt().getUsesAdvancedBlendEquationMask()[0]))
     {
-        if (!ValidatePLSActiveBlendEquation(context, entryPoint,
-                                            state.getBlendStateExt().getEquationColorIndexed(0)) ||
-            !ValidatePLSActiveBlendEquation(context, entryPoint,
-                                            state.getBlendStateExt().getEquationAlphaIndexed(0)))
-        {
-            return false;
-        }
+        ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kPLSAdvancedBlendEnabled);
+        return false;
     }
 
     // INVALID_FRAMEBUFFER_OPERATION is generated if the draw framebuffer has an image attached to
@@ -2501,12 +2406,6 @@ bool ValidateEndPixelLocalStorageANGLE(const Context *context,
     return true;
 }
 
-bool ValidateEndPixelLocalStorageImplicitANGLE(const Context *context, angle::EntryPoint entryPoint)
-{
-    // The entry point for implicitly ending PLS deliberately does not generate GL errors.
-    return true;
-}
-
 bool ValidatePixelLocalStorageBarrierANGLE(const Context *context, angle::EntryPoint entryPoint)
 {
     return ValidatePLSCommon(context, entryPoint, PLSExpectedStatus::Active,
@@ -2623,11 +2522,6 @@ bool ValidateGetFramebufferPixelLocalStorageParameteruivRobustANGLE(const Contex
 {
     return ValidateGetFramebufferPixelLocalStorageParameterRobustBase(
         context, entryPoint, plane, pnamePacked, paramCount, params);
-}
-
-bool ValidateFramebufferFetchBarrierEXT(const Context *context, angle::EntryPoint entryPoint)
-{
-    return true;
 }
 
 bool ValidatePatchParameteriEXT(const PrivateState &state,
@@ -3068,49 +2962,6 @@ bool ValidatePolygonModeNV(const PrivateState &state,
     return true;
 }
 
-// GL_EXT_polygon_offset_clamp
-bool ValidatePolygonOffsetClampEXT(const PrivateState &state,
-                                   ErrorSet *errors,
-                                   angle::EntryPoint entryPoint,
-                                   GLfloat factor,
-                                   GLfloat units,
-                                   GLfloat clamp)
-{
-    return true;
-}
-
-// GL_EXT_primitive_bounding_box
-bool ValidatePrimitiveBoundingBoxEXT(const PrivateState &state,
-                                     ErrorSet *errors,
-                                     angle::EntryPoint entryPoint,
-                                     GLfloat minX,
-                                     GLfloat minY,
-                                     GLfloat minZ,
-                                     GLfloat minW,
-                                     GLfloat maxX,
-                                     GLfloat maxY,
-                                     GLfloat maxZ,
-                                     GLfloat maxW)
-{
-    return true;
-}
-
-// GL_OES_primitive_bounding_box
-bool ValidatePrimitiveBoundingBoxOES(const PrivateState &state,
-                                     ErrorSet *errors,
-                                     angle::EntryPoint entryPoint,
-                                     GLfloat minX,
-                                     GLfloat minY,
-                                     GLfloat minZ,
-                                     GLfloat minW,
-                                     GLfloat maxX,
-                                     GLfloat maxY,
-                                     GLfloat maxZ,
-                                     GLfloat maxW)
-{
-    return true;
-}
-
 // GL_OES_texture_storage_multisample_2d_array
 bool ValidateTexStorage3DMultisampleOES(const Context *context,
                                         angle::EntryPoint entryPoint,
@@ -3185,13 +3036,6 @@ bool ValidateGetProgramPipelineivEXT(const Context *context,
                                      const GLint *params)
 {
     return ValidateGetProgramPipelineivBase(context, entryPoint, pipelinePacked, pname, params);
-}
-
-bool ValidateIsProgramPipelineEXT(const Context *context,
-                                  angle::EntryPoint entryPoint,
-                                  ProgramPipelineID pipelinePacked)
-{
-    return ValidateIsProgramPipelineBase(context, entryPoint, pipelinePacked);
 }
 
 bool ValidateProgramParameteriEXT(const Context *context,
@@ -4277,14 +4121,20 @@ bool ValidateTexStorageAttribs2DEXT(const Context *context,
                                     GLsizei height,
                                     const GLint *attrib_list)
 {
+    if (!ValidateTexStorage2D(context, entryPoint, FromGLenum<TextureType>(target), levels,
+                              internalformat, width, height))
+    {
+        // Error already generated.
+        return false;
+    }
+
     if (!ValidateTexStorageAttribs(attrib_list))
     {
         ANGLE_VALIDATION_ERROR(GL_INVALID_VALUE, kInvalidAttribList);
         return false;
     }
 
-    return ValidateES3TexStorage2DParameters(context, entryPoint, FromGLenum<TextureType>(target),
-                                             levels, internalformat, width, height, 1);
+    return true;
 }
 
 bool ValidateTexStorageAttribs3DEXT(const Context *context,
@@ -4297,14 +4147,20 @@ bool ValidateTexStorageAttribs3DEXT(const Context *context,
                                     GLsizei depth,
                                     const GLint *attrib_list)
 {
+    if (!ValidateTexStorage3D(context, entryPoint, FromGLenum<TextureType>(target), levels,
+                              internalformat, width, height, depth))
+    {
+        // Error already generated.
+        return false;
+    }
+
     if (!ValidateTexStorageAttribs(attrib_list))
     {
         ANGLE_VALIDATION_ERROR(GL_INVALID_VALUE, kInvalidAttribList);
         return false;
     }
 
-    return ValidateES3TexStorage3DParameters(context, entryPoint, FromGLenum<TextureType>(target),
-                                             levels, internalformat, width, height, depth);
+    return true;
 }
 
 }  // namespace gl

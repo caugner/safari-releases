@@ -28,11 +28,11 @@
 #include <WebCore/FloatSize.h>
 #include <WebCore/MediaPlayerEnums.h>
 #include <functional>
-#include <variant>
 #include <wtf/MediaTime.h>
 #include <wtf/Platform.h>
 #include <wtf/PrintStream.h>
 #include <wtf/ThreadSafeRefCounted.h>
+#include <wtf/Variant.h>
 #include <wtf/text/AtomString.h>
 
 typedef struct opaqueCMSampleBuffer *CMSampleBufferRef;
@@ -51,7 +51,7 @@ using TrackID = uint64_t;
 
 class PlatformSample {
 public:
-    using VariantType = std::variant<const MockSampleBox*
+    using VariantType = Variant<const MockSampleBox*
 #if PLATFORM(COCOA)
         , RetainPtr<CMSampleBufferRef>
 #elif USE(GSTREAMER)
@@ -99,6 +99,19 @@ public:
         return { nullptr, nullptr };
     }
     virtual Ref<MediaSample> createNonDisplayingCopy() const = 0;
+
+    // Return a new sample whose presentation time, decode time, and duration have been adjusted by
+    // shifting start forward by `offset` while keeping presentationEndTime() unchanged:
+    // pts' = pts + offset, dts' = dts + offset, duration' = duration - offset. `offset` is clamped
+    // to duration; if offset == duration the shifted copy has zero duration (callers should prefer
+    // removal in that case). Payload, format description, and attachments are copied unchanged.
+    // Callers use this instead of mutating an existing sample, which would alter an object
+    // already referenced by SampleMap keys / enqueued decoders.
+    virtual Ref<MediaSample> createCopyWithAdjustedStartTime(const MediaTime& /*offset*/) const
+    {
+        ASSERT_NOT_REACHED();
+        return const_cast<MediaSample&>(*this);
+    }
 
     enum SampleFlags {
         None = 0,

@@ -50,8 +50,8 @@ class BaseDateAndTimeInputType : public InputType, public DateTimeChooserClient,
     WTF_MAKE_TZONE_ALLOCATED(BaseDateAndTimeInputType);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(BaseDateAndTimeInputType);
 public:
-    bool typeMismatchFor(const String&) const final;
-    bool valueMissing(const String&) const final;
+    bool typeMismatchFor(StringView) const final;
+    bool valueMissing(StringView) const final;
     bool typeMismatch() const final;
     bool hasBadInput() const final;
 
@@ -78,7 +78,7 @@ protected:
 
     ~BaseDateAndTimeInputType();
 
-    Decimal parseToNumber(const String&, const Decimal&) const override;
+    Decimal parseToNumber(StringView, const Decimal&) const override;
     String serialize(const Decimal&) const final;
     String serializeWithComponents(const DateComponents&) const;
 
@@ -90,7 +90,7 @@ private:
     public:
         DateTimeFormatValidator() { }
 
-        void visitField(DateTimeFormat::FieldType, int);
+        void NODELETE visitField(DateTimeFormat::FieldType, int);
         void visitLiteral(const String&) { }
 
         bool validateFormat(const String& format, const BaseDateAndTimeInputType&);
@@ -126,7 +126,7 @@ private:
     void createShadowSubtree() final;
     void removeShadowSubtree() final;
     void updateInnerTextValue() final;
-    bool hasCustomFocusLogic() const final;
+    bool NODELETE hasCustomFocusLogic() const final;
     void attributeChanged(const QualifiedName&) final;
     bool isPresentingAttachedView() const final { return m_popupIsVisible; }
     void elementDidBlur() final;
@@ -158,8 +158,6 @@ private:
     void closeDateTimeChooser();
 
     void showPicker() override;
-
-    RefPtr<DateTimeEditElement> protectedDateTimeEditElement() const { return m_dateTimeEditElement; };
 
     RefPtr<DateTimeChooser> m_dateTimeChooser;
     RefPtr<DateTimeEditElement> m_dateTimeEditElement;

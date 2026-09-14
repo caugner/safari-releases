@@ -44,12 +44,12 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ServiceWorkerJob);
 
-Ref<ServiceWorkerJob> ServiceWorkerJob::create(ServiceWorkerJobClient& client, RefPtr<DeferredPromise>&& promise, ServiceWorkerJobData&& jobData)
+Ref<ServiceWorkerJob> ServiceWorkerJob::create(ServiceWorkerJobClient& client, Ref<DeferredPromise>&& promise, ServiceWorkerJobData&& jobData)
 {
     return adoptRef(*new ServiceWorkerJob(client, WTF::move(promise), WTF::move(jobData)));
 }
 
-ServiceWorkerJob::ServiceWorkerJob(ServiceWorkerJobClient& client, RefPtr<DeferredPromise>&& promise, ServiceWorkerJobData&& jobData)
+ServiceWorkerJob::ServiceWorkerJob(ServiceWorkerJobClient& client, Ref<DeferredPromise>&& promise, ServiceWorkerJobData&& jobData)
     : m_client(client)
     , m_jobData(WTF::move(jobData))
     , m_promise(WTF::move(promise))
@@ -59,17 +59,17 @@ ServiceWorkerJob::ServiceWorkerJob(ServiceWorkerJobClient& client, RefPtr<Deferr
 
 ServiceWorkerJob::~ServiceWorkerJob()
 {
-    ASSERT(m_creationThread.ptr() == &Thread::currentSingleton());
+    ASSERT(m_creationThreadID == currentThreadID());
 }
 
-RefPtr<DeferredPromise> ServiceWorkerJob::takePromise()
+Ref<DeferredPromise> ServiceWorkerJob::takePromise()
 {
     return WTF::move(m_promise);
 }
 
 void ServiceWorkerJob::failedWithException(const Exception& exception)
 {
-    ASSERT(m_creationThread.ptr() == &Thread::currentSingleton());
+    ASSERT(m_creationThreadID == currentThreadID());
     ASSERT(!m_completed);
 
     m_completed = true;
@@ -79,7 +79,7 @@ void ServiceWorkerJob::failedWithException(const Exception& exception)
 
 void ServiceWorkerJob::resolvedWithRegistration(ServiceWorkerRegistrationData&& data, ShouldNotifyWhenResolved shouldNotifyWhenResolved)
 {
-    ASSERT(m_creationThread.ptr() == &Thread::currentSingleton());
+    ASSERT(m_creationThreadID == currentThreadID());
     ASSERT(!m_completed);
 
     m_completed = true;
@@ -89,7 +89,7 @@ void ServiceWorkerJob::resolvedWithRegistration(ServiceWorkerRegistrationData&& 
 
 void ServiceWorkerJob::resolvedWithUnregistrationResult(bool unregistrationResult)
 {
-    ASSERT(m_creationThread.ptr() == &Thread::currentSingleton());
+    ASSERT(m_creationThreadID == currentThreadID());
     ASSERT(!m_completed);
 
     m_completed = true;
@@ -99,7 +99,7 @@ void ServiceWorkerJob::resolvedWithUnregistrationResult(bool unregistrationResul
 
 void ServiceWorkerJob::startScriptFetch(FetchOptions::Cache cachePolicy)
 {
-    ASSERT(m_creationThread.ptr() == &Thread::currentSingleton());
+    ASSERT(m_creationThreadID == currentThreadID());
     ASSERT(!m_completed);
 
     if (RefPtr client = m_client.get())
@@ -126,7 +126,7 @@ static FetchOptions scriptFetchOptions(FetchOptions::Cache cachePolicy, FetchOpt
 
 void ServiceWorkerJob::fetchScriptWithContext(ScriptExecutionContext& context, FetchOptions::Cache cachePolicy)
 {
-    ASSERT(m_creationThread.ptr() == &Thread::currentSingleton());
+    ASSERT(m_creationThreadID == currentThreadID());
     ASSERT(!m_completed);
 
     auto source = m_jobData.workerType == WorkerType::Module ? WorkerScriptLoader::Source::ModuleScript : WorkerScriptLoader::Source::ClassicWorkerScript;
@@ -166,7 +166,7 @@ ResourceError ServiceWorkerJob::validateServiceWorkerResponse(const ServiceWorke
 
 void ServiceWorkerJob::didReceiveResponse(ScriptExecutionContextIdentifier, std::optional<ResourceLoaderIdentifier>, const ResourceResponse& response)
 {
-    ASSERT(m_creationThread.ptr() == &Thread::currentSingleton());
+    ASSERT(m_creationThreadID == currentThreadID());
     ASSERT(!m_completed);
     ASSERT(m_scriptLoader);
 
@@ -185,7 +185,7 @@ void ServiceWorkerJob::didReceiveResponse(ScriptExecutionContextIdentifier, std:
 
 void ServiceWorkerJob::notifyFinished(std::optional<ScriptExecutionContextIdentifier>)
 {
-    ASSERT(m_creationThread.ptr() == &Thread::currentSingleton());
+    ASSERT(m_creationThreadID == currentThreadID());
     ASSERT(m_scriptLoader);
 
     auto scriptLoader = std::exchange(m_scriptLoader, { });

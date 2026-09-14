@@ -51,7 +51,7 @@ public:
     ~JITWorklist();
 
     static JITWorklist& ensureGlobalWorklist();
-    static JITWorklist* existingGlobalWorklistOrNull();
+    static JITWorklist* NODELETE existingGlobalWorklistOrNull();
 
     CompilationResult enqueue(Ref<JITPlan>);
     size_t queueLength() const;
@@ -73,8 +73,8 @@ public:
 
     void removeDeadPlans(VM&);
 
-    unsigned setMaximumNumberOfConcurrentDFGCompilations(unsigned);
-    unsigned setMaximumNumberOfConcurrentFTLCompilations(unsigned);
+    unsigned NODELETE setMaximumNumberOfConcurrentDFGCompilations(unsigned);
+    unsigned NODELETE setMaximumNumberOfConcurrentFTLCompilations(unsigned);
 
     // Only called on the main thread after suspending all threads.
     template<typename Visitor>
@@ -94,14 +94,14 @@ private:
     unsigned planLoad(JITPlan&);
 
     size_t queueLength(const AbstractLocker&) const;
-    size_t totalOngoingCompilations(const AbstractLocker&) const;
+    size_t NODELETE totalOngoingCompilations(const AbstractLocker&) const;
 
     void waitUntilAllPlansForVMAreReady(VM&);
 
     template<typename MatchFunction>
     void removeMatchingPlansForVM(VM&, const MatchFunction&);
 
-    State removeAllReadyPlansForVM(VM&, Vector<RefPtr<JITPlan>, 8>&, JITCompilationKey);
+    State removeAllReadyPlansForVM(VM&, Vector<Ref<JITPlan>, 8>&, JITCompilationKey);
 
     void dump(const AbstractLocker&, PrintStream&) const;
 
@@ -124,7 +124,7 @@ private:
 
     // Used to quickly find which plans have been compiled and are ready to
     // be completed.
-    Vector<RefPtr<JITPlan>, 16> m_readyPlans;
+    Vector<Ref<JITPlan>, 16> m_readyPlans;
 
     Lock m_suspensionLock;
     Box<Lock> m_lock;

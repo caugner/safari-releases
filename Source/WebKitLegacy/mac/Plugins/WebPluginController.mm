@@ -55,11 +55,13 @@
 #import <WebCore/HTMLMediaElement.h>
 #import <WebCore/HTMLNames.h>
 #import <WebCore/LocalFrame.h>
+#import <WebCore/LocalFrameInlines.h>
 #import <WebCore/ResourceRequest.h>
 #import <WebCore/ScriptController.h>
 #import <WebCore/UserGestureIndicator.h>
 #import <WebCore/WebCoreURLResponse.h>
 #import <objc/runtime.h>
+#import <wtf/RetainPtr.h>
 #import <wtf/text/WTFString.h>
 
 #if PLATFORM(IOS_FAMILY)
@@ -97,7 +99,7 @@ static void installFlip4MacPlugInWorkaroundIfNecessary();
 #endif
 
 
-static RetainPtr<NSMutableSet>& pluginViews()
+static RetainPtr<NSMutableSet>& NODELETE pluginViews()
 {
     static NeverDestroyed<RetainPtr<NSMutableSet>> pluginViews;
     return pluginViews;
@@ -616,12 +618,12 @@ static void installFlip4MacPlugInWorkaroundIfNecessary()
 {
     static bool hasInstalledFlip4MacPlugInWorkaround;
     if (!hasInstalledFlip4MacPlugInWorkaround) {
-        Class TSUpdateCheck = objc_lookUpClass("TSUpdateCheck");
+        RetainPtr<Class> TSUpdateCheck = objc_lookUpClass("TSUpdateCheck");
         if (!TSUpdateCheck)
             return;
 
 IGNORE_WARNINGS_BEGIN("undeclared-selector")
-        Method methodToPatch = class_getInstanceMethod(TSUpdateCheck, @selector(alertDidEnd:returnCode:contextInfo:));
+        Method methodToPatch = class_getInstanceMethod(TSUpdateCheck.get(), @selector(alertDidEnd:returnCode:contextInfo:));
 IGNORE_WARNINGS_END
         if (!methodToPatch)
             return;

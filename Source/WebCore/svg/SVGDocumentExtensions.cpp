@@ -23,10 +23,8 @@
 #include "SVGDocumentExtensions.h"
 
 #include "DocumentPage.h"
-#include "EventListener.h"
 #include "FrameDestructionObserverInlines.h"
 #include "FrameLoader.h"
-#include "LocalDOMWindow.h"
 #include "LocalFrame.h"
 #include "SMILTimeContainer.h"
 #include "SVGElement.h"
@@ -35,8 +33,6 @@
 #include "SVGSMILElement.h"
 #include "SVGSVGElement.h"
 #include "SVGUseElement.h"
-#include "ScriptableDocumentParser.h"
-#include "ShadowRoot.h"
 #include <JavaScriptCore/ConsoleTypes.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/AtomString.h>
@@ -46,7 +42,7 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(SVGDocumentExtensions);
 
-static bool animationsPausedForDocument(Document& document)
+static bool NODELETE animationsPausedForDocument(Document& document)
 {
     return !document.page() || !document.page()->isVisible() || !document.page()->imageAnimationEnabled();
 }
@@ -85,7 +81,7 @@ void SVGDocumentExtensions::startAnimations()
     // In the future we should refactor the use-element to avoid this. See https://webkit.org/b/53704
     auto timeContainers = copyToVectorOf<Ref<SVGSVGElement>>(m_timeContainers);
     for (auto& element : timeContainers)
-        element->protectedTimeContainer()->begin();
+        protect(element->timeContainer())->begin();
 }
 
 void SVGDocumentExtensions::pauseAnimations()
@@ -95,15 +91,10 @@ void SVGDocumentExtensions::pauseAnimations()
     m_areAnimationsPaused = true;
 }
 
-Ref<Document> SVGDocumentExtensions::protectedDocument() const
-{
-    return m_document.get();
-}
-
 void SVGDocumentExtensions::unpauseAnimations()
 {
     // If animations are paused at the document level, don't allow `this` to be unpaused.
-    if (animationsPausedForDocument(protectedDocument()))
+    if (animationsPausedForDocument(m_document))
         return;
 
     for (Ref container : m_timeContainers)
@@ -129,12 +120,12 @@ static void reportMessage(Document& document, MessageLevel level, const String& 
 
 void SVGDocumentExtensions::reportWarning(const String& message)
 {
-    reportMessage(protectedDocument(), MessageLevel::Warning, makeString("Warning: "_s, message));
+    reportMessage(protect(m_document), MessageLevel::Warning, makeString("Warning: "_s, message));
 }
 
 void SVGDocumentExtensions::reportError(const String& message)
 {
-    reportMessage(protectedDocument(), MessageLevel::Error, makeString("Error: "_s, message));
+    reportMessage(protect(m_document), MessageLevel::Error, makeString("Error: "_s, message));
 }
 
 void SVGDocumentExtensions::addElementToRebuild(SVGElement& element)

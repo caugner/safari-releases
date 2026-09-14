@@ -20,6 +20,7 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import argparse
 import os
 import re
 import sys
@@ -137,6 +138,14 @@ class PullRequest(Command):
             action=arguments.NoAction,
         )
         parser.add_argument(
+            '--update-radar', '--no-update-radar',
+            dest='update_radar', default=True,
+            help=('Update the state of the associated Radar when creating a pull request'
+                  if radar.Tracker.radarclient() is not None
+                  else argparse.SUPPRESS),
+            action=arguments.NoAction,
+        )
+        parser.add_argument(
             '--security', '--redacted',
             dest='redact', action='store_true',
             default=False,
@@ -160,16 +169,17 @@ class PullRequest(Command):
         # Then, see if we already have a commit associated with this branch we need to modify
         has_commit = repository.commit(include_log=False, include_identifier=False).branch == repository.branch and repository.branch != repository.default_branch
         if not modified and has_commit:
-            log.info('Using committed changes...')
-            return 0
+            if not getattr(args, '_bug_urls', None) or os.environ.get('COMMIT_MESSAGE_REVERT'):
+                log.info('Using committed changes...')
+                return 0
 
         bug_urls = getattr(args, '_bug_urls', None) or ''
         if isinstance(bug_urls, (list, tuple)):
             bug_urls = '\n'.join(bug_urls)
 
         # Otherwise, we need to create a commit
-        will_amend = has_commit and args.technique == 'overwrite'
-        if not modified:
+        will_amend = has_commit and (args.technique == 'overwrite' or bool(getattr(args, '_bug_urls', None)))
+        if not modified and not will_amend:
             sys.stderr.write('No modified files\n')
             return 1
         log.info('Amending commit...' if will_amend else 'Creating commit...')
@@ -195,6 +205,22 @@ class PullRequest(Command):
             title = commits[0].message.splitlines()[0] if commits[0].message else '???'
         title = title.rstrip().lstrip()
         return title[:-5].rstrip() if title.endswith('(Part') else title
+
+    @classmethod
+    def issue_from_commits(cls, repository, source_remote, branch_point):
+        head = repository.commit(include_log=True, include_identifier=False)
+        if run([
+            repository.executable(), 'merge-base', '--is-ancestor',
+            head.hash, 'remotes/{}/{}'.format(source_remote, branch_point.branch),
+        ], capture_output=True, cwd=repository.root_path).returncode:
+            if head.issues:
+                return head.issues[0].link
+            revert_message = os.environ.get('COMMIT_MESSAGE_REVERT', '')
+            for line in revert_message.splitlines():
+                issue = Tracker.from_string(line)
+                if issue:
+                    return issue.link
+        return None
 
     @classmethod
     def check_pull_request_args(cls, repository, args):
@@ -261,13 +287,7 @@ class PullRequest(Command):
 
         if not repository.is_suitable_branch_for_pull_request(repository.branch, source_remote):
             if not args.issue:
-                head = repository.commit(include_log=True, include_identifier=False)
-                if run([
-                    repository.executable(), 'merge-base', '--is-ancestor',
-                    head.hash, 'remotes/{}/{}'.format(source_remote, branch_point.branch),
-                ], capture_output=True, cwd=repository.root_path).returncode:
-                    if head.issues:
-                        args.issue = head.issues[0].link
+                args.issue = cls.issue_from_commits(repository, source_remote, branch_point)
 
             if Branch.main(
                 args, repository,
@@ -299,6 +319,23 @@ class PullRequest(Command):
             if not issue.tracker.hide_title:
                 args._title = issue.title
             args._bug_urls = Commit.bug_urls(issue)
+
+        elif not args.issue and getattr(args, 'update_issue', True) and Tracker.instance():
+            args.issue = cls.issue_from_commits(repository, source_remote, branch_point)
+            if not args.issue:
+                issue, result = Branch.ensure_issue(args, repository, redact=source_remote != repository.default_remote)
+                if result:
+                    return None
+
+                bug_urls = getattr(args, '_bug_urls', None) or ''
+                if isinstance(bug_urls, (list, tuple)):
+                    bug_urls = '\n'.join(bug_urls)
+                title = getattr(args, '_title', None) or ''
+                cls.write_branch_variables(
+                    repository, repository.branch,
+                    title=title,
+                    bug=bug_urls,
+                )
 
         if not repository.config().get('remote.{}.url'.format(source_remote)):
             sys.stderr.write("'{}' is not a remote in this repository\n".format(source_remote))
@@ -414,17 +451,18 @@ class PullRequest(Command):
         return 0
 
     @classmethod
-    def add_comment_to_issue(cls, issue, pr):
+    def add_comment_to_issue(cls, issue, pr, commit_class=None):
         log.info('Checking issue assignee...')
-        if issue.assignee != issue.tracker.me():
+        if issue.assignee != issue.tracker.me() and commit_class != 'Gardening':
             issue.assign(issue.tracker.me())
             print('Assigning associated issue to {}'.format(issue.tracker.me()))
         log.info('Checking for pull request link in associated issue...')
+        pr_label = 'Test gardening pull request' if commit_class == 'Gardening' else 'Pull request'
         if pr.url and not any([pr.url in comment.content for comment in issue.comments]):
             if issue.opened:
-                issue.add_comment('Pull request: {}'.format(pr.url))
-            else:
-                issue.open(why='Re-opening for pull request {}'.format(pr.url))
+                issue.add_comment('{}: {}'.format(pr_label, pr.url))
+            elif commit_class != 'Gardening':
+                issue.open(why='Re-opening for {} {}'.format(pr_label.lower(), pr.url))
             print('Posted pull request link to {}'.format(issue.link))
 
     @classmethod
@@ -447,7 +485,7 @@ class PullRequest(Command):
                 sys.stderr.write("Failed to rebase '{}' on '{},' please resolve conflicts\n".format(repository.branch, branch_point.branch))
                 return 1
             log.info("Rebased '{}' on '{}!'".format(repository.branch, branch_point.branch))
-            branch_point = repository.commit(branch=branch_point.branch)
+            branch_point = repository.commit(branch='{}/{}'.format(source_remote, branch_point.branch))
 
         if args.checks is None:
             args.checks = repository.config().get('webkitscmpy.auto-check', 'false') == 'true'
@@ -732,10 +770,26 @@ class PullRequest(Command):
             if cls.is_revert_commit(commits[0]) and update_issue:
                 cls.add_comment_to_reverted_commit_bug_tracker(repository, args, pr, commits[0])
 
+        commit_class = None
+        if repository.classifier and repository.classifier.classes and commits:
+            classes = [repository.classifier.classify(commit, repository) for commit in commits]
+            classes = [klass for klass in classes if klass]
+            if classes and len(classes) == len(commits) and len(set(klass.name for klass in classes)) == 1:
+                commit_class = classes[0].name
+
         if issue and update_issue and isinstance(issue.tracker, radar.Tracker) and not_radar:
-            cls.add_comment_to_issue(not_radar, pr)
+            cls.add_comment_to_issue(not_radar, pr, commit_class=commit_class)
         elif issue and update_issue:
-            cls.add_comment_to_issue(issue, pr)
+            cls.add_comment_to_issue(issue, pr, commit_class=commit_class)
+
+        if radar_issue and update_issue and radar_issue.tracker.radarclient():
+            if args.update_radar and radar_issue.state == 'Analyze' and radar_issue.substate in ['Investigate', 'Fix']:
+                try:
+                    radar_issue.set_state(state='Analyze', substate='Review')
+                    print('Updated {} to Analyze/Review'.format(radar_issue.link))
+                except radar_issue.tracker.radarclient().exceptions.UnsuccessfulResponseException as e:
+                    sys.stderr.write('Failed to update {}:\n'.format(radar_issue.link))
+                    sys.stderr.write('{}\n'.format(e))
 
         if issue and pr._metadata and pr._metadata.get('issue'):
             log.info('Syncing PR labels with issue component...')

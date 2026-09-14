@@ -32,12 +32,16 @@
 #import "WebView.h"
 #import <WebCore/FrameDestructionObserverInlines.h>
 
-using namespace WebCore;
 
-WebDocumentLoaderMac::WebDocumentLoaderMac(ResourceRequest&& request, SubstituteData&& substituteData)
-    : DocumentLoader(WTF::move(request), WTF::move(substituteData))
+WebDocumentLoaderMac::WebDocumentLoaderMac(WebCore::ResourceRequest&& request, WebCore::SubstituteData&& substituteData, WebCore::ResourceRequest&& originalRequest)
+    : DocumentLoader(WTF::move(request), WTF::move(substituteData), WTF::move(originalRequest))
     , m_dataSource(nil)
     , m_isDataSourceRetained(false)
+{
+}
+
+WebDocumentLoaderMac::WebDocumentLoaderMac(WebCore::ResourceRequest&& request, WebCore::SubstituteData&& substituteData)
+    : WebDocumentLoaderMac(WTF::move(request), WTF::move(substituteData), { })
 {
 }
 
@@ -82,7 +86,7 @@ void WebDocumentLoaderMac::attachToFrame()
     retainDataSource();
 }
 
-void WebDocumentLoaderMac::detachFromFrame(LoadWillContinueInAnotherProcess loadWillContinueInAnotherProcess)
+void WebDocumentLoaderMac::detachFromFrame(WebCore::LoadWillContinueInAnotherProcess loadWillContinueInAnotherProcess)
 {
     DocumentLoader::detachFromFrame(loadWillContinueInAnotherProcess);
 

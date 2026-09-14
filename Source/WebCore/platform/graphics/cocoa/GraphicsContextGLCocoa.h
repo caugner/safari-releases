@@ -79,9 +79,7 @@ class WEBCORE_EXPORT GraphicsContextGLCocoa : public GraphicsContextGLANGLE, pub
 public:
     static RefPtr<GraphicsContextGLCocoa> create(WebCore::GraphicsContextGLAttributes&&, ProcessIdentity&& resourceOwner);
     ~GraphicsContextGLCocoa();
-    IOSurface* displayBufferSurface();
-
-    std::tuple<GCGLenum, GCGLenum> externalImageTextureBindingPoint() final;
+    IOSurface* NODELETE displayBufferSurface();
 
     enum class PbufferAttachmentUsage { Read, Write, ReadWrite };
     // Returns a handle which, if non-null, must be released via the
@@ -137,9 +135,9 @@ protected:
     bool reshapeDrawingBuffer() final;
     void prepareForDrawingBufferWrite() final;
 
-    IOSurfacePbuffer& drawingBuffer();
-    IOSurfacePbuffer& displayBuffer();
-    IOSurfacePbuffer& surfaceBuffer(SurfaceBuffer);
+    IOSurfacePbuffer& NODELETE drawingBuffer();
+    IOSurfacePbuffer& NODELETE displayBuffer();
+    IOSurfacePbuffer& NODELETE surfaceBuffer(SurfaceBuffer);
     bool bindNextDrawingBuffer();
     void freeDrawingBuffers();
 

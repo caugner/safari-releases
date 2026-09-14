@@ -140,10 +140,31 @@ static bool shouldEnableEnhancedSecurity(const std::string& pathOrURL)
     return pathContains(pathOrURL, "enhanced-security/");
 }
 
+static bool shouldEnableSiteIsolation(const std::string& pathOrURL)
+{
+    return pathContains(pathOrURL, "site-isolation/inspector/");
+}
+
 static bool shouldUseBackForwardCache(const std::string& pathOrURL)
 {
     return pathContains(pathOrURL, "navigation-api/")
         || pathContains(pathOrURL, "websockets/back-forward-cache");
+}
+
+static bool shouldDisableMutationEvents(const std::string& pathOrURL)
+{
+    return pathContains(pathOrURL, "html/syntax/parsing/")
+        || pathContains(pathOrURL, "html/semantics/forms/the-select-element/");
+}
+
+static bool shouldEnableTouchEventRegions(const std::string& pathOrURL)
+{
+    return pathContains(pathOrURL, "touch-event-regions-layer-tree/");
+}
+
+static bool shouldEnableGlobalPrivacyControl(const std::string& pathOrURL)
+{
+    return pathContains(pathOrURL, "/gpc/");
 }
 
 TestFeatures hardcodedFeaturesBasedOnPathForTest(const TestCommand& command)
@@ -173,8 +194,16 @@ TestFeatures hardcodedFeaturesBasedOnPathForTest(const TestCommand& command)
         features.boolWebPreferenceFeatures.insert({ "LockdownModeEnabled", true });
     if (shouldEnableEnhancedSecurity(command.pathOrURL))
         features.boolTestRunnerFeatures.insert({ "enhancedSecurityEnabled", true });
+    if (shouldEnableSiteIsolation(command.pathOrURL))
+        features.boolWebPreferenceFeatures.insert({ "SiteIsolationEnabled", true });
     if (shouldUseBackForwardCache(command.pathOrURL))
         features.boolWebPreferenceFeatures.insert({ "UsesBackForwardCache", true });
+    if (shouldDisableMutationEvents(command.pathOrURL))
+        features.boolWebPreferenceFeatures.insert({ "MutationEventsEnabled", false });
+    if (shouldEnableTouchEventRegions(command.pathOrURL))
+        features.boolWebPreferenceFeatures.insert({ "AlwaysUseTouchEventRegions", true });
+    if (shouldEnableGlobalPrivacyControl(command.pathOrURL))
+        features.boolTestRunnerFeatures.insert({ "globalPrivacyControl", true });
 
     return features;
 }

@@ -42,7 +42,7 @@ class ThreadTimers;
 class TimerBase;
 
 struct ThreadTimerHeapItem;
-typedef Vector<RefPtr<ThreadTimerHeapItem>> ThreadTimerHeap;
+using ThreadTimerHeap = Vector<Ref<ThreadTimerHeapItem>>;
     
 // A collection of timers per thread. Kept in ThreadGlobalData.
 class ThreadTimers {
@@ -57,17 +57,15 @@ public:
     // On a thread different then main, we should set the thread's instance of the SharedTimer.
     void setSharedTimer(SharedTimer*);
 
-    ThreadTimerHeap& timerHeap() { return m_timerHeap; }
+    ThreadTimerHeap& timerHeap() LIFETIME_BOUND { return m_timerHeap; }
 
     void updateSharedTimer();
     void fireTimersInNestedEventLoop();
-    void breakFireLoopForRenderingUpdate();
+    void NODELETE breakFireLoopForRenderingUpdate();
 
     unsigned nextHeapInsertionCount() { return m_currentHeapInsertionOrder++; }
 
 private:
-    inline CheckedPtr<SharedTimer> checkedSharedTimer();
-
     void sharedTimerFiredInternal();
     void fireTimersInNestedEventLoopInternal();
 

@@ -170,7 +170,7 @@ void AudioMediaStreamTrackRendererUnit::Unit::close()
 void AudioMediaStreamTrackRendererUnit::Unit::addSource(Ref<AudioSampleDataSource>&& source)
 {
 #if !RELEASE_LOG_DISABLED
-    source->protectedLogger()->logAlways(LogWebRTC, "AudioMediaStreamTrackRendererUnit::addSource ", source->logIdentifier());
+    protect(source->logger())->logAlways(LogWebRTC, "AudioMediaStreamTrackRendererUnit::addSource ", source->logIdentifier());
 #endif
     assertIsMainThread();
 
@@ -191,7 +191,7 @@ void AudioMediaStreamTrackRendererUnit::Unit::addSource(Ref<AudioSampleDataSourc
 bool AudioMediaStreamTrackRendererUnit::Unit::removeSource(AudioSampleDataSource& source)
 {
 #if !RELEASE_LOG_DISABLED
-    source.protectedLogger()->logAlways(LogWebRTC, "AudioMediaStreamTrackRendererUnit::removeSource ", source.logIdentifier());
+    protect(source.logger())->logAlways(LogWebRTC, "AudioMediaStreamTrackRendererUnit::removeSource ", source.logIdentifier());
 #endif
     assertIsMainThread();
 

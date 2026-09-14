@@ -93,7 +93,7 @@ double fontDPI()
         return xftDPI.value() / 1024.0;
 
     Ref platformScreen = PlatformScreen::singleton();
-    auto* data = platformScreen->screenData(primaryScreenDisplayID());
+    auto* data = platformScreen->screenData(platformScreen->primaryScreenDisplayID());
     return data ? data->dpi : 96.;
 }
 
@@ -129,7 +129,8 @@ bool screenSupportsExtendedColor(Widget*)
 #if ENABLE(TOUCH_EVENTS)
 bool screenHasTouchDevice()
 {
-    return getScreenProperties().screenHasTouchDevice;
+    Ref platformScreen = PlatformScreen::singleton();
+    return platformScreen->screenProperties().screenHasTouchDevice;
 }
 #endif // ENABLE(TOUCH_EVENTS)
 

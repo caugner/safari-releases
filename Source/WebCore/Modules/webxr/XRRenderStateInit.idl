@@ -33,5 +33,5 @@
     boolean passthroughFullyObscured;
     double inlineVerticalFieldOfView;
     WebXRWebGLLayer? baseLayer;
-    sequence<WebXRLayer>? layers;
+    [ImplementationDefaultValue=null] sequence<WebXRLayer>? layers;
 };

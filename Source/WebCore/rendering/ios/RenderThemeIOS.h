@@ -35,20 +35,23 @@
 OBJC_CLASS UIImage;
 
 namespace WebCore {
-    
-class RenderStyle;
-class GraphicsContext;
 
+class GraphicsContext;
 struct AttachmentLayout;
+
+namespace Style {
+class ComputedStyle;
+}
 
 class RenderThemeIOS final : public RenderThemeCocoa {
 public:
     friend NeverDestroyed<RenderThemeIOS>;
 
-    static void adjustRoundBorderRadius(RenderStyle&, RenderBox&);
+    static void adjustRoundBorderRadius(Style::ComputedStyle&, RenderBox&);
 
 #if USE(SYSTEM_PREVIEW)
-    void paintSystemPreviewBadge(Image&, const PaintInfo&, const FloatRect&) override;
+    void paintSystemPreviewBadge(Image&, const PaintInfo&, const FloatRect&) final;
+    void paintSystemPreviewBadge(const PaintInfo&, const FloatRect&) final;
 #endif
 
     using CSSValueToSystemColorMap = HashMap<CSSValueKey, Color>;
@@ -63,38 +66,35 @@ public:
 
     WEBCORE_EXPORT static IconAndSize iconForAttachment(const String& fileName, const String& attachmentType, const String& title);
 
-private:
     bool canCreateControlPartForRenderer(const RenderElement&) const final;
 
-    Style::PaddingBox popupInternalPaddingBox(const RenderStyle&) const override;
+    Style::PaddingBox platformPopupInternalPaddingBox(const Style::ComputedStyle&) const final;
 
-    int baselinePosition(const RenderBox&) const override;
+    int baselinePosition(const RenderBox&) const final;
 
-    bool isControlStyled(const RenderStyle&) const override;
+    bool isControlStyled(const Style::ComputedStyle&) const final;
 
     // Methods for each appearance value.
-    void adjustCheckboxStyle(RenderStyle&, const Element*) const override;
+    void adjustCheckboxStyle(Style::ComputedStyle&, const Element*) const final;
 
-    void adjustRadioStyle(RenderStyle&, const Element*) const override;
+    void adjustRadioStyle(Style::ComputedStyle&, const Element*) const final;
 
-    void adjustButtonStyle(RenderStyle&, const Element*) const override;
+    void adjustButtonStyle(Style::ComputedStyle&, const Element*) const final;
 
-    void adjustInnerSpinButtonStyle(RenderStyle&, const Element*) const final { }
+    void adjustInnerSpinButtonStyle(Style::ComputedStyle&, const Element*) const final { }
 
-    void adjustTextFieldStyle(RenderStyle&, const Element*) const final;
-    void paintTextFieldDecorations(const RenderBox&, const PaintInfo&, const FloatRect&) override;
-    void adjustTextAreaStyle(RenderStyle&, const Element*) const final;
-    void paintTextAreaDecorations(const RenderBox&, const PaintInfo&, const FloatRect&) override;
+    void adjustTextFieldStyle(Style::ComputedStyle&, const Element*) const final;
+    void paintTextFieldDecorations(const RenderBox&, const PaintInfo&, const FloatRect&) final;
+    void adjustTextAreaStyle(Style::ComputedStyle&, const Element*) const final;
+    void paintTextAreaDecorations(const RenderBox&, const PaintInfo&, const FloatRect&) final;
 
-    void paintTextFieldInnerShadow(const PaintInfo&, const FloatRoundedRect&);
+    void adjustMenuListButtonStyle(Style::ComputedStyle&, const Element*) const final;
+    void paintMenuListButtonDecorations(const RenderBox&, const PaintInfo&, const FloatRect&) final;
 
-    void adjustMenuListButtonStyle(RenderStyle&, const Element*) const override;
-    void paintMenuListButtonDecorations(const RenderBox&, const PaintInfo&, const FloatRect&) override;
+    void adjustSliderTrackStyle(Style::ComputedStyle&, const Element*) const final;
+    bool paintSliderTrack(const RenderElement&, const PaintInfo&, const FloatRect&) final;
 
-    void adjustSliderTrackStyle(RenderStyle&, const Element*) const override;
-    bool paintSliderTrack(const RenderElement&, const PaintInfo&, const FloatRect&) override;
-
-    void adjustSliderThumbSize(RenderStyle&, const Element*) const override;
+    void adjustSliderThumbSize(Style::ComputedStyle&, const Element*) const final;
 
     Seconds switchAnimationVisuallyOnDuration() const final { return 0.4880138408543766_s; }
     Seconds switchAnimationHeldDuration() const final { return 0.5073965509413827_s; }
@@ -102,23 +102,16 @@ private:
     bool hasSwitchHapticFeedback(SwitchTrigger) const final { return true; }
 #endif
 
-    bool paintProgressBar(const RenderElement&, const PaintInfo&, const FloatRect&) override;
+    bool paintProgressBar(const RenderElement&, const PaintInfo&, const FloatRect&) final;
 
-    IntSize sliderTickSize() const override;
-    int sliderTickOffsetFromTrackCenter() const override;
+    IntSize sliderTickSize() const final;
+    int sliderTickOffsetFromTrackCenter() const final;
 
-    void adjustSearchFieldStyle(RenderStyle&, const Element*) const override;
-    void paintSearchFieldDecorations(const RenderBox&, const PaintInfo&, const FloatRect&) override;
+    void adjustSearchFieldStyle(Style::ComputedStyle&, const Element*) const final;
+    void paintSearchFieldDecorations(const RenderBox&, const PaintInfo&, const FloatRect&) final;
 
-    Color checkboxRadioBorderColor(OptionSet<ControlStyle::State>, OptionSet<StyleColorOptions>);
-    Color checkboxRadioBackgroundColor(const RenderStyle&, OptionSet<ControlStyle::State>, OptionSet<StyleColorOptions>);
-    RefPtr<Gradient> checkboxRadioBackgroundGradient(const FloatRect&, OptionSet<ControlStyle::State>);
-    Color checkboxRadioIndicatorColor(OptionSet<ControlStyle::State>, OptionSet<StyleColorOptions>);
-
-    bool paintCheckbox(const RenderElement&, const PaintInfo&, const FloatRect&) override;
-    bool paintRadio(const RenderElement&, const PaintInfo&, const FloatRect&) override;
-
-    void paintCheckboxRadioInnerShadow(const PaintInfo&, const FloatRoundedRect&, OptionSet<ControlStyle::State>);
+    bool paintCheckbox(const RenderElement&, const PaintInfo&, const FloatRect&) final;
+    bool paintRadio(const RenderElement&, const PaintInfo&, const FloatRect&) final;
 
     bool supportsMeter(StyleAppearance) const final;
     bool paintMeter(const RenderElement&, const PaintInfo&, const FloatRect&) final;
@@ -129,57 +122,70 @@ private:
 
     void paintColorWellDecorations(const RenderElement&, const PaintInfo&, const FloatRect&) final;
 
-    void adjustSearchFieldDecorationPartStyle(RenderStyle&, const Element*) const final;
+    void adjustSearchFieldDecorationPartStyle(Style::ComputedStyle&, const Element*) const final;
     bool paintSearchFieldDecorationPart(const RenderElement&, const PaintInfo&, const FloatRect&) final;
 
-    void adjustSearchFieldResultsDecorationPartStyle(RenderStyle&, const Element*) const final;
+    void adjustSearchFieldResultsDecorationPartStyle(Style::ComputedStyle&, const Element*) const final;
+
     bool paintSearchFieldResultsDecorationPart(const RenderBox&, const PaintInfo&, const FloatRect&) final;
 
-    void adjustSearchFieldResultsButtonStyle(RenderStyle&, const Element*) const final;
+    void adjustSearchFieldResultsButtonStyle(Style::ComputedStyle&, const Element*) const final;
     bool paintSearchFieldResultsButton(const RenderBox&, const PaintInfo&, const FloatRect&) final;
 
-    bool supportsFocusRing(const RenderElement&, const RenderStyle&) const final;
+    bool supportsFocusRing(const RenderElement&, const Style::ComputedStyle&) const final;
 
-    bool supportsBoxShadow(const RenderStyle&) const final;
-
-    static Color insertionPointColor();
+    bool supportsBoxShadow(const Style::ComputedStyle&) const final;
 
     Color autocorrectionReplacementMarkerColor(const RenderText&) const final;
 
-    Color platformActiveSelectionBackgroundColor(OptionSet<StyleColorOptions>) const override;
-    Color platformInactiveSelectionBackgroundColor(OptionSet<StyleColorOptions>) const override;
+    Color platformActiveSelectionBackgroundColor(OptionSet<StyleColorOptions>) const final;
+    Color platformInactiveSelectionBackgroundColor(OptionSet<StyleColorOptions>) const final;
     Color platformFocusRingColor(OptionSet<StyleColorOptions>) const final;
 
     Color platformAnnotationHighlightBackgroundColor(OptionSet<StyleColorOptions>) const final;
 
-#if ENABLE(TOUCH_EVENTS)
-    Color platformTapHighlightColor() const override { return SRGBA<uint8_t> { 26, 26, 26, 77 } ; }
-#endif
+    Color platformTextSearchHighlightColor(OptionSet<StyleColorOptions>) const final;
 
-    bool shouldHaveSpinButton(const HTMLInputElement&) const override;
+#if ENABLE(CSS_TAP_HIGHLIGHT_COLOR)
+    Color platformTapHighlightColor() const final { return SRGBA<uint8_t> { 26, 26, 26, 77 } ; }
+#endif
 
 #if ENABLE(ATTACHMENT_ELEMENT)
-    LayoutSize attachmentIntrinsicSize(const RenderAttachment&) const override;
-    bool attachmentShouldAllowWidthToShrink(const RenderAttachment&) const override { return true; }
+    LayoutSize attachmentIntrinsicSize(const RenderAttachment&) const final;
+    bool attachmentShouldAllowWidthToShrink(const RenderAttachment&) const final { return true; }
     String attachmentStyleSheet() const final;
-    bool paintAttachment(const RenderElement&, const PaintInfo&, const IntRect&) override;
+    bool paintAttachment(const RenderElement&, const PaintInfo&, const IntRect&) final;
 #endif
 
-private:
-    RenderThemeIOS();
-    virtual ~RenderThemeIOS();
+    bool shouldHaveSpinButton(const HTMLInputElement&) const final;
 
 #if PLATFORM(WATCHOS)
     String extraDefaultStyleSheet() final;
 #endif
 
-    void adjustButtonLikeControlStyle(RenderStyle&, const Element&) const;
+    WEBCORE_EXPORT Color systemColor(CSSValueID, OptionSet<StyleColorOptions>) const final;
+    Color pictureFrameColor(const RenderElement&) final;
 
-    Color systemColor(CSSValueID, OptionSet<StyleColorOptions>) const override;
+    Style::PreferredSizePair controlSize(StyleAppearance, const FontCascade&, const Style::PreferredSizePair&, float zoomFactor) const final;
 
-    Color pictureFrameColor(const RenderElement&) override;
+private:
+    RenderThemeIOS();
+    virtual ~RenderThemeIOS();
 
-    void adjustMinimumIntrinsicSizeForAppearance(StyleAppearance, RenderStyle&) const;
+    void paintTextFieldInnerShadow(const PaintInfo&, const FloatRoundedRect&);
+
+    Color checkboxRadioBorderColor(OptionSet<ControlStyle::State>, OptionSet<StyleColorOptions>);
+    Color checkboxRadioBackgroundColor(const Style::ComputedStyle&, OptionSet<ControlStyle::State>, OptionSet<StyleColorOptions>);
+    RefPtr<Gradient> checkboxRadioBackgroundGradient(const FloatRect&, OptionSet<ControlStyle::State>);
+    Color checkboxRadioIndicatorColor(OptionSet<ControlStyle::State>, OptionSet<StyleColorOptions>);
+
+    void paintCheckboxRadioInnerShadow(const PaintInfo&, const FloatRoundedRect&, OptionSet<ControlStyle::State>);
+
+    static Color insertionPointColor();
+
+    void adjustButtonLikeControlStyle(Style::ComputedStyle&, const Element&) const;
+
+    void adjustMinimumIntrinsicSizeForAppearance(StyleAppearance, Style::ComputedStyle&) const;
 };
 
 }

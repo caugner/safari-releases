@@ -45,7 +45,7 @@
 namespace WebCore {
 
 #if HAVE(MACH_MEMORY_ENTRY)
-static int toVMMemoryLedger(MemoryLedger memoryLedger)
+static int NODELETE toVMMemoryLedger(MemoryLedger memoryLedger)
 {
     switch (memoryLedger) {
     case MemoryLedger::None:
@@ -93,12 +93,12 @@ void SharedMemoryHandle::setOwnershipOfMemory(const ProcessIdentity& processIden
 #endif
 }
 
-static inline void* toPointer(mach_vm_address_t address)
+static inline void* NODELETE toPointer(mach_vm_address_t address)
 {
     return reinterpret_cast<void*>(static_cast<uintptr_t>(address));
 }
 
-static inline mach_vm_address_t toVMAddress(void* pointer)
+static inline mach_vm_address_t NODELETE toVMAddress(void* pointer)
 {
     return static_cast<mach_vm_address_t>(reinterpret_cast<uintptr_t>(pointer));
 }
@@ -122,7 +122,7 @@ RefPtr<SharedMemory> SharedMemory::allocate(size_t size)
     return WTF::move(sharedMemory);
 }
 
-static inline vm_prot_t machProtection(SharedMemory::Protection protection)
+static inline vm_prot_t NODELETE machProtection(SharedMemory::Protection protection)
 {
     switch (protection) {
     case SharedMemory::Protection::ReadOnly:
@@ -168,12 +168,12 @@ RefPtr<SharedMemory> SharedMemory::wrapMap(std::span<const uint8_t> data, Protec
     return sharedMemory;
 }
 
-RefPtr<SharedMemory> SharedMemory::map(Handle&& handle, Protection protection)
+RefPtr<SharedMemory> SharedMemory::map(Handle&& handle, Protection protection, CopyOnWrite copyOnWrite)
 {
     vm_prot_t vmProtection = machProtection(protection);
     mach_vm_address_t mappedAddress = 0;
 
-    kern_return_t kr = mach_vm_map(mach_task_self(), &mappedAddress, handle.m_size, 0, VM_FLAGS_ANYWHERE | VM_FLAGS_RETURN_DATA_ADDR, handle.m_handle.sendRight(), 0, false, vmProtection, vmProtection, VM_INHERIT_NONE);
+    kern_return_t kr = mach_vm_map(mach_task_self(), &mappedAddress, handle.m_size, 0, VM_FLAGS_ANYWHERE | VM_FLAGS_RETURN_DATA_ADDR, handle.m_handle.sendRight(), 0, copyOnWrite == CopyOnWrite::Yes, vmProtection, vmProtection, VM_INHERIT_NONE);
     if (kr != KERN_SUCCESS) {
         RELEASE_LOG_ERROR(VirtualMemory, "%p - SharedMemory::map: Failed to map shared memory. %" PUBLIC_LOG_STRING " (%x)", nullptr, mach_error_string(kr), kr);
         return nullptr;

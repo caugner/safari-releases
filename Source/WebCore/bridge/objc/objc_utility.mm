@@ -78,7 +78,7 @@ namespace Bindings {
 
 */
 
-static long long convertDoubleToLongLong(double d)
+static long long NODELETE convertDoubleToLongLong(double d)
 {
     // Ensure that non-x86_64 ports will match x86_64 semantics which allows for overflow.
     long long potentiallyOverflowed = (unsigned long long)d;
@@ -107,7 +107,7 @@ ObjcValue convertValueToObjcValue(JSGlobalObject* lexicalGlobalObject, JSValue v
 
             JSGlobalObject* globalObject = 0;
             if (value.isObject() && asObject(value)->isGlobalObject())
-                globalObject = jsCast<JSGlobalObject*>(asObject(value));
+                globalObject = downcast<JSGlobalObject>(asObject(value));
 
             if (!globalObject)
                 globalObject = originGlobalObject;

@@ -34,21 +34,11 @@
 #include "BPlatform.h"
 #include "GigacageConfig.h"
 #include "Sizes.h"
-#include <bit>
 #include <cstddef>
-#include <inttypes.h>
 
 #if BOS(DARWIN)
 #include <mach/vm_param.h>
 #endif
-
-#if ((BOS(DARWIN) || BOS(LINUX)) && \
-    (BCPU(X86_64) || (BCPU(ARM64) && !defined(__ILP32__) && (!BPLATFORM(IOS_FAMILY) || BPLATFORM(IOS)))))
-#define GIGACAGE_ENABLED 1
-#else
-#define GIGACAGE_ENABLED 0
-#endif
-
 
 namespace Gigacage {
 
@@ -96,6 +86,8 @@ constexpr size_t primitiveGigacageMask = gigacageSizeToMask(primitiveGigacageSiz
 constexpr ptrdiff_t offsetOfPrimitiveGigacageBasePtr = static_cast<ptrdiff_t>(Primitive) * sizeof(void*);
 
 extern "C" BEXPORT bool disablePrimitiveGigacageRequested;
+
+BALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
 BINLINE bool isEnabled() { return g_gigacageConfig.isEnabled; }
 
@@ -201,6 +193,8 @@ BINLINE bool contains(const void* ptr)
     auto* p = reinterpret_cast<const uint8_t*>(ptr);
     return static_cast<size_t>(p - start) < g_gigacageConfig.totalSize;
 }
+
+BALLOW_UNSAFE_BUFFER_USAGE_END
 
 BEXPORT bool shouldBeEnabled();
 

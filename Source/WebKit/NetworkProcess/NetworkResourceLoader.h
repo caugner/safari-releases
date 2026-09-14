@@ -33,6 +33,7 @@
 #include "NetworkResourceLoadIdentifier.h"
 #include "NetworkResourceLoadParameters.h"
 #include "PrivateRelayed.h"
+#include "ServiceWorkerTimingInfo.h"
 #include <WebCore/ContentFilterClient.h>
 #include <WebCore/ContentFilterUnblockHandler.h>
 #include <WebCore/ContentSecurityPolicyClient.h>
@@ -44,6 +45,7 @@
 #include <WebCore/SecurityPolicyViolationEvent.h>
 #include <WebCore/SharedBuffer.h>
 #include <WebCore/Timer.h>
+#include <wtf/Deque.h>
 #include <wtf/MonotonicTime.h>
 #include <wtf/WeakPtr.h>
 
@@ -99,7 +101,7 @@ public:
     }
     virtual ~NetworkResourceLoader();
 
-    const WebCore::ResourceRequest& originalRequest() const { return m_parameters.request; }
+    const WebCore::ResourceRequest& originalRequest() const LIFETIME_BOUND { return m_parameters.request; }
 
     NetworkLoad* networkLoad() const { return m_networkLoad.get(); }
 
@@ -114,18 +116,17 @@ public:
     void continueWillSendRequest(WebCore::ResourceRequest&&, bool isAllowedToAskUserForCredentials, CompletionHandler<void(WebCore::ResourceRequest&&)>&&);
 
     void setResponse(WebCore::ResourceResponse&& response) { m_response = WTF::move(response); }
-    const WebCore::ResourceResponse& response() const { return m_response; }
+    const WebCore::ResourceResponse& response() const LIFETIME_BOUND { return m_response; }
 
     NetworkConnectionToWebProcess& connectionToWebProcess() const { return m_connection; }
-    Ref<NetworkConnectionToWebProcess> protectedConnectionToWebProcess() const;
     PAL::SessionID sessionID() const { return m_connection->sessionID(); }
     WebCore::ResourceLoaderIdentifier coreIdentifier() const { return *m_parameters.identifier; }
     WebCore::FrameIdentifier frameID() const { return m_parameters.webFrameID; }
     WebCore::PageIdentifier pageID() const { return m_parameters.webPageID; }
     WebPageProxyIdentifier webPageProxyID() const { return m_parameters.webPageProxyID; }
-    const NetworkResourceLoadParameters& parameters() const { return m_parameters; }
+    const NetworkResourceLoadParameters& parameters() const LIFETIME_BOUND { return m_parameters; }
     NetworkResourceLoadIdentifier identifier() const { return m_resourceLoadID; }
-    const URL& firstResponseURL() const { return m_firstResponseURL; }
+    const URL& firstResponseURL() const LIFETIME_BOUND { return m_firstResponseURL; }
 
     NetworkCache::GlobalFrameID globalFrameID() { return { webPageProxyID(), pageID(), frameID() }; }
 
@@ -168,13 +169,17 @@ public:
     void startWithServiceWorker();
     void serviceWorkerDidNotHandle(ServiceWorkerFetchTask*);
     void setServiceWorkerRegistration(WebCore::SWServerRegistration& serviceWorkerRegistration) { m_serviceWorkerRegistration = serviceWorkerRegistration; }
-    void setWorkerStart(MonotonicTime);
-    MonotonicTime workerStart() const { return m_workerStart; }
+    void NODELETE setWorkerStart(MonotonicTime);
+
+    void NODELETE setWorkerRouterEvaluationStart(MonotonicTime);
+    void NODELETE setWorkerCacheLookupStart(MonotonicTime);
+    void NODELETE setWorkerMatchedRouterSource(WebCore::RouterSourceEnum);
+    void NODELETE setWorkerFinalRouterSource(WebCore::RouterSourceEnum);
 
     std::optional<WebCore::ResourceError> doCrossOriginOpenerHandlingOfResponse(const WebCore::ResourceResponse&);
-    void sendDidReceiveResponsePotentiallyInNewBrowsingContextGroup(const WebCore::ResourceResponse&, PrivateRelayed, bool needsContinueDidReceiveResponseMessage);
+    void sendDidReceiveResponseWithPotentialProcessSwap(const WebCore::ResourceResponse&, PrivateRelayed, bool needsContinueDidReceiveResponseMessage);
 
-    bool isAppInitiated();
+    bool NODELETE isAppInitiated();
 
 #if ENABLE(CONTENT_FILTERING)
     bool continueAfterServiceWorkerReceivedData(const WebCore::SharedBuffer&);
@@ -189,9 +194,6 @@ public:
 private:
     NetworkResourceLoader(NetworkResourceLoadParameters&&, NetworkConnectionToWebProcess&, CompletionHandler<void(const WebCore::ResourceError&, const WebCore::ResourceResponse, Vector<uint8_t>&&)>&&);
 
-    RefPtr<NetworkCache::Cache> protectedCache() const;
-    RefPtr<ServiceWorkerFetchTask> protectedServiceWorkerFetchTask() const;
-
     // IPC::MessageSender
     IPC::Connection* messageSenderConnection() const override;
     uint64_t messageSenderDestinationID() const override { return m_parameters.identifier->toUInt64(); }
@@ -202,8 +204,11 @@ private:
     WebCore::ResourceError contentFilterDidBlock(WebCore::ContentFilterUnblockHandler&&, String&& unblockRequestDeniedScript) final;
     void cancelMainResourceLoadForContentFilter(const WebCore::ResourceError&) final;
     void handleProvisionalLoadFailureFromContentFilter(const URL& blockedPageURL, WebCore::SubstituteData&&) final;
+#if HAVE(WEBCONTENTRESTRICTIONS)
 #if HAVE(WEBCONTENTRESTRICTIONS_PATH_SPI)
     String webContentRestrictionsConfigurationPath() const final;
+#endif
+    URL mainDocumentURL() const final { return m_parameters.mainDocumentURL; }
 #endif
 #endif
 
@@ -276,16 +281,17 @@ private:
     void sendReportToEndpoints(const URL& baseURL, std::span<const String> endpointURIs, std::span<const String> endpointTokens, Ref<WebCore::FormData>&& report, WebCore::ViolationReportType) final;
     String httpUserAgent() const final { return originalRequest().httpUserAgent(); }
     void initializeReportingEndpoints(const WebCore::ResourceResponse&);
-    WebCore::FrameIdentifier frameIdentifierForReport() const;
+    WebCore::FrameIdentifier NODELETE frameIdentifierForReport() const;
 
     enum class IsFromServiceWorker : bool { No, Yes };
     void willSendRedirectedRequestInternal(WebCore::ResourceRequest&&, WebCore::ResourceRequest&& redirectRequest, WebCore::ResourceResponse&&, IsFromServiceWorker, CompletionHandler<void(WebCore::ResourceRequest&&)>&&);
+    void continueWillSendRedirectedRequestAfterContentFiltering(WebCore::ResourceRequest&&, WebCore::ResourceRequest&& redirectRequest, WebCore::ResourceResponse&&, IsFromServiceWorker, CompletionHandler<void(WebCore::ResourceRequest&&)>&&);
     std::optional<WebCore::NetworkLoadMetrics> computeResponseMetrics(const WebCore::ResourceResponse&) const;
 
     void startRequest(const WebCore::ResourceRequest&);
     bool abortIfServiceWorkersOnly();
 
-    bool shouldSendResourceLoadMessages() const;
+    bool NODELETE shouldSendResourceLoadMessages() const;
 
     void sendDidReceiveDataMessage(const WebCore::FragmentedSharedBuffer&);
 
@@ -293,6 +299,10 @@ private:
     void updateBytesTransferredOverNetwork(size_t bytesTransferredOverNetwork);
     void reportNetworkUsageToAllSharedWorkerObjects(WebCore::SharedWorkerIdentifier, size_t bytesTransferredOverNetworkDelta);
     void reportNetworkUsageToAllServiceWorkerClients(WebCore::ServiceWorkerIdentifier, size_t bytesTransferredOverNetworkDelta);
+#endif
+
+#if ENABLE(BLOCKING_OF_LOCAL_FILE_LOADS_WITHOUT_SANDBOX_EXTENSION)
+    bool isLocalFileLoadAllowed(const URL&);
 #endif
 
     NetworkResourceLoadParameters m_parameters;
@@ -308,7 +318,7 @@ private:
     unsigned m_redirectCount { 0 };
 
     std::unique_ptr<SynchronousLoadData> m_synchronousLoadData;
-    Vector<RefPtr<WebCore::BlobDataFileReference>> m_fileReferences;
+    Vector<Ref<WebCore::BlobDataFileReference>> m_fileReferences;
 
     bool m_wasStarted { false };
     bool m_didConsumeSandboxExtensions { false };
@@ -317,8 +327,6 @@ private:
 #if ENABLE(CONTENT_EXTENSIONS)
     size_t m_bytesTransferredOverNetwork { 0 };
 #endif
-
-    unsigned m_retrievedDerivedDataCount { 0 };
 
     WebCore::Timer m_bufferingTimer;
     RefPtr<NetworkCache::Cache> m_cache;
@@ -329,7 +337,9 @@ private:
     std::unique_ptr<NetworkCache::Entry> m_cacheEntryWaitingForContinueDidReceiveResponse;
     RefPtr<NetworkLoadChecker> m_networkLoadChecker;
     bool m_shouldRestartLoad { false };
-    ResponseCompletionHandler m_responseCompletionHandler;
+    // A Deque (rather than a single handler) is needed because multipart/x-mixed-replace responses
+    // can deliver follow-up parts before the WebProcess has approved the first one via ContinueDidReceiveResponse.
+    Deque<ResponseCompletionHandler> m_responseCompletionHandlers;
     bool m_shouldCaptureExtraNetworkLoadMetrics { false };
     bool m_isKeptAlive { false };
     std::unique_ptr<EarlyHintsResourceLoader> m_earlyHintsResourceLoader;
@@ -337,7 +347,8 @@ private:
     std::optional<NetworkActivityTracker> m_networkActivityTracker;
     RefPtr<ServiceWorkerFetchTask> m_serviceWorkerFetchTask;
     WeakPtr<WebCore::SWServerRegistration> m_serviceWorkerRegistration;
-    MonotonicTime m_workerStart;
+    std::optional<ServiceWorkerTimingInfo> m_serviceWorkerTimingInfo;
+
     NetworkResourceLoadIdentifier m_resourceLoadID;
     WebCore::ResourceResponse m_redirectResponse;
     URL m_firstResponseURL; // First URL in response's URL list (https://fetch.spec.whatwg.org/#concept-response-url-list).

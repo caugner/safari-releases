@@ -26,12 +26,14 @@
 
 #include "ContextDestructionObserverInlines.h"
 #include "DOMPromiseProxy.h"
+#include "JSDOMBindingFacade.h"
 #include "JSDOMConstructorNotConstructable.h"
 #include "JSDOMConvertBase.h"
 #include "JSDOMConvertBoolean.h"
 #include "JSDOMConvertBufferSource.h"
 #include "JSDOMConvertInterface.h"
 #include "JSDOMConvertNumbers.h"
+#include "JSDOMConvertOptional.h"
 #include "JSDOMConvertPromise.h"
 #include "JSDOMConvertSerializedScriptValue.h"
 #include "JSDOMConvertStrings.h"
@@ -45,8 +47,10 @@
 #include "ScriptExecutionContext.h"
 #include "SerializedScriptValue.h"
 #include <JavaScriptCore/FunctionPrototype.h>
-#include <JavaScriptCore/JSCInlines.h>
 #include <JavaScriptCore/JSString.h>
+#include <JavaScriptCore/MarkedVector.h>
+#include <type_traits>
+#include <wtf/IsIncreasing.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/SortedArrayMap.h>
 
@@ -73,7 +77,7 @@ template<> JSString* convertEnumerationToJS(VM& vm, TestCallbackInterface::Enum 
 
 template<> std::optional<TestCallbackInterface::Enum> parseEnumerationFromString<TestCallbackInterface::Enum>(const String& stringValue)
 {
-    static constexpr SortedArrayMap enumerationMapping { std::to_array<std::pair<ComparableASCIILiteral, TestCallbackInterface::Enum>>({
+    static constexpr SortedArrayMap enumerationMapping { WTF::toArray<std::pair<ComparableASCIILiteral, TestCallbackInterface::Enum>>({
         { "value1"_s, TestCallbackInterface::Enum::Value1 },
         { "value2"_s, TestCallbackInterface::Enum::Value2 },
     }) };
@@ -92,6 +96,17 @@ template<> ASCIILiteral expectedEnumerationValues<TestCallbackInterface::Enum>()
     return "\"value1\", \"value2\""_s;
 }
 
+IGNORE_WARNINGS_BEGIN("invalid-offsetof")
+
+static_assert(std::is_aggregate_v<TestCallbackInterface::Dictionary>);
+static_assert(IsIncreasing<
+      0
+    , offsetof(TestCallbackInterface::Dictionary, requiredMember)
+    , offsetof(TestCallbackInterface::Dictionary, optionalMember)
+>);
+
+IGNORE_WARNINGS_END
+
 template<> ConversionResult<IDLDictionary<TestCallbackInterface::Dictionary>> convertDictionary<TestCallbackInterface::Dictionary>(JSGlobalObject& lexicalGlobalObject, JSValue value)
 {
     SUPPRESS_UNCOUNTED_LOCAL auto& vm = JSC::getVM(&lexicalGlobalObject);
@@ -102,25 +117,21 @@ template<> ConversionResult<IDLDictionary<TestCallbackInterface::Dictionary>> co
         throwTypeError(&lexicalGlobalObject, throwScope);
         return ConversionResultException { };
     }
-    TestCallbackInterface::Dictionary result;
     JSValue optionalMemberValue;
     if (isNullOrUndefined)
         optionalMemberValue = jsUndefined();
     else {
-        optionalMemberValue = object->get(&lexicalGlobalObject, Identifier::fromString(vm, "optionalMember"_s));
+        optionalMemberValue = WebCore::get(object, &lexicalGlobalObject, Identifier::fromString(vm, "optionalMember"_s));
         RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });
     }
-    if (!optionalMemberValue.isUndefined()) {
-        auto optionalMemberConversionResult = convert<IDLLong>(lexicalGlobalObject, optionalMemberValue);
-        if (optionalMemberConversionResult.hasException(throwScope)) [[unlikely]]
-            return ConversionResultException { };
-        result.optionalMember = optionalMemberConversionResult.releaseReturnValue();
-    }
+    auto optionalMemberConversionResult = convert<IDLOptional<IDLLong>>(lexicalGlobalObject, optionalMemberValue);
+    if (optionalMemberConversionResult.hasException(throwScope)) [[unlikely]]
+        return ConversionResultException { };
     JSValue requiredMemberValue;
     if (isNullOrUndefined)
         requiredMemberValue = jsUndefined();
     else {
-        requiredMemberValue = object->get(&lexicalGlobalObject, Identifier::fromString(vm, "requiredMember"_s));
+        requiredMemberValue = WebCore::get(object, &lexicalGlobalObject, Identifier::fromString(vm, "requiredMember"_s));
         RETURN_IF_EXCEPTION(throwScope, ConversionResultException { });
     }
     if (requiredMemberValue.isUndefined()) {
@@ -130,8 +141,10 @@ template<> ConversionResult<IDLDictionary<TestCallbackInterface::Dictionary>> co
     auto requiredMemberConversionResult = convert<IDLUSVString>(lexicalGlobalObject, requiredMemberValue);
     if (requiredMemberConversionResult.hasException(throwScope)) [[unlikely]]
         return ConversionResultException { };
-    result.requiredMember = requiredMemberConversionResult.releaseReturnValue();
-    return result;
+    return TestCallbackInterface::Dictionary {
+        requiredMemberConversionResult.releaseReturnValue(),
+        optionalMemberConversionResult.releaseReturnValue(),
+    };
 }
 
 JSTestCallbackInterface::JSTestCallbackInterface(JSObject* callback, JSDOMGlobalObject* globalObject)
@@ -187,7 +200,7 @@ template<> void JSTestCallbackInterfaceDOMConstructor::initializeProperties(VM& 
 
 JSValue JSTestCallbackInterface::getConstructor(VM& vm, const JSGlobalObject* globalObject)
 {
-    return getDOMConstructor<JSTestCallbackInterfaceDOMConstructor, DOMConstructorID::TestCallbackInterface>(vm, *jsCast<const JSDOMGlobalObject*>(globalObject));
+    return getDOMConstructor<JSTestCallbackInterfaceDOMConstructor, DOMConstructorID::TestCallbackInterface>(vm, *uncheckedDowncast<JSDOMGlobalObject>(globalObject));
 }
 
 CallbackResult<typename IDLUndefined::CallbackReturnType> JSTestCallbackInterface::callbackWithNoParam()
@@ -210,7 +223,8 @@ CallbackResult<typename IDLUndefined::CallbackReturnType> JSTestCallbackInterfac
     m_data->invokeCallback(thisValue, args, JSCallbackData::CallbackType::Object, Identifier::fromString(vm, "callbackWithNoParam"_s), returnedException);
     if (returnedException) {
         UNUSED_PARAM(lexicalGlobalObject);
-        reportException(m_data->callback()->globalObject(), returnedException);
+        auto* callbackRealm = m_data->callback()->realmMayBeNull();
+        reportException(callbackRealm ? callbackRealm : m_data->globalObject(), returnedException);
         return CallbackResultType::ExceptionThrown;
      }
 
@@ -265,7 +279,8 @@ CallbackResult<typename IDLUndefined::CallbackReturnType> JSTestCallbackInterfac
     m_data->invokeCallback(thisValue, args, JSCallbackData::CallbackType::Object, Identifier::fromString(vm, "callbackWithArrayParam"_s), returnedException);
     if (returnedException) {
         UNUSED_PARAM(lexicalGlobalObject);
-        reportException(m_data->callback()->globalObject(), returnedException);
+        auto* callbackRealm = m_data->callback()->realmMayBeNull();
+        reportException(callbackRealm ? callbackRealm : m_data->globalObject(), returnedException);
         return CallbackResultType::ExceptionThrown;
      }
 
@@ -322,7 +337,8 @@ CallbackResult<typename IDLUndefined::CallbackReturnType> JSTestCallbackInterfac
     m_data->invokeCallback(thisValue, args, JSCallbackData::CallbackType::Object, Identifier::fromString(vm, "callbackWithSerializedScriptValueParam"_s), returnedException);
     if (returnedException) {
         UNUSED_PARAM(lexicalGlobalObject);
-        reportException(m_data->callback()->globalObject(), returnedException);
+        auto* callbackRealm = m_data->callback()->realmMayBeNull();
+        reportException(callbackRealm ? callbackRealm : m_data->globalObject(), returnedException);
         return CallbackResultType::ExceptionThrown;
      }
 
@@ -379,7 +395,8 @@ CallbackResult<typename IDLUndefined::CallbackReturnType> JSTestCallbackInterfac
     m_data->invokeCallback(thisValue, args, JSCallbackData::CallbackType::Object, Identifier::fromString(vm, "callbackWithStringList"_s), returnedException);
     if (returnedException) {
         UNUSED_PARAM(lexicalGlobalObject);
-        reportException(m_data->callback()->globalObject(), returnedException);
+        auto* callbackRealm = m_data->callback()->realmMayBeNull();
+        reportException(callbackRealm ? callbackRealm : m_data->globalObject(), returnedException);
         return CallbackResultType::ExceptionThrown;
      }
 
@@ -435,7 +452,8 @@ CallbackResult<typename IDLUndefined::CallbackReturnType> JSTestCallbackInterfac
     m_data->invokeCallback(thisValue, args, JSCallbackData::CallbackType::Object, Identifier::fromString(vm, "callbackWithBoolean"_s), returnedException);
     if (returnedException) {
         UNUSED_PARAM(lexicalGlobalObject);
-        reportException(m_data->callback()->globalObject(), returnedException);
+        auto* callbackRealm = m_data->callback()->realmMayBeNull();
+        reportException(callbackRealm ? callbackRealm : m_data->globalObject(), returnedException);
         return CallbackResultType::ExceptionThrown;
      }
 
@@ -491,7 +509,8 @@ CallbackResult<typename IDLDOMString::CallbackReturnType> JSTestCallbackInterfac
     auto jsResult = m_data->invokeCallback(thisValue, args, JSCallbackData::CallbackType::Object, Identifier::fromString(vm, "callbackWithEnum"_s), returnedException);
     if (returnedException) {
         UNUSED_PARAM(lexicalGlobalObject);
-        reportException(m_data->callback()->globalObject(), returnedException);
+        auto* callbackRealm = m_data->callback()->realmMayBeNull();
+        reportException(callbackRealm ? callbackRealm : m_data->globalObject(), returnedException);
         return CallbackResultType::ExceptionThrown;
      }
 
@@ -556,7 +575,8 @@ CallbackResult<typename IDLUndefined::CallbackReturnType> JSTestCallbackInterfac
     m_data->invokeCallback(thisValue, args, JSCallbackData::CallbackType::Object, Identifier::fromString(vm, "callbackRequiresThisToPass"_s), returnedException);
     if (returnedException) {
         UNUSED_PARAM(lexicalGlobalObject);
-        reportException(m_data->callback()->globalObject(), returnedException);
+        auto* callbackRealm = m_data->callback()->realmMayBeNull();
+        reportException(callbackRealm ? callbackRealm : m_data->globalObject(), returnedException);
         return CallbackResultType::ExceptionThrown;
      }
 
@@ -612,7 +632,8 @@ CallbackResult<typename IDLDOMString::CallbackReturnType> JSTestCallbackInterfac
     auto jsResult = m_data->invokeCallback(thisValue, args, JSCallbackData::CallbackType::Object, Identifier::fromString(vm, "callbackWithAReturnValue"_s), returnedException);
     if (returnedException) {
         UNUSED_PARAM(lexicalGlobalObject);
-        reportException(m_data->callback()->globalObject(), returnedException);
+        auto* callbackRealm = m_data->callback()->realmMayBeNull();
+        reportException(callbackRealm ? callbackRealm : m_data->globalObject(), returnedException);
         return CallbackResultType::ExceptionThrown;
      }
 
@@ -675,7 +696,7 @@ CallbackResult<typename IDLPromise<IDLUndefined>::CallbackReturnType> JSTestCall
     auto jsResult = m_data->invokeCallback(thisValue, args, JSCallbackData::CallbackType::Object, Identifier::fromString(vm, "callbackThatTreatsExceptionAsRejectedPromise"_s), returnedException);
     if (returnedException) {
         auto* jsPromise = JSC::JSPromise::create(vm, globalObject.promiseStructure());
-        jsPromise->rejectAsHandled(vm, &globalObject, returnedException->value());
+        jsPromise->rejectAsHandled(vm, returnedException->value());
         return { DOMPromise::create(globalObject, *jsPromise) };
      }
 
@@ -707,7 +728,8 @@ CallbackResult<typename IDLDOMString::CallbackReturnType> JSTestCallbackInterfac
     auto jsResult = m_data->invokeCallback(thisValue, args, JSCallbackData::CallbackType::Object, Identifier::fromString(vm, "callbackWithThisObject"_s), returnedException);
     if (returnedException) {
         UNUSED_PARAM(lexicalGlobalObject);
-        reportException(m_data->callback()->globalObject(), returnedException);
+        auto* callbackRealm = m_data->callback()->realmMayBeNull();
+        reportException(callbackRealm ? callbackRealm : m_data->globalObject(), returnedException);
         return CallbackResultType::ExceptionThrown;
      }
 
@@ -750,22 +772,22 @@ CallbackResult<typename IDLDOMString::CallbackReturnType> JSTestCallbackInterfac
     return { returnValue.releaseReturnValue() };
 }
 
-void JSTestCallbackInterface::visitJSFunction(JSC::AbstractSlotVisitor& visitor)
+void JSTestCallbackInterface::visitJSFunctionInGCThread(JSC::AbstractSlotVisitor& visitor)
 {
-    m_data->visitJSFunction(visitor);
+    m_data->visitJSFunctionInGCThread(visitor);
 }
 
-void JSTestCallbackInterface::visitJSFunction(JSC::SlotVisitor& visitor)
+void JSTestCallbackInterface::visitJSFunctionInGCThread(JSC::SlotVisitor& visitor)
 {
-    m_data->visitJSFunction(visitor);
+    m_data->visitJSFunctionInGCThread(visitor);
 }
 
 JSC::JSValue toJS(TestCallbackInterface& impl)
 {
-    if (!static_cast<JSTestCallbackInterface&>(impl).callbackData())
-        return jsNull();
+    if (auto* callbackData = downcast<JSTestCallbackInterface>(impl).callbackData())
+        return callbackData->callback();
+    return jsNull();
 
-    return static_cast<JSTestCallbackInterface&>(impl).callbackData()->callback();
 }
 
 ScriptExecutionContext* JSTestCallbackInterface::scriptExecutionContext() const

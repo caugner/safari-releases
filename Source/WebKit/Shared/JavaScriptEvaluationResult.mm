@@ -26,14 +26,15 @@
 #import "config.h"
 #import "JavaScriptEvaluationResult.h"
 
-#import "_WKJSHandleInternal.h"
-#import "_WKSerializedNodeInternal.h"
+#import "WKDOMNodeSnapshotInternal.h"
+#import "WKJSHandleInternal.h"
+#import "_WKJSHandle.h"
 
 namespace WebKit {
 
 class JavaScriptEvaluationResult::ObjCExtractor {
 public:
-    Map takeMap() { return WTF::move(m_map); }
+    Map NODELETE takeMap() { return WTF::move(m_map); }
     JSObjectID addObjectToMap(id);
     bool failed() const { return m_failed; }
 private:
@@ -159,8 +160,8 @@ auto JavaScriptEvaluationResult::ObjCExtractor::toValue(id object) -> Value
         return { WTF::move(map) };
     }
 
-    if ([object isKindOfClass:_WKSerializedNode.class])
-        return makeUniqueRef<WebCore::SerializedNode>(((_WKSerializedNode *)object)->_node->coreSerializedNode());
+    if ([object isKindOfClass:WKDOMNodeSnapshot.class])
+        return makeUniqueRef<WebCore::SerializedNode>(((WKDOMNodeSnapshot *)object)->_node->coreSerializedNode());
 
     if ([object isKindOfClass:_WKJSHandle.class])
         return makeUniqueRef<JSHandleInfo>(((_WKJSHandle *)object)->_ref->info());

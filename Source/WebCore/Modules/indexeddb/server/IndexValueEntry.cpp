@@ -78,7 +78,7 @@ bool IndexValueEntry::contains(const IDBKeyData& key)
     });
 }
 
-const IDBKeyData* IndexValueEntry::getLowest() const
+const IDBKeyData* IndexValueEntry::getLowest() const LIFETIME_BOUND
 {
     return WTF::switchOn(m_keys, [](const std::optional<IDBKeyData>& singleKey) -> const IDBKeyData* {
         return singleKey ? &*singleKey : nullptr;
@@ -158,7 +158,7 @@ IndexValueEntry::Iterator& IndexValueEntry::Iterator::operator++()
     return *this;
 }
 
-IndexValueEntry::Iterator IndexValueEntry::begin()
+IndexValueEntry::Iterator IndexValueEntry::begin() LIFETIME_BOUND
 {
     return WTF::switchOn(m_keys, [this](const std::optional<IDBKeyData>& singleKey) -> Iterator {
         ASSERT_UNUSED(singleKey, singleKey);
@@ -169,7 +169,7 @@ IndexValueEntry::Iterator IndexValueEntry::begin()
     });
 }
 
-IndexValueEntry::Iterator IndexValueEntry::reverseBegin(CursorDuplicity duplicity)
+IndexValueEntry::Iterator IndexValueEntry::reverseBegin(CursorDuplicity duplicity) LIFETIME_BOUND
 {
     return WTF::switchOn(m_keys, [this](const std::optional<IDBKeyData>& singleKey) -> Iterator {
         ASSERT_UNUSED(singleKey, singleKey);
@@ -184,7 +184,7 @@ IndexValueEntry::Iterator IndexValueEntry::reverseBegin(CursorDuplicity duplicit
     });
 }
 
-IndexValueEntry::Iterator IndexValueEntry::find(const IDBKeyData& key)
+IndexValueEntry::Iterator IndexValueEntry::find(const IDBKeyData& key) LIFETIME_BOUND
 {
     return WTF::switchOn(m_keys, [this, &key](const std::optional<IDBKeyData>& singleKey) -> Iterator {
         ASSERT(singleKey);
@@ -198,7 +198,7 @@ IndexValueEntry::Iterator IndexValueEntry::find(const IDBKeyData& key)
     });
 }
 
-IndexValueEntry::Iterator IndexValueEntry::reverseFind(const IDBKeyData& key, CursorDuplicity)
+IndexValueEntry::Iterator IndexValueEntry::reverseFind(const IDBKeyData& key, CursorDuplicity) LIFETIME_BOUND
 {
     return WTF::switchOn(m_keys, [this, &key](const std::optional<IDBKeyData>& singleKey) -> Iterator {
         ASSERT(singleKey);

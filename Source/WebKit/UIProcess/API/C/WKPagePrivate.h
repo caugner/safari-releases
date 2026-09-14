@@ -23,8 +23,7 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef WKPagePrivate_h
-#define WKPagePrivate_h
+#pragma once
 
 #include <WebKit/WKBase.h>
 #include <WebKit/WKPage.h>
@@ -176,7 +175,7 @@ WK_EXPORT void WKPageSetUseDarkAppearanceForTesting(WKPageRef pageRef, bool useD
 WK_EXPORT WKProcessID WKPageGetProcessIdentifier(WKPageRef page);
 WK_EXPORT WKProcessID WKPageGetGPUProcessIdentifier(WKPageRef page);
 
-typedef void (*WKPageGetApplicationManifestFunction)(void* functionContext);
+typedef void (*WKPageGetApplicationManifestFunction)(void* functionContext, bool success);
 WK_EXPORT void WKPageGetApplicationManifest(WKPageRef page, void* context, WKPageGetApplicationManifestFunction block);
 
 typedef void (*WKPageDumpPrivateClickMeasurementFunction)(WKStringRef privateClickMeasurementRepresentation, void* functionContext);
@@ -221,6 +220,8 @@ WK_EXPORT void WKPagePermissionChanged(WKStringRef permissionName, WKStringRef o
 
 WK_EXPORT void WKPageExecuteCommandForTesting(WKPageRef pageRef, WKStringRef command, WKStringRef value);
 WK_EXPORT bool WKPageIsEditingCommandEnabledForTesting(WKPageRef page, WKStringRef command);
+typedef void (*WKPageGetStorageAreaMapCountForTestingFunction)(uint64_t count, void* functionContext);
+WK_EXPORT void WKPageGetStorageAreaMapCountForTesting(WKPageRef page, void* context, WKPageGetStorageAreaMapCountForTestingFunction callback);
 WK_EXPORT void WKPageSetPermissionLevelForTesting(WKPageRef page, WKStringRef origin, bool allowed);
 WK_EXPORT void WKPageResetStateBetweenTests(WKPageRef pageRef);
 
@@ -237,8 +238,17 @@ WK_EXPORT void WKPageDisplayAndTrackRepaintsForTesting(WKPageRef page, void* con
 typedef void (*WKPageFindStringForTestingFunction)(bool found, void* functionContext);
 WK_EXPORT void WKPageFindStringForTesting(WKPageRef page, void* context, WKStringRef string, WKFindOptions options, unsigned maxMatchCount, WKPageFindStringForTestingFunction completionHandler);
 
+typedef void (*WKPageDoAfterProcessingAllPendingMouseEventsFunction)(void* functionContext);
+WK_EXPORT void WKPageDoAfterProcessingAllPendingMouseEvents(WKPageRef page, void* context, WKPageDoAfterProcessingAllPendingMouseEventsFunction function);
+
+#if !defined(__APPLE__)
+typedef void (*WKPageDoAfterProcessingAllPendingKeyEventsFunction)(void* functionContext);
+WK_EXPORT void WKPageDoAfterProcessingAllPendingKeyEvents(WKPageRef page, void* context, WKPageDoAfterProcessingAllPendingKeyEventsFunction function);
+#endif
+
+typedef void (*WKPageCursorDidChangeCallbackForTesting)(WKStringRef cursorInfo, const void* clientInfo);
+WK_EXPORT void WKPageSetCursorDidChangeCallbackForTesting(WKPageRef page, WKPageCursorDidChangeCallbackForTesting callback, const void* clientInfo);
+
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* WKPagePrivate_h */

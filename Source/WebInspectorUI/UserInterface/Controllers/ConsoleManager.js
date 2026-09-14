@@ -90,8 +90,7 @@ WI.ConsoleManager = class ConsoleManager extends WI.Object
 
     initializeTarget(target)
     {
-        // FIXME: <https://webkit.org/b/298911> Add Console support for FrameTarget.
-        if (target instanceof WI.FrameTarget)
+        if (!target.hasDomain("Console"))
             return;
 
         // Intentionally defer ConsoleAgent initialization to the end. We do this so that any
@@ -100,6 +99,9 @@ WI.ConsoleManager = class ConsoleManager extends WI.Object
         // See WI.Target.prototype.initialize.
 
         this._setConsoleClearAPIEnabled(target);
+
+        for (let channel of this._customLoggingChannels)
+            target.ConsoleAgent.setLoggingChannelLevel(channel.source, channel.level);
     }
 
     // Public
@@ -169,8 +171,15 @@ WI.ConsoleManager = class ConsoleManager extends WI.Object
         // COMPATIBILITY (macOS 13.0, iOS 16.0): `stackTrace` was an array of `Console.CallFrame`.
         if (Array.isArray(stackTrace))
             stackTrace = {callFrames: stackTrace};
-        if (stackTrace)
-            stackTrace = WI.StackTrace.fromPayload(target, stackTrace);
+
+        if (stackTrace) {
+            let supportedTarget = target;
+            if (!target.hasDomain("Debugger")) {
+                // FIXME: <https://webkit.org/b/298909> Add Debugger support for FrameTarget.
+                supportedTarget = WI.assumingMainTarget();
+            }
+            stackTrace = WI.StackTrace.fromPayload(supportedTarget, stackTrace);
+        }
 
         const request = null;
         let message = new WI.ConsoleMessage(target, source, level, text, type, url, line, column, repeatCount, parameters, stackTrace, request, timestamp);
@@ -220,8 +229,8 @@ WI.ConsoleManager = class ConsoleManager extends WI.Object
 
         switch (reason) {
         case WI.ConsoleManager.ClearReason.Frontend:
-            // COMPATIBILITY (iOS 18.0, macOS 15.0): `Console.ClearReason.Frontend` did not exist yet.
-            // COMPATIBILITY (iOS 18.0, macOS 15.0): `Console.setConsoleClearAPIEnabled` did not exist yet.
+            // COMPATIBILITY (macOS 14.4, iOS 17.4): `Console.ClearReason.Frontend` did not exist yet.
+            // COMPATIBILITY (macOS 14.4, iOS 17.4): `Console.setConsoleClearAPIEnabled` did not exist yet.
             console.assert(InspectorBackend.hasCommand("Console.setConsoleClearAPIEnabled"));
             this._clearMessages();
             return;
@@ -256,11 +265,8 @@ WI.ConsoleManager = class ConsoleManager extends WI.Object
         this._clearMessagesRequested = true;
 
         for (let target of WI.targets) {
-            // FIXME: <https://webkit.org/b/298911> Add Console support for FrameTarget.
-            if (target instanceof WI.FrameTarget)
-                continue;
-
-            target.ConsoleAgent.clearMessages();
+            if (target.hasDomain("Console"))
+                target.ConsoleAgent.clearMessages();
         }
     }
 
@@ -311,7 +317,7 @@ WI.ConsoleManager = class ConsoleManager extends WI.Object
 
     _setConsoleClearAPIEnabled(target)
     {
-        // COMPATIBILITY (iOS 18.0, macOS 15.0): `Console.setConsoleClearAPIEnabled` did not exist yet.
+        // COMPATIBILITY (macOS 14.4, iOS 17.4): `Console.setConsoleClearAPIEnabled` did not exist yet.
         if (target.hasCommand("Console.setConsoleClearAPIEnabled"))
             target.ConsoleAgent.setConsoleClearAPIEnabled(WI.settings.consoleClearAPIEnabled.value);
     }

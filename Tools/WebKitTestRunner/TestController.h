@@ -128,6 +128,10 @@ public:
     WKStringRef testPluginDirectory() const { return m_testPluginDirectory.get(); }
 
     PlatformWebView* mainWebView() { return m_mainWebView.get(); }
+    PlatformWebView* viewForPage(WKPageRef);
+    PlatformWebView* targetView() { return m_targetView ? m_targetView : m_mainWebView.get(); }
+    void setTargetView(PlatformWebView* view) { m_targetView = view; }
+    void setTargetViewFromMessage(WKScriptMessageRef);
     WKContextRef context() { return m_context.get(); }
     WKUserContentControllerRef userContentController() { return m_userContentController.get(); }
 
@@ -200,6 +204,7 @@ public:
     static ASCIILiteral webProcessName();
     static ASCIILiteral networkProcessName();
     static ASCIILiteral gpuProcessName();
+    static ASCIILiteral serviceWorkerProcessName();
 
     WorkQueueManager& workQueueManager() { return m_workQueueManager; }
 
@@ -212,9 +217,14 @@ public:
     void setShouldSwapToEphemeralSessionOnNextNavigation(bool value) { m_shouldSwapToEphemeralSessionOnNextNavigation = value; }
     void setShouldSwapToDefaultSessionOnNextNavigation(bool value) { m_shouldSwapToDefaultSessionOnNextNavigation = value; }
 
+    void setGlobalPrivacyControl(bool value) { m_globalPrivacyControlEnabled = value; }
+    bool globalPrivacyControl() const { return m_globalPrivacyControlEnabled.value_or(false); }
+
     void setBlockAllPlugins(bool shouldBlock);
     void setPluginSupportedMode(const String&);
 
+    void dumpResourceLoadCallbacks();
+    void dumpResourceResponseMIMETypes(String&&);
     void dumpPolicyDelegateCallbacks() { m_dumpPolicyDelegateCallbacks = true; }
     void dumpFullScreenCallbacks() { m_dumpFullScreenCallbacks = true; }
     void waitBeforeFinishingFullscreenExit() { m_waitBeforeFinishingFullscreenExit = true; }
@@ -317,6 +327,7 @@ public:
 
     void getAllStorageAccessEntries(CompletionHandler<void(WKTypeRef)>&&);
     void setRequestStorageAccessThrowsExceptionUntilReload(bool enabled);
+    void setStorageAccessAPIPerPageScopeEnabled(bool);
     void loadedSubresourceDomains(CompletionHandler<void(WKTypeRef)>&&);
     void clearLoadedSubresourceDomains();
     void clearAppBoundSession();
@@ -353,11 +364,7 @@ public:
 
     void removeAllSessionCredentials(CompletionHandler<void(WKTypeRef)>&&);
 
-    void clearIndexedDatabases();
-    void clearLocalStorage();
     void syncLocalStorage();
-
-    void clearServiceWorkerRegistrations();
 
     void clearMemoryCache();
     void clearDOMCache(WKStringRef origin);
@@ -371,6 +378,8 @@ public:
 
     bool didReceiveServerRedirectForProvisionalNavigation() const { return m_didReceiveServerRedirectForProvisionalNavigation; }
     void clearDidReceiveServerRedirectForProvisionalNavigation() { m_didReceiveServerRedirectForProvisionalNavigation = false; }
+
+    WKRetainPtr<WKStringRef> lastProvisionalNavigationFailureURL() const;
 
     void addMockMediaDevice(WKStringRef persistentID, WKStringRef label, WKStringRef type, WKDictionaryRef properties);
     void clearMockMediaDevices();
@@ -442,8 +451,6 @@ public:
     void setIsMediaKeySystemPermissionGranted(bool);
     WKRetainPtr<WKStringRef> takeViewPortSnapshot();
 
-    WKRetainPtr<WKArrayRef> getAndClearReportedWindowProxyAccessDomains();
-
     WKPreferencesRef platformPreferences() { return m_preferences.get(); }
 
     bool grantNotificationPermission(WKStringRef origin);
@@ -496,6 +503,19 @@ public:
 #endif
 
     void uiScriptDidComplete(const String& result, unsigned scriptCallbackID);
+    void cursorDidChange(WKStringRef cursorInfo);
+
+#if PLATFORM(MAC)
+    // Client accessibility testing support
+    void initializeWebProcessAccessibility();
+#endif
+
+#if !PLATFORM(COCOA)
+    void doAfterProcessingAllPendingMouseEvents(CompletionHandler<void()>&&);
+    void doAfterProcessingAllPendingKeyEvents(CompletionHandler<void()>&&);
+#endif
+
+    static uint64_t responseHeaderCount(WKURLResponseRef);
 
 private:
     WKRetainPtr<WKPageConfigurationRef> generatePageConfiguration(const TestOptions&);
@@ -561,6 +581,13 @@ private:
     void decidePolicyForGeolocationPermissionRequestIfPossible();
     void decidePolicyForUserMediaPermissionRequestIfPossible();
 
+    void installResourceLoadClient();
+    void didSendRequest(WKPageRef, WKURLRequestRef);
+    void didPerformRedirect(WKPageRef, WKURLResponseRef, WKURLRequestRef);
+    void didReceiveResponse(WKPageRef, WKURLRef, WKURLResponseRef);
+    void didCompleteWithError(WKPageRef, WKURLRef, WKURLResponseRef, WKErrorRef);
+    String platformResponseMIMEType(WKURLResponseRef);
+
 #if PLATFORM(IOS_FAMILY)
     UIPasteboardConsistencyEnforcer *pasteboardConsistencyEnforcer();
     void restorePortraitOrientationIfNeeded();
@@ -585,6 +612,24 @@ private:
     void didReceiveKeyDownMessageFromInjectedBundle(WKDictionaryRef messageBodyDictionary, bool synchronous);
     void didReceiveRawKeyDownMessageFromInjectedBundle(WKDictionaryRef messageBodyDictionary, bool synchronous);
     void didReceiveRawKeyUpMessageFromInjectedBundle(WKDictionaryRef messageBodyDictionary, bool synchronous);
+
+#if PLATFORM(MAC)
+    // Client accessibility testing support
+    uint64_t storeAXElement(CFTypeRef);
+    CFTypeRef getAXElement(uint64_t token);
+    CFDataRef getRemoteAccessibilityToken();
+    WKRetainPtr<WKTypeRef> handleAXGetRoot();
+    RetainPtr<CFTypeRef> axCopyAttributeValue(WKDictionaryRef);
+    WKRetainPtr<WKTypeRef> handleAXCopyAttributeValueAsString(WKDictionaryRef);
+    WKRetainPtr<WKTypeRef> handleAXCopyAttributeValueAsElement(WKDictionaryRef);
+    WKRetainPtr<WKTypeRef> handleAXCopyAttributeValueAsElementArray(WKDictionaryRef);
+    WKRetainPtr<WKTypeRef> handleAXCopyAttributeValueAsNumber(WKDictionaryRef);
+    WKRetainPtr<WKTypeRef> handleAXCopyAttributeValueAsBoolean(WKDictionaryRef);
+    WKRetainPtr<WKTypeRef> handleAXCopyAttributeValueAsPoint(WKDictionaryRef);
+    WKRetainPtr<WKTypeRef> handleAXCopyAttributeValueAsSize(WKDictionaryRef);
+    WKRetainPtr<WKTypeRef> handleAXSearchPredicate(WKDictionaryRef);
+    void handleAXPerformAction(WKDictionaryRef);
+#endif
 
     // WKContextClient
     static void networkProcessDidCrashWithDetails(WKContextRef, WKProcessID, WKProcessTerminationReason, const void*);
@@ -730,6 +775,7 @@ private:
 
     std::unique_ptr<PlatformWebView> m_mainWebView;
     Vector<UniqueRef<PlatformWebView>> m_auxiliaryWebViews;
+    PlatformWebView* m_targetView { nullptr };
     WKRetainPtr<WKContextRef> m_context;
     WKRetainPtr<WKPreferencesRef> m_preferences;
     WKRetainPtr<WKUserContentControllerRef> m_userContentController;
@@ -803,6 +849,7 @@ private:
     bool m_shouldDecideResponsePolicyAfterDelay { false };
 
     bool m_didReceiveServerRedirectForProvisionalNavigation { false };
+    WKRetainPtr<WKURLRef> m_lastProvisionalNavigationFailureURL;
 
     WKRetainPtr<WKArrayRef> m_openPanelFileURLs;
 #if PLATFORM(IOS_FAMILY)
@@ -842,6 +889,7 @@ private:
         Vector<WKRetainPtr<WKJSHandleRef>> m_callbacks;
     };
     Callbacks m_tooltipCallbacks;
+    Callbacks m_cursorCallbacks;
     Callbacks m_beginSwipeCallbacks;
     Callbacks m_willEndSwipeCallbacks;
     Callbacks m_didEndSwipeCallbacks;
@@ -853,6 +901,7 @@ private:
     bool m_allowsAnySSLCertificate { true };
     bool m_shouldSwapToEphemeralSessionOnNextNavigation { false };
     bool m_shouldSwapToDefaultSessionOnNextNavigation { false };
+    std::optional<bool> m_globalPrivacyControlEnabled;
     
 #if PLATFORM(COCOA)
     bool m_hasSetApplicationBundleIdentifier { false };
@@ -873,10 +922,20 @@ private:
     size_t m_downloadIndex { 0 };
     bool m_shouldDownloadContentDispositionAttachments { true };
     bool m_dumpPolicyDelegateCallbacks { false };
+    bool m_hasResourceLoadClient { false };
+    bool m_dumpResourceLoadCallbacks { false };
+    String m_resourceResponseMIMETypesToDump;
     bool m_dumpFullScreenCallbacks { false };
+    bool m_dumpAllHTTPRedirectedResponseHeaders { false };
     bool m_waitBeforeFinishingFullscreenExit { false };
     bool m_scrollDuringEnterFullscreen { false };
     bool m_useWorkQueue { false };
+
+#if PLATFORM(MAC)
+    // Client accessibility testing support
+    std::atomic<uint64_t> m_nextAXElementToken { 1 };
+    HashMap<uint64_t, RetainPtr<CFTypeRef>> m_axElementTokens;
+#endif
 
 #if ENABLE(WPE_PLATFORM)
     bool m_useWPELegacyAPI { false };

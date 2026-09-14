@@ -1,13 +1,11 @@
 /*
- * Copyright 2020 Google Inc.
+ * Copyright 2020 Google LLC
  *
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
 
 #include "include/core/SkTypes.h"
-
-#if !defined(SK_BUILD_FOR_GOOGLE3)  // Google3 doesn't have etc1.h
 
 #include "gm/gm.h"
 #include "include/core/SkBitmap.h"
@@ -182,7 +180,6 @@ static CompressedImageObjects make_compressed_image(SkCanvas* canvas,
         if (texture) {
             image = SkImages::WrapTexture(recorder,
                                           texture->texture(),
-                                          skgpu::CompressionTypeToSkColorType(compression),
                                           kPremul_SkAlphaType,
                                           /*colorSpace=*/nullptr);
             if (image) {
@@ -400,5 +397,3 @@ private:
 DEF_GM(return new CompressedTexturesGM(CompressedTexturesGM::Type::kNormal);)
 DEF_GM(return new CompressedTexturesGM(CompressedTexturesGM::Type::kNonPowerOfTwo);)
 DEF_GM(return new CompressedTexturesGM(CompressedTexturesGM::Type::kNonMultipleOfFour);)
-
-#endif

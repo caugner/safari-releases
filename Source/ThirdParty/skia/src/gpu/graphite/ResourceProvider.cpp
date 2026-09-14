@@ -91,22 +91,14 @@ sk_sp<ComputePipeline> ResourceProvider::findOrCreateComputePipeline(
 sk_sp<Texture> ResourceProvider::findOrCreateShareableTexture(SkISize dimensions,
                                                               const TextureInfo& info,
                                                               std::string_view label) {
-    return this->findOrCreateTexture(dimensions,
-                                     info,
-                                     std::move(label),
-                                     Budgeted::kYes,
-                                     Shareable::kYes);
+    return this->findOrCreateTexture(dimensions, info, label, Budgeted::kYes, Shareable::kYes);
 }
 
 sk_sp<Texture> ResourceProvider::findOrCreateNonShareableTexture(SkISize dimensions,
                                                                  const TextureInfo& info,
                                                                  std::string_view label,
                                                                  Budgeted budgeted) {
-    return this->findOrCreateTexture(dimensions,
-                                     info,
-                                     std::move(label),
-                                     budgeted,
-                                     Shareable::kNo);
+    return this->findOrCreateTexture(dimensions, info, label, budgeted, Shareable::kNo);
 }
 
 sk_sp<Texture> ResourceProvider::findOrCreateScratchTexture(
@@ -114,12 +106,8 @@ sk_sp<Texture> ResourceProvider::findOrCreateScratchTexture(
         const TextureInfo& info,
         std::string_view label,
         const ResourceCache::ScratchResourceSet& unavailable) {
-    return this->findOrCreateTexture(dimensions,
-                                     info,
-                                     std::move(label),
-                                     Budgeted::kYes,
-                                     Shareable::kScratch,
-                                     &unavailable);
+    return this->findOrCreateTexture(
+            dimensions, info, label, Budgeted::kYes, Shareable::kScratch, &unavailable);
 }
 
 sk_sp<Texture> ResourceProvider::findOrCreateTexture(
@@ -146,34 +134,22 @@ sk_sp<Texture> ResourceProvider::findOrCreateTexture(
     fSharedContext->caps()->buildKeyForTexture(dimensions, info, kType, &key);
 
     if (Resource* resource =
-                fResourceCache->findAndRefResource(key, budgeted, shareable, unavailable)) {
-        // Shareable resource labels should only be set upon creation.
-        if (shareable == Shareable::kYes) {
-            SkASSERT(resource->getLabel() == label);
-        } else {
-            resource->setLabel(std::move(label));
-        }
+                fResourceCache->findAndRefResource(key, budgeted, shareable, label, unavailable)) {
         return sk_sp<Texture>(static_cast<Texture*>(resource));
     }
 
-    auto tex = this->createTexture(dimensions, info);
-    if (!tex) {
-        return nullptr;
+    if (auto tex = this->createTexture(dimensions, info, label)) {
+        fResourceCache->insertResource(tex.get(), key, budgeted, shareable);
+        return tex;
     }
 
-    tex->setLabel(std::move(label));
-    fResourceCache->insertResource(tex.get(), key, budgeted, shareable);
-
-    return tex;
+    return nullptr;
 }
 
 sk_sp<Texture> ResourceProvider::createWrappedTexture(const BackendTexture& backendTexture,
                                                       std::string_view label) {
-    sk_sp<Texture> texture = this->onCreateWrappedTexture(backendTexture);
-    if (texture) {
-        texture->setLabel(std::move(label));
-        SkASSERT(texture->ownership() == Ownership::kWrapped);
-    }
+    sk_sp<Texture> texture = this->onCreateWrappedTexture(backendTexture, label);
+    SkASSERT(!texture || texture->ownership() == Ownership::kWrapped);
     return texture;
 }
 
@@ -189,7 +165,7 @@ sk_sp<Sampler> ResourceProvider::findOrCreateCompatibleSampler(const SamplerDesc
         // immutable sampler details into the SamplerDesc, so there is no need to delegate to Caps
         // to create a specific key.
         const SkSpan<const uint32_t>& samplerData = samplerDesc.asSpan();
-        GraphiteResourceKey::Builder builder(&key, kType, samplerData.size());
+        GraphiteResourceKey::Builder builder(&key, kType, SkTo<uint16_t>(samplerData.size()));
 
         for (size_t i = 0; i < samplerData.size(); i++) {
             builder[i] = samplerData[i];
@@ -243,8 +219,8 @@ sk_sp<Buffer> ResourceProvider::findOrCreateBuffer(
         // For the key we need ((sizeof(size_t) + (sizeof(uint32_t) - 1)) / (sizeof(uint32_t))
         // uint32_t's for the size and one uint32_t for the rest.
         static_assert(sizeof(uint32_t) == 4);
-        static const int kSizeKeyNum32DataCnt = (sizeof(size_t) + 3) / 4;
-        static const int kKeyNum32DataCnt =  kSizeKeyNum32DataCnt + 1;
+        static const uint16_t kSizeKeyNum32DataCnt = (sizeof(size_t) + 3) / 4;
+        static const uint16_t kKeyNum32DataCnt =  kSizeKeyNum32DataCnt + 1;
 
         SkASSERT(static_cast<uint32_t>(type) < (1u << 4));
         SkASSERT(static_cast<uint32_t>(accessPattern) < (1u << 2));
@@ -265,23 +241,16 @@ sk_sp<Buffer> ResourceProvider::findOrCreateBuffer(
     }
 
     if (Resource* resource =
-            fResourceCache->findAndRefResource(key, kBudgeted, shareable, unavailable)) {
-        // Shareable resource labels should only be set upon creation.
-        if (shareable == Shareable::kYes) {
-            SkASSERT(resource->getLabel() == label);
-        } else {
-            resource->setLabel(std::move(label));
-        }
+            fResourceCache->findAndRefResource(key, kBudgeted, shareable, label, unavailable)) {
         return sk_sp<Buffer>(static_cast<Buffer*>(resource));
     }
-    auto buffer = this->createBuffer(size, type, accessPattern);
-    if (!buffer) {
-        return nullptr;
+
+    if (auto buffer = this->createBuffer(size, type, accessPattern, label)) {
+        fResourceCache->insertResource(buffer.get(), key, kBudgeted, shareable);
+        return buffer;
     }
 
-    buffer->setLabel(std::move(label));
-    fResourceCache->insertResource(buffer.get(), key, kBudgeted, shareable);
-    return buffer;
+    return nullptr;
 }
 
 namespace {
@@ -344,9 +313,17 @@ void ResourceProvider::freeGpuResources() {
     fResourceCache->purgeResources();
 }
 
-void ResourceProvider::purgeResourcesNotUsedSince(StdSteadyClock::time_point purgeTime) {
-    this->onPurgeResourcesNotUsedSince(purgeTime);
-    fResourceCache->purgeResourcesNotUsedSince(purgeTime);
+void ResourceProvider::purgeResourcesNotUsedSince(
+        StdSteadyClock::time_point purgeTime,
+        std::optional<std::chrono::microseconds> microsMaxPurgingDur) {
+
+    std::optional<StdSteadyClock::time_point> quitPurgingTime;
+    if (microsMaxPurgingDur.has_value()) {
+        quitPurgingTime = { StdSteadyClock::now() + microsMaxPurgingDur.value() };
+    }
+
+    this->onPurgeResourcesNotUsedSince(purgeTime, quitPurgingTime);
+    fResourceCache->purgeResourcesNotUsedSince(purgeTime, quitPurgingTime);
 }
 
 const Caps* ResourceProvider::caps() const {

@@ -21,7 +21,7 @@
 #include "config.h"
 #include "TextureMapperLayer.h"
 
-#include "BitmapTexture.h"
+#include "BitmapTexturePool.h"
 #include "ClipPath.h"
 #include "FloatQuad.h"
 #include "Region.h"
@@ -95,7 +95,7 @@ public:
 
         auto maxTextureSize = options.textureMapper.maxTextureSize();
         forEachTile(maxTextureSize, [&](const IntRect& tileRect) {
-            RefPtr<BitmapTexture> surface = options.textureMapper.acquireTextureFromPool(tileRect.size(), { BitmapTexture::Flags::SupportsAlpha });
+            RefPtr<BitmapTexture> surface = BitmapTexturePool::singleton().acquireTexture(tileRect.size(), { BitmapTexture::Flags::SupportsAlpha });
             {
                 SetForScope scopedSurface(options.surface, surface);
                 SetForScope scopedOffset(options.offset, -toIntSize(tileRect.location()));
@@ -626,7 +626,7 @@ void TextureMapperLayer::paintSelf(TextureMapperPaintOptions& options)
         options.textureMapper.setPatternTransform(patternTransform);
     }
 
-    bool shouldClip = m_state.contentsClippingRect.isRounded() || !m_state.contentsClippingRect.rect().contains(m_state.contentsRect);
+    bool shouldClip = m_state.contentsClippingRect.hasNonZeroRadii() || !m_state.contentsClippingRect.rect().contains(m_state.contentsRect);
     if (shouldClip) {
         options.textureMapper.beginClip(transform, m_state.contentsClippingRect);
     }
@@ -812,7 +812,6 @@ IntRect transformedBoundingBox(const TransformationMatrix& transform, FloatRect 
         vertex[2].w >= 0,
         vertex[3].w >= 0
     };
-    WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
     auto findFirstPositiveVertex = [&]() {
         int i = 0;
@@ -926,6 +925,7 @@ IntRect transformedBoundingBox(const TransformationMatrix& transform, FloatRect 
         return clipped(xMinMax, yMinMax);
     }
     }
+    WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
     ASSERT_NOT_REACHED();
     return { };
 }
@@ -1111,7 +1111,7 @@ static void commitSurface(TextureMapperPaintOptions& options, BitmapTexture& sur
 
 void TextureMapperLayer::paintWithIntermediateSurface(TextureMapperPaintOptions& options, const IntRect& rect)
 {
-    auto surface = options.textureMapper.acquireTextureFromPool(rect.size(), { BitmapTexture::Flags::SupportsAlpha });
+    auto surface = BitmapTexturePool::singleton().acquireTexture(rect.size(), { BitmapTexture::Flags::SupportsAlpha });
     {
         SetForScope scopedSurface(options.surface, surface.ptr());
         SetForScope scopedOffset(options.offset, -toIntSize(rect.location()));
@@ -1127,7 +1127,7 @@ void TextureMapperLayer::paintWithIntermediateSurface(TextureMapperPaintOptions&
 
 void TextureMapperLayer::paintSelfAndChildrenWithIntermediateSurface(TextureMapperPaintOptions& options, const IntRect& rect)
 {
-    auto surface = options.textureMapper.acquireTextureFromPool(rect.size(), { BitmapTexture::Flags::SupportsAlpha });
+    auto surface = BitmapTexturePool::singleton().acquireTexture(rect.size(), { BitmapTexture::Flags::SupportsAlpha });
     {
         SetForScope scopedSurface(options.surface, surface.ptr());
         SetForScope scopedOffset(options.offset, -toIntSize(rect.location()));
@@ -1519,6 +1519,11 @@ bool TextureMapperLayer::syncAnimations(MonotonicTime time)
     m_animations.apply(futureApplicationResults, time + 50_ms, TextureMapperAnimation::KeepInternalState::Yes);
     m_layerTransforms.futureLocalTransform = futureApplicationResults.transform.value_or(m_layerTransforms.localTransform);
 #endif
+
+    // If the layer is invisible because of opacity and there's no opacity animation, the content won't
+    // be visible ever, so triggering repaints doesn't make sense.
+    if (!m_state.opacity && !applicationResults.opacity)
+        return false;
 
     return applicationResults.hasRunningAnimations;
 }

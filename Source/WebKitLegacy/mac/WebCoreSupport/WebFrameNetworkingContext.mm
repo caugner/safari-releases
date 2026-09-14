@@ -45,9 +45,8 @@
 #import <WebKitLegacy/WebFrameLoadDelegate.h>
 #endif
 
-using namespace WebCore;
 
-NetworkStorageSession& WebFrameNetworkingContext::ensurePrivateBrowsingSession()
+WebCore::NetworkStorageSession& WebFrameNetworkingContext::ensurePrivateBrowsingSession()
 {
     ASSERT(isMainThread());
     NetworkStorageSessionMap::ensureSession(PAL::SessionID::legacyPrivateSessionID(), [[NSBundle mainBundle] bundleIdentifier]);
@@ -77,11 +76,11 @@ RetainPtr<CFDataRef> WebFrameNetworkingContext::sourceApplicationAuditData() con
     if (!frame() || !frame()->page())
         return nullptr;
     
-    WebView *webview = kit(frame()->page());
+    RetainPtr webview = kit(frame()->page());
     if (!webview)
         return nullptr;
 
-    return (__bridge CFDataRef)webview._sourceApplicationAuditData;
+    return (__bridge CFDataRef)webview.get()._sourceApplicationAuditData;
 }
 
 String WebFrameNetworkingContext::sourceApplicationIdentifier() const
@@ -89,12 +88,12 @@ String WebFrameNetworkingContext::sourceApplicationIdentifier() const
     return emptyString();
 }
 
-ResourceError WebFrameNetworkingContext::blockedError(const ResourceRequest& request) const
+WebCore::ResourceError WebFrameNetworkingContext::blockedError(const WebCore::ResourceRequest& request) const
 {
     return WebResourceLoadScheduler::blockedErrorFromRequest(request);
 }
 
-NetworkStorageSession* WebFrameNetworkingContext::storageSession() const
+WebCore::NetworkStorageSession* WebFrameNetworkingContext::storageSession() const
 {
     ASSERT(isMainThread());
     if (frame() && frame()->page() && frame()->page()->sessionID().isEphemeral()) {

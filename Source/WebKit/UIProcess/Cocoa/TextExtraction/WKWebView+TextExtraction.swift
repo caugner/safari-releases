@@ -23,20 +23,15 @@
 
 #if HAVE_UIINTELLIGENCESUPPORT_FRAMEWORK
 
-#if compiler(>=6.0)
-internal import WebKit_Internal
-internal import WebKit_Private
-#else
-@_implementationOnly import WebKit_Internal
-@_implementationOnly import WebKit_Private
-#endif
+import WebKit_Internal
+import WebKit_Private
 
-@_spiOnly import UIIntelligenceSupport
+@_spiOnly public import UIIntelligenceSupport
 
 #if canImport(UIKit)
-@_spi(UIIntelligenceSupport) import UIKit
+@_spi(UIIntelligenceSupport) public import UIKit
 #else
-@_spi(UIIntelligenceSupport) import AppKit
+@_spi(UIIntelligenceSupport) public import AppKit
 #endif
 
 private func createEditable(for editable: WKTextExtractionEditable?) -> IntelligenceElement.Text.Editable? {
@@ -75,9 +70,16 @@ private func createElementContent(for item: WKTextExtractionItem) -> Intelligenc
     }
 }
 
-private func createIntelligenceElement(item: WKTextExtractionItem) -> IntelligenceElement {
+private func createIntelligenceElement(item: WKTextExtractionItem, contextMenuTargetNodeIdentifier: String?) -> IntelligenceElement {
     var element = IntelligenceElement(boundingBox: item.rectInWebView, content: createElementContent(for: item))
-    element.subelements = item.children.map { child in createIntelligenceElement(item: child) }
+    if let contextMenuTargetNodeIdentifier, item.nodeIdentifier == contextMenuTargetNodeIdentifier {
+        #if canImport(UIIntelligenceSupport.Radar165004762)
+        element.isContextMenuSource = true
+        #endif
+    }
+    element.subelements = item.children.map { child in
+        createIntelligenceElement(item: child, contextMenuTargetNodeIdentifier: contextMenuTargetNodeIdentifier)
+    }
     return element
 }
 
@@ -112,11 +114,16 @@ extension WKWebView {
             configuration.mergeParagraphs = true
             configuration.skipNearlyTransparentContent = true
             configuration.nodeIdentifierInclusion = .none
-            configuration.includeEventListeners = false
+            configuration.eventListenerCategories = []
             configuration.includeAccessibilityAttributes = false
             configuration.filterOptions = []
+            let contextMenuTargetNodeIdentifier = _activeContextMenuTargetNodeIdentifier
             if let rootItem = await _requestTextExtraction(configuration) {
-                collector.collect(createIntelligenceElement(item: rootItem))
+                let rootElement = createIntelligenceElement(
+                    item: rootItem,
+                    contextMenuTargetNodeIdentifier: contextMenuTargetNodeIdentifier
+                )
+                collector.collect(rootElement)
             }
 
             coordinator.finishCollection(collector)

@@ -49,10 +49,6 @@
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/spi/cocoa/IOSurfaceSPI.h>
 
-#if HAVE(REPLAYKIT)
-#include "ReplayKitCaptureSource.h"
-#endif
-
 #if HAVE(SCREEN_CAPTURE_KIT)
 #include "ScreenCaptureKitCaptureSource.h"
 #endif
@@ -69,16 +65,12 @@ CaptureSourceOrError DisplayCaptureSourceCocoa::create(const CaptureDevice& devi
 {
     switch (device.type()) {
     case CaptureDevice::DeviceType::Screen:
-#if HAVE(REPLAYKIT)
-        if (!ReplayKitCaptureSource::isAvailable())
-            return CaptureSourceOrError { CaptureSourceError { "Screen capture unavailable"_s, MediaAccessDenialReason::NoCaptureDevices } };
-
-        return create([] (auto& source) {
-            return makeUniqueRefWithoutRefCountedCheck<ReplayKitCaptureSource>(source);
-        }, device, WTF::move(hashSalts), constraints, pageIdentifier);
-#elif HAVE(SCREEN_CAPTURE_KIT)
+#if HAVE(SCREEN_CAPTURE_KIT)
         [[fallthrough]];
 #else
+        UNUSED_PARAM(hashSalts);
+        UNUSED_PARAM(constraints);
+        UNUSED_PARAM(pageIdentifier);
         ASSERT_NOT_REACHED();
         return { };
 #endif
@@ -100,6 +92,7 @@ CaptureSourceOrError DisplayCaptureSourceCocoa::create(const CaptureDevice& devi
     case CaptureDevice::DeviceType::Microphone:
     case CaptureDevice::DeviceType::Speaker:
     case CaptureDevice::DeviceType::Camera:
+    case CaptureDevice::DeviceType::Canvas:
     case CaptureDevice::DeviceType::Unknown:
         ASSERT_NOT_REACHED();
         break;
@@ -127,9 +120,7 @@ DisplayCaptureSourceCocoa::DisplayCaptureSourceCocoa(const std::function<UniqueR
 {
 }
 
-DisplayCaptureSourceCocoa::~DisplayCaptureSourceCocoa()
-{
-}
+DisplayCaptureSourceCocoa::~DisplayCaptureSourceCocoa() = default;
 
 const RealtimeMediaSourceCapabilities& DisplayCaptureSourceCocoa::capabilities()
 {
@@ -137,8 +128,10 @@ const RealtimeMediaSourceCapabilities& DisplayCaptureSourceCocoa::capabilities()
         RealtimeMediaSourceCapabilities capabilities(settings().supportedConstraints());
 
         auto intrinsicSize = m_capturer->intrinsicSize();
-        capabilities.setWidth({ 1, intrinsicSize.width() });
-        capabilities.setHeight({ 1, intrinsicSize.height() });
+        if (intrinsicSize.width())
+            capabilities.setWidth({ 1, intrinsicSize.width() });
+        if (intrinsicSize.height())
+            capabilities.setHeight({ 1, intrinsicSize.height() });
         capabilities.setFrameRate({ .01, 30.0 });
         capabilities.setDeviceId(hashedId());
 

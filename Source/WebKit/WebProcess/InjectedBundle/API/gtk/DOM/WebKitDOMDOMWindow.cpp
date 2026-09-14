@@ -23,9 +23,11 @@
 #include <WebCore/CSSImportRule.h>
 #include "DOMObjectCache.h"
 #include <WebCore/DOMException.h>
+#include <WebCore/DOMWrapperWorld.h>
 #include <WebCore/Document.h>
 #include "GObjectEventListener.h"
 #include <JavaScriptCore/APICast.h>
+#include <JavaScriptCore/JSCellInlines.h>
 #include <JavaScriptCore/JSRetainPtr.h>
 #include <WebCore/ContextDestructionObserverInlines.h>
 #include <WebCore/HTMLFrameOwnerElement.h>
@@ -134,7 +136,9 @@ static void webkit_dom_dom_window_dom_event_target_init(WebKitDOMEventTargetIfac
     iface->remove_event_listener = webkit_dom_dom_window_remove_event_listener;
 }
 
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // GTK port
 G_DEFINE_TYPE_WITH_CODE(WebKitDOMDOMWindow, webkit_dom_dom_window, WEBKIT_DOM_TYPE_OBJECT, G_IMPLEMENT_INTERFACE(WEBKIT_DOM_TYPE_EVENT_TARGET, webkit_dom_dom_window_dom_event_target_init))
+WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
 enum {
     DOM_WINDOW_PROP_0,
@@ -1082,9 +1086,7 @@ gboolean webkit_dom_dom_window_webkit_message_handlers_post_message(WebKitDOMDOM
     JSRetainPtr<JSStringRef> jsString(Adopt, JSStringCreateWithUTF8CString(message));
     JSValueRef jsStringValue = JSValueMakeString(toRef(globalObject), jsString.get());
 
-    auto result = handler->postMessage(*globalObject, toJS(globalObject, jsStringValue), adoptRef(*(promise.leakRef())));
-    if (result.hasException())
-        return FALSE;
+    handler->postMessage(*globalObject, toJS(globalObject, jsStringValue), adoptRef(*(promise.leakRef())));
 
     return TRUE;
 #else

@@ -46,7 +46,7 @@ WTF_MAKE_TZONE_ALLOCATED_IMPL(InbandGenericTextTrack);
 
 void GenericTextTrackCueMap::add(InbandGenericCueIdentifier inbandCueIdentifier, TextTrackCueGeneric& publicCue)
 {
-    m_dataToCueMap.add(inbandCueIdentifier, &publicCue);
+    m_dataToCueMap.add(inbandCueIdentifier, publicCue);
     m_cueToDataMap.add(&publicCue, inbandCueIdentifier);
 }
 
@@ -130,6 +130,8 @@ void InbandGenericTextTrack::updateCueFromCueData(TextTrackCueGeneric& cue, Inba
     else if (inbandCue.align() == GenericCueData::Alignment::End)
         cue.setAlign(VTTCue::AlignSetting::End);
     cue.setSnapToLines(false);
+
+    cue.setPreventLineWrapping(inbandCue.preventLineWrapping());
 
     cue.didChange();
 }

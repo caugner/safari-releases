@@ -38,8 +38,9 @@
 #include "RenderLayerScrollableArea.h"
 #include "RenderObjectInlines.h"
 #include "RenderView.h"
-#include "StylableInlines.h"
+#include "StyleableInlines.h"
 #include "StyleComputedStyle+InitialInlines.h"
+#include "StylePrimitiveNumericTypes+Evaluation.h"
 #include "StyleSingleAnimationRange.h"
 #include "WebAnimation.h"
 
@@ -75,7 +76,7 @@ Ref<ScrollTimeline> ScrollTimeline::create(Document& document, ScrollTimelineOpt
     timeline->setAxis(options.axis);
 
     if (auto source = timeline->m_source.element()) {
-        source->protectedDocument()->updateLayoutIgnorePendingStylesheets();
+        protect(source->document())->updateLayoutIgnorePendingStylesheets();
         timeline->cacheCurrentTime();
     }
 
@@ -156,7 +157,7 @@ RefPtr<Element> ScrollTimeline::source() const
         return nullptr;
     }
     case Scroller::Root:
-        return source->element.protectedDocument()->scrollingElement();
+        return protect(source->element.document())->scrollingElement();
     case Scroller::Self:
         return &source->element;
     }
@@ -170,7 +171,7 @@ void ScrollTimeline::setSource(Element* source)
     if (source)
         setSource(Styleable::fromElement(*source));
     else {
-        removeTimelineFromDocument(m_source.element().get());
+        removeTimelineFromDocument(protect(m_source.element().get()));
         m_source = WeakStyleable();
     }
 }
@@ -186,15 +187,15 @@ void ScrollTimeline::setSource(const Styleable& styleable)
     if (previousSource && &previousSource->document() == &styleable.element.document())
         return;
 
-    removeTimelineFromDocument(previousSource.get());
+    removeTimelineFromDocument(protect(previousSource.get()));
 
-    styleable.element.protectedDocument()->ensureTimelinesController().addTimeline(*this);
+    protect(styleable.element.document())->ensureTimelinesController().addTimeline(*this);
 }
 
 void ScrollTimeline::removeTimelineFromDocument(Element* element)
 {
     if (element) {
-        if (CheckedPtr timelinesController = element->protectedDocument()->timelinesController())
+        if (CheckedPtr timelinesController = element->document().timelinesController())
             timelinesController->removeTimeline(*this);
     }
 }
@@ -202,7 +203,7 @@ void ScrollTimeline::removeTimelineFromDocument(Element* element)
 AnimationTimelinesController* ScrollTimeline::controller() const
 {
     if (auto stylable = m_source.styleable())
-        return &stylable->element.document().ensureTimelinesController();
+        return &protect(stylable->element.document())->ensureTimelinesController();
     return nullptr;
 }
 
@@ -210,7 +211,7 @@ ScrollTimeline::ResolvedScrollDirection ScrollTimeline::resolvedScrollDirection(
 {
     auto writingMode = [&] -> WritingMode {
         if (RefPtr source = this->source()) {
-            if (CheckedPtr renderer = source->renderer())
+            if (auto* renderer = source->renderer())
                 return renderer->style().writingMode();
         }
 
@@ -256,7 +257,7 @@ auto ScrollTimeline::computeCurrentTimeData() const -> CurrentTimeData
     RefPtr source = this->source();
     if (!source)
         return { };
-    CheckedPtr sourceScrollableArea = scrollableAreaForSourceRenderer(source->renderer(), source->document());
+    CheckedPtr sourceScrollableArea = scrollableAreaForSourceRenderer(source->renderer(), protect(source->document()));
     if (!sourceScrollableArea)
         return { };
     auto scrollDirection = resolvedScrollDirection();
@@ -322,7 +323,7 @@ void ScrollTimeline::updateCurrentTimeIfStale()
     }
 
     if (needsStyleUpdate)
-        source->element.protectedDocument()->updateStyleIfNeeded();
+        protect(source->element.document())->updateStyleIfNeeded();
 }
 
 void ScrollTimeline::setTimelineScopeElement(const Element& element)
@@ -403,7 +404,7 @@ void ScrollTimeline::animationTimingDidChange(WebAnimation& animation)
     if (!source || !animation.pending() || animation.isEffectInvalidationSuspended())
         return;
 
-    if (RefPtr page = source->element.protectedDocument()->page())
+    if (RefPtr page = source->element.document().page())
         page->scheduleRenderingUpdate(RenderingUpdateStep::Animations);
 }
 
@@ -421,14 +422,14 @@ bool ScrollTimeline::canBeAccelerated() const
 
     ASSERT(source->document().settings().threadedScrollDrivenAnimationsEnabled());
 
-    CheckedPtr sourceScrollableArea = scrollableAreaForSourceRenderer(source->renderer(), source->document());
+    CheckedPtr sourceScrollableArea = scrollableAreaForSourceRenderer(source->renderer(), protect(source->document()));
     return sourceScrollableArea && !!sourceScrollableArea->scrollingNodeID();
 }
 
 void ScrollTimeline::scheduleAcceleratedRepresentationUpdate()
 {
     if (RefPtr source = this->source()) {
-        if (RefPtr page = source->protectedDocument()->page()) {
+        if (RefPtr page = source->document().page()) {
             if (auto* acceleratedTimelinesUpdater = page->acceleratedTimelinesUpdater())
                 acceleratedTimelinesUpdater->scrollTimelineDidChange(*this);
         }
@@ -440,7 +441,7 @@ ProgressResolutionData ScrollTimeline::computeProgressResolutionData() const
     ASSERT(this->source());
     ASSERT(this->source()->document().settings().threadedScrollDrivenAnimationsEnabled());
     Ref source = *this->source();
-    CheckedPtr sourceScrollableArea = scrollableAreaForSourceRenderer(source->renderer(), source->document());
+    CheckedPtr sourceScrollableArea = scrollableAreaForSourceRenderer(source->renderer(), protect(source->document()));
     ASSERT(sourceScrollableArea);
     ASSERT(sourceScrollableArea->scrollingNodeID());
 
@@ -462,7 +463,7 @@ ProgressResolutionData ScrollTimeline::computeProgressResolutionData() const
 void ScrollTimeline::updateAcceleratedRepresentation()
 {
     if (m_acceleratedRepresentation)
-        m_acceleratedRepresentation->setProgressResolutionData(computeProgressResolutionData());
+        protect(m_acceleratedRepresentation)->setProgressResolutionData(computeProgressResolutionData());
 }
 
 Ref<AcceleratedTimeline> ScrollTimeline::createAcceleratedRepresentation() const
@@ -475,7 +476,7 @@ std::optional<ScrollingNodeID> ScrollTimeline::scrollingNodeIDForTesting() const
     if (!m_acceleratedRepresentation)
         return std::nullopt;
     if (RefPtr source = this->source()) {
-        if (CheckedPtr sourceScrollableArea = scrollableAreaForSourceRenderer(source->renderer(), source->document()))
+        if (CheckedPtr sourceScrollableArea = scrollableAreaForSourceRenderer(source->renderer(), protect(source->document())))
             return sourceScrollableArea->scrollingNodeID();
     }
     return std::nullopt;

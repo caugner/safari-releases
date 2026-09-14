@@ -46,7 +46,7 @@ class IDBValue;
 struct IDBKeyRangeData;
 
 namespace IndexedDB {
-enum class GetAllType : bool;
+enum class GetAllType : uint8_t;
 enum class IndexRecordType : bool;
 }
 
@@ -63,10 +63,10 @@ public:
     ~MemoryObjectStore();
 
     void transactionFinished(MemoryBackingStoreTransaction&);
-    void writeTransactionStarted(MemoryBackingStoreTransaction&);
+    void NODELETE writeTransactionStarted(MemoryBackingStoreTransaction&);
     void writeTransactionFinished(MemoryBackingStoreTransaction&);
     void transactionAborted(MemoryBackingStoreTransaction&);
-    MemoryBackingStoreTransaction* writeTransaction();
+    MemoryBackingStoreTransaction* NODELETE writeTransaction();
 
     IDBError addIndex(MemoryBackingStoreTransaction&, const IDBIndexInfo&);
     void revertAddIndex(MemoryBackingStoreTransaction&, IDBIndexIdentifier);
@@ -94,12 +94,12 @@ public:
 
     void getAllRecords(const IDBKeyRangeData&, std::optional<uint32_t> count, IndexedDB::GetAllType, IDBGetAllResult&) const;
 
-    const IDBObjectStoreInfo& info() const { return m_info; }
-    IDBObjectStoreInfo& info() { return m_info; }
+    const IDBObjectStoreInfo& info() const LIFETIME_BOUND { return m_info; }
+    IDBObjectStoreInfo& info() LIFETIME_BOUND { return m_info; }
 
     MemoryObjectStoreCursor* maybeOpenCursor(const IDBCursorInfo&, MemoryBackingStoreTransaction&);
 
-    IDBKeyDataSet* orderedKeys() { return m_orderedKeys.get(); }
+    IDBKeyDataSet* orderedKeys() LIFETIME_BOUND { return m_orderedKeys.get(); }
 
     MemoryIndex* indexForIdentifier(IDBIndexIdentifier);
 
@@ -133,7 +133,7 @@ private:
 
     HashMap<IDBIndexIdentifier, Ref<MemoryIndex>> m_indexesByIdentifier;
     HashMap<String, Ref<MemoryIndex>> m_indexesByName;
-    HashMap<IDBResourceIdentifier, RefPtr<MemoryObjectStoreCursor>> m_cursors;
+    HashMap<IDBResourceIdentifier, Ref<MemoryObjectStoreCursor>> m_cursors;
 };
 
 } // namespace IDBServer

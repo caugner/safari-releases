@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017-2024 Apple Inc. All rights reserved.
+ * Copyright (C) 2017-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -26,6 +26,7 @@
 #pragma once
 
 #include <WebCore/DecodingOptions.h>
+#include <WebCore/GainMap.h>
 #include <WebCore/ImageOrientation.h>
 #include <WebCore/ImageResolution.h>
 #include <WebCore/ImageTypes.h>
@@ -45,6 +46,7 @@ namespace WebCore {
 
 class FragmentedSharedBuffer;
 class ImageFrame;
+class NativeImage;
 
 struct ImageDecoderFrameInfo {
     bool hasAlpha;
@@ -66,22 +68,6 @@ public:
 
     static bool supportsMediaType(MediaType);
 
-#if ENABLE(GPU_PROCESS)
-    using SupportsMediaTypeFunc = Function<bool(MediaType)>;
-    using CanDecodeTypeFunc = Function<bool(const String&)>;
-    using CreateImageDecoderFunc = Function<RefPtr<ImageDecoder>(FragmentedSharedBuffer&, const String&, AlphaOption, GammaAndColorProfileOption)>;
-
-    struct ImageDecoderFactory {
-        SupportsMediaTypeFunc supportsMediaType;
-        CanDecodeTypeFunc canDecodeType;
-        CreateImageDecoderFunc createImageDecoder;
-    };
-
-    WEBCORE_EXPORT static void installFactory(ImageDecoderFactory&&);
-    WEBCORE_EXPORT static void resetFactories();
-    WEBCORE_EXPORT static void clearFactories();
-#endif
-
     virtual size_t bytesDecodedToDetermineProperties() const = 0;
 
     virtual EncodedDataStatus encodedDataStatus() const = 0;
@@ -96,6 +82,10 @@ public:
     virtual String filenameExtension() const = 0;
     virtual String accessibilityDescription() const { return emptyString(); };
     virtual std::optional<IntPoint> hotSpot() const = 0;
+
+#if ENABLE(QUICKLOOK_FULLSCREEN)
+    virtual bool isPanorama() const { return false; }
+#endif
 
 #if ENABLE(SPATIAL_IMAGE_DETECTION)
     virtual bool isSpatial() const { return false; }
@@ -119,7 +109,10 @@ public:
 
     WEBCORE_EXPORT virtual bool fetchFrameMetaDataAtIndex(size_t, SubsamplingLevel, const DecodingOptions&, ImageFrame&) const;
 
+    virtual std::optional<GainMap> frameGainMapAtIndex(size_t, const DecodingOptions&) { return std::nullopt; }
     virtual PlatformImagePtr createFrameImageAtIndex(size_t, SubsamplingLevel = SubsamplingLevel::Default, const DecodingOptions& = DecodingOptions(DecodingMode::Synchronous)) = 0;
+
+    std::optional<std::tuple<Ref<NativeImage>, DecodingDestination>> createNativeImageAtIndex(size_t, SubsamplingLevel, const DecodingOptions&);
 
     virtual void setExpectedContentSize(long long) { }
     virtual void setData(const FragmentedSharedBuffer&, bool allDataReceived) = 0;

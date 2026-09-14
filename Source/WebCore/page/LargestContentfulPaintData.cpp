@@ -66,7 +66,7 @@ LargestContentfulPaintData::~LargestContentfulPaintData() = default;
 // https://w3c.github.io/paint-timing/#exposed-for-paint-timing
 bool LargestContentfulPaintData::isExposedForPaintTiming(const Element& element)
 {
-    if (!element.protectedDocument()->isFullyActive())
+    if (!protect(element.document())->isFullyActive())
         return false;
 
     if (!element.isInDocumentTree()) // Also checks isConnected().
@@ -78,7 +78,7 @@ bool LargestContentfulPaintData::isExposedForPaintTiming(const Element& element)
 // https://w3c.github.io/largest-contentful-paint/#largest-contentful-paint-candidate
 bool LargestContentfulPaintData::isEligibleForLargestContentfulPaint(const Element& element, float effectiveVisualArea)
 {
-    CheckedPtr renderer = element.renderer();
+    auto* renderer = element.renderer();
     if (!renderer)
         return false;
 
@@ -92,11 +92,11 @@ bool LargestContentfulPaintData::isEligibleForLargestContentfulPaint(const Eleme
 
 bool LargestContentfulPaintData::canCompareWithLargestPaintArea(const Element& element)
 {
-    CheckedPtr renderer = element.renderer();
+    auto* renderer = element.renderer();
     if (!renderer)
         return false;
 
-    CheckedPtr layer = renderer->enclosingLayer();
+    auto* layer = renderer->enclosingLayer();
     if (!layer)
         return false;
 
@@ -196,7 +196,7 @@ void LargestContentfulPaintData::potentiallyAddLargestContentfulPaintEntry(Eleme
 
     if (image) {
         pendingEntry->setURLString(image->url().string());
-        auto loadTimestamp = window->protectedPerformance()->relativeTimeFromTimeOriginInReducedResolution(loadTime);
+        auto loadTimestamp = protect(window->performance())->relativeTimeFromTimeOriginInReducedResolution(loadTime);
         pendingEntry->setLoadTime(loadTimestamp);
 
         // FIXME: Adopt ReducedResolutionSeconds: webkit.org/b/316824.
@@ -233,7 +233,8 @@ RefPtr<LargestContentfulPaint> LargestContentfulPaintData::generateLargestConten
         auto& lcpData = element->ensureLargestContentfulPaintData();
 
         // FIXME: This is doing multiple localToAbsolute on the same element, but multiple images per element is rare.
-        for (auto image : imageList) {
+        for (auto weakImage : imageList) {
+            RefPtr image = weakImage;
             if (!image)
                 continue;
             auto findIndex = lcpData.imageData.findIf([&](auto& value) {
@@ -289,7 +290,7 @@ FloatRect LargestContentfulPaintData::computeViewportIntersectionRect(Element& e
     auto localTargetBounds = LayoutRect { localRect };
     auto absoluteRects = targetRenderer->computeVisibleRectsInContainer(
         { localTargetBounds },
-        &targetRenderer->checkedView().get(),
+        &protect(targetRenderer->view()).get(),
         {
             .hasPositionFixedDescendant = false,
             .dirtyRectIsFlipped = false,

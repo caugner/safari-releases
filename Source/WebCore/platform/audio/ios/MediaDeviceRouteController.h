@@ -25,16 +25,19 @@
 
 #pragma once
 
-#if HAVE(AVROUTING_FRAMEWORK)
+#if ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)
 
-#include <WebKitAdditions/MediaDeviceRouteAdditions.h>
+// FIXME: Properly support using WKA in modules.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnon-modular-include-in-module"
 #include <WebKitAdditions/MediaDeviceRouteControllerAdditions.h>
+#pragma clang diagnostic pop
 #include <wtf/AbstractThreadSafeRefCountedAndCanMakeWeakPtr.h>
 #include <wtf/RetainPtr.h>
 #include <wtf/ThreadSafeWeakPtr.h>
 #include <wtf/Vector.h>
 
-OBJC_CLASS WebMediaDeviceRouteController;
+OBJC_CLASS WebMediaDeviceRouteObserver;
 
 namespace WebCore {
 
@@ -54,7 +57,7 @@ class MediaDeviceRouteController {
 public:
     WEBCORE_EXPORT static MediaDeviceRouteController& singleton();
 
-    RefPtr<MediaDeviceRouteControllerClient> client() const { return m_client.get(); }
+    RefPtr<MediaDeviceRouteControllerClient> client() const { return m_client; }
     void setClient(MediaDeviceRouteControllerClient* client) { m_client = client; }
 
     RefPtr<MediaDeviceRoute> mostRecentActiveRoute() const;
@@ -62,21 +65,22 @@ public:
 
     WEBCORE_EXPORT bool activateRoute(WebMediaDevicePlatformRoute *);
     WEBCORE_EXPORT bool deactivateRoute(WebMediaDevicePlatformRoute *);
+    WEBCORE_EXPORT void deactivateAllRoutes();
 
 private:
     MediaDeviceRouteController();
 
-    RetainPtr<WebMediaDeviceRouteController> m_controller;
-    RetainPtr<WebMediaDevicePlatformRouteController> m_platformController;
     ThreadSafeWeakPtr<MediaDeviceRouteControllerClient> m_client;
     Vector<Ref<MediaDeviceRoute>> m_activeRoutes;
+#if HAVE(AVROUTING_FRAMEWORK)
+    RetainPtr<WebMediaDeviceRouteObserver> m_routeObserver;
+    RetainPtr<WebMediaDevicePlatformRouteController> m_platformController;
+#endif
 };
+
+WEBCORE_EXPORT void setMockMediaDeviceRouteControllerEnabled(bool);
+WEBCORE_EXPORT bool mockMediaDeviceRouteControllerEnabled();
 
 } // namespace WebCore
 
-#endif // HAVE(AVROUTING_FRAMEWORK)
-
-namespace WebCore {
-WEBCORE_EXPORT void setMockMediaDeviceRouteControllerEnabled(bool);
-WEBCORE_EXPORT bool mockMediaDeviceRouteControllerEnabled();
-}
+#endif // ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)

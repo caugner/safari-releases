@@ -34,7 +34,7 @@ public:
     const SVGPointList& points() const { return m_points->currentValue(); }
 
     SVGPointList& points() { return m_points->baseVal(); }
-    SVGPointList& animatedPoints() { return *m_points->animVal(); }
+    SVGPointList& animatedPoints() { return m_points->animVal(); }
 
     size_t approximateMemoryCost() const override;
 
@@ -50,7 +50,7 @@ private:
     bool isValid() const override { return SVGTests::isValid(); }
     bool supportsMarkers() const override { return true; }
 
-    Ref<SVGAnimatedPointList> m_points { SVGAnimatedPointList::create(this) };
+    const Ref<SVGAnimatedPointList> m_points { SVGAnimatedPointList::create(this) };
 };
 
 } // namespace WebCore

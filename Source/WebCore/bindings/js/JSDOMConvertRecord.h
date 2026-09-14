@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2016-2019 Apple Inc. All rights reserved.
+ * Copyright (C) 2026 Samuel Weinig <sam@webkit.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -27,6 +28,7 @@
 
 #include <JavaScriptCore/ObjectConstructor.h>
 #include <WebCore/IDLTypes.h>
+#include <WebCore/JSDOMBindingFacade.h>
 #include <WebCore/JSDOMConvertStrings.h>
 #include <WebCore/JSDOMGlobalObject.h>
 
@@ -77,25 +79,6 @@ template<typename K, typename V> struct Converter<IDLRecord<K, V>> : DefaultConv
     }
 
 private:
-    // As temporary measure, IDL interfaces need to have their conversion result adjusted
-    // to properly form an inner parameter type. Once all IDL types have full support for
-    // using Ref for interfaces, this adjustment can be removed.
-    template<typename IDL>
-    struct ValueAdjuster {
-        static ValueType adjust(ConversionResult<IDL>&& result)
-        {
-            return result.releaseReturnValue();
-        }
-    };
-
-    template<typename T>
-    struct ValueAdjuster<IDLInterface<T>> {
-        static ValueType adjust(ConversionResult<IDLInterface<T>>&& result)
-        {
-            return Ref { *result.releaseReturnValue() };
-        }
-    };
-
     template<class... Args>
     static Result convertRecord(JSC::JSGlobalObject& lexicalGlobalObject, JSC::JSValue value, Args&& ...args)
     {
@@ -144,7 +127,7 @@ private:
                 if (!slot.isTaintedByOpaqueObject()) [[likely]]
                     subValue = slot.getValue(&lexicalGlobalObject, key);
                 else
-                    subValue = object->get(&lexicalGlobalObject, key);
+                    subValue = WebCore::get(object, &lexicalGlobalObject, key);
                 RETURN_IF_EXCEPTION(scope, Result::exception());
 
                 // 3. Let typedValue be value converted to an IDL value of type V.
@@ -159,7 +142,7 @@ private:
                         auto addResult = resultMap.add(typedKey, result.size());
                         if (!addResult.isNewEntry) {
                             ASSERT(result[addResult.iterator->value].key == typedKey);
-                            result[addResult.iterator->value].value = ValueAdjuster<V>::adjust(WTF::move(typedValue));
+                            result[addResult.iterator->value].value = typedValue.releaseReturnValue();
                             continue;
                         }
                     }
@@ -167,7 +150,7 @@ private:
                     UNUSED_VARIABLE(resultMap);
                 
                 // 5. Otherwise, append to result a mapping (typedKey, typedValue).
-                result.append({ WTF::move(typedKey), ValueAdjuster<V>::adjust(WTF::move(typedValue)) });
+                result.append({ WTF::move(typedKey), typedValue.releaseReturnValue() });
             }
         }
 
@@ -186,7 +169,7 @@ template<typename K, typename V> struct JSConverter<IDLRecord<K, V>> {
         auto& vm = JSC::getVM(&lexicalGlobalObject);
     
         // 1. Let result be ! ObjectCreate(%ObjectPrototype%).
-        auto result = constructEmptyObject(&lexicalGlobalObject, globalObject.objectPrototype());
+        auto result = WebCore::constructEmptyObject(&lexicalGlobalObject, globalObject.objectPrototype());
         
         // 2. Repeat, for each mapping (key, value) in D:
         for (const auto& keyValuePair : map) {
@@ -198,7 +181,7 @@ template<typename K, typename V> struct JSConverter<IDLRecord<K, V>> {
             auto esValue = toJS<V>(lexicalGlobalObject, globalObject, keyValuePair.value);
 
             // 3. Let created be ! CreateDataProperty(result, esKey, esValue).
-            bool created = result->createDataProperty(&lexicalGlobalObject, JSC::Identifier::fromString(vm, keyValuePair.key), esValue, true);
+            bool created = WebCore::createDataProperty(result, &lexicalGlobalObject, JSC::Identifier::fromString(vm, keyValuePair.key), esValue, true);
 
             // 4. Assert: created is true.
             ASSERT_UNUSED(created, created);

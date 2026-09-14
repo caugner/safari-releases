@@ -36,6 +36,12 @@
 #import <wtf/RuntimeApplicationChecks.h>
 #endif
 
+#import <wtf/SetForScope.h>
+
+#if PLATFORM(MAC)
+#import <pal/spi/mac/NSWindowSPI.h>
+#endif
+
 WTF_MAKE_TZONE_ALLOCATED_IMPL(WebViewRenderingUpdateScheduler);
 
 WebViewRenderingUpdateScheduler::WebViewRenderingUpdateScheduler(WebView* webView)
@@ -50,7 +56,7 @@ WebViewRenderingUpdateScheduler::WebViewRenderingUpdateScheduler(WebView* webVie
         // However if the flush is rescheduled from the callback it may get pushed past it, to the next cycle.
         WebThreadLock();
 #endif
-        CheckedPtr checkedThis = weakThis.get();
+        CheckedPtr checkedThis = weakThis;
         if (!checkedThis)
             return;
         checkedThis->renderingUpdateRunLoopObserverCallback();
@@ -60,7 +66,7 @@ WebViewRenderingUpdateScheduler::WebViewRenderingUpdateScheduler(WebView* webVie
 #if PLATFORM(IOS_FAMILY)
         WebThreadLock();
 #endif
-        CheckedPtr checkedThis = weakThis.get();
+        CheckedPtr checkedThis = weakThis;
         if (!checkedThis)
             return;
         checkedThis->postRenderingUpdateCallback();
@@ -101,13 +107,13 @@ void WebViewRenderingUpdateScheduler::registerCACommitHandlers()
     if (m_haveRegisteredCommitHandlers)
         return;
 
-    WebView* webView = m_webView;
+    RetainPtr webView = m_webView;
     [CATransaction addCommitHandler:^{
-        [webView _willStartRenderingUpdateDisplay];
+        [webView.get() _willStartRenderingUpdateDisplay];
     } forPhase:kCATransactionPhasePreLayout];
 
     [CATransaction addCommitHandler:^{
-        [webView _didCompleteRenderingUpdateDisplay];
+        [webView.get() _didCompleteRenderingUpdateDisplay];
     } forPhase:kCATransactionPhasePostCommit];
     
     m_haveRegisteredCommitHandlers = true;

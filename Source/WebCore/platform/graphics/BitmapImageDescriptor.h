@@ -69,6 +69,10 @@ public:
     SubsamplingLevel maximumSubsamplingLevel() const;
     SubsamplingLevel subsamplingLevelForScaleFactor(GraphicsContext&, const FloatSize& scaleFactor, AllowImageSubsampling) const;
 
+#if ENABLE(QUICKLOOK_FULLSCREEN)
+    bool isPanorama() const;
+#endif
+
 #if ENABLE(SPATIAL_IMAGE_DETECTION)
     bool isSpatial() const;
 #endif

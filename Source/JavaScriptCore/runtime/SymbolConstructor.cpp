@@ -86,9 +86,13 @@ JSC_DEFINE_HOST_FUNCTION(callSymbol, (JSGlobalObject* globalObject, CallFrame* c
     if (description.isUndefined())
         return JSValue::encode(Symbol::create(vm));
 
-    String string = description.toWTFString(globalObject);
+    auto* string = description.toString(globalObject);
     RETURN_IF_EXCEPTION(scope, { });
-    return JSValue::encode(Symbol::createWithDescription(vm, string));
+
+    auto value = string->value(globalObject);
+    RETURN_IF_EXCEPTION(scope, { });
+
+    return JSValue::encode(Symbol::createWithDescription(vm, value, string));
 }
 
 JSC_DEFINE_HOST_FUNCTION(constructSymbol, (JSGlobalObject* globalObject, CallFrame* callFrame))
@@ -108,7 +112,7 @@ JSC_DEFINE_HOST_FUNCTION(symbolConstructorFor, (JSGlobalObject* globalObject, Ca
     auto string = stringKey->value(globalObject);
     RETURN_IF_EXCEPTION(scope, encodedJSValue());
 
-    return JSValue::encode(Symbol::create(vm, vm.checkedSymbolRegistry()->symbolForKey(string)));
+    return JSValue::encode(Symbol::create(vm, protect(vm.symbolRegistry())->symbolForKey(string)));
 }
 
 const ASCIILiteral SymbolKeyForTypeError { "Symbol.keyFor requires that the first argument be a symbol"_s };

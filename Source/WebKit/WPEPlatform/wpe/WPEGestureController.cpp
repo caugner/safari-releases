@@ -49,14 +49,17 @@ static void wpe_gesture_controller_default_init(WPEGestureControllerInterface*)
  * @event: a #WPEEvent
  *
  * Get the gesture detected by @controller if any was detected during processing of @event.
+ * 
+ * Returns: %TRUE if @event was handled by @controller and gesture information is updated,
+ *    or %FALSE otherwise.
  */
-void wpe_gesture_controller_handle_event(WPEGestureController* controller, WPEEvent* event)
+gboolean wpe_gesture_controller_handle_event(WPEGestureController* controller, WPEEvent* event)
 {
-    g_return_if_fail(controller);
-    g_return_if_fail(event);
+    g_return_val_if_fail(controller, FALSE);
+    g_return_val_if_fail(event, FALSE);
 
     auto* controllerInterface = WPE_GESTURE_CONTROLLER_GET_IFACE(controller);
-    controllerInterface->handle_event(controller, event);
+    return controllerInterface->handle_event(controller, event);
 }
 
 /**
@@ -97,7 +100,7 @@ WPEGesture wpe_gesture_controller_get_gesture(WPEGestureController* controller)
  * a position, %FALSE is returned.
  *
  * Returns: %TRUE if position is returned in @x and @y,
- *    or %FALSE if currently detected gesture doesn't have a positon
+ *    or %FALSE if currently detected gesture doesn't have a position
  */
 gboolean wpe_gesture_controller_get_gesture_position(WPEGestureController* controller, double* x, double* y)
 {

@@ -84,7 +84,7 @@ Ref<CanvasCaptureMediaStreamTrack::Source> CanvasCaptureMediaStreamTrack::Source
 
 // FIXME: Give source id and name
 CanvasCaptureMediaStreamTrack::Source::Source(HTMLCanvasElement& canvas, std::optional<double>&& frameRequestRate)
-    : RealtimeMediaSource(CaptureDevice { { }, CaptureDevice::DeviceType::Camera, "CanvasCaptureMediaStreamTrack"_s })
+    : RealtimeMediaSource(CaptureDevice { { }, CaptureDevice::DeviceType::Canvas, "CanvasCaptureMediaStreamTrack"_s })
     , m_frameRequestRate(WTF::move(frameRequestRate))
     , m_requestFrameTimer(*this, &Source::requestFrameTimerFired)
     , m_captureCanvasTimer(*this, &Source::captureCanvas)
@@ -201,9 +201,6 @@ RefPtr<VideoFrame> CanvasCaptureMediaStreamTrack::Source::grabFrame()
     if (!canvas)
         return nullptr;
 
-    if (!canvas->originClean())
-        return nullptr;
-
 #if ENABLE(WEBGL)
     if (RefPtr gl = dynamicDowncast<WebGLRenderingContextBase>(canvas->renderingContext()))
         return gl->surfaceBufferToVideoFrame(CanvasRenderingContext::SurfaceBuffer::DisplayBuffer);
@@ -224,7 +221,16 @@ void CanvasCaptureMediaStreamTrack::Source::captureCanvas()
         m_shouldEmitFrame = false;
     }
 
-    RefPtr videoFrame = grabFrame();
+    if (!canvas->originClean())
+        return;
+
+    RefPtr videoFrame = [&]() -> RefPtr<VideoFrame> {
+#if ENABLE(WEBGL)
+        if (RefPtr gl = dynamicDowncast<WebGLRenderingContextBase>(canvas->renderingContext()))
+            return gl->surfaceBufferToVideoFrame(CanvasRenderingContext::SurfaceBuffer::DisplayBuffer);
+#endif
+        return canvas->toVideoFrame();
+    }();
     if (!videoFrame)
         return;
 
@@ -232,16 +238,23 @@ void CanvasCaptureMediaStreamTrack::Source::captureCanvas()
     metadata.captureTime = MonotonicTime::now().secondsSinceEpoch();
 
 #if USE(GSTREAMER)
-    auto gstVideoFrame = downcast<VideoFrameGStreamer>(videoFrame);
-    if (m_frameRequestRate)
-        gstVideoFrame->setFrameRate(*m_frameRequestRate);
-    else {
-        static const double s_frameRate = 60;
-        gstVideoFrame->setMaxFrameRate(s_frameRate);
-        gstVideoFrame->setPresentationTime(m_presentationTimeStamp);
-        gstVideoFrame->setMetadataAndContentHint({ metadata }, VideoFrameContentHint::Canvas);
-        m_presentationTimeStamp = m_presentationTimeStamp + MediaTime::createWithDouble(1.0 / s_frameRate);
-    }
+    auto& gstVideoFrame = downcast<VideoFrameGStreamer>(*videoFrame);
+    static const double s_fixedFrameRate = 60.0;
+
+    if (!m_clock)
+        m_clock = adoptGRef(gst_system_clock_obtain());
+    RELEASE_ASSERT(m_clock);
+
+    if (!m_frameRequestRate)
+        gstVideoFrame.setMaxFrameRate(s_fixedFrameRate);
+
+    auto frameRate = s_fixedFrameRate;
+    if (m_frameRequestRate && *m_frameRequestRate)
+        frameRate = *m_frameRequestRate;
+
+    gstVideoFrame.setFrameRate(frameRate);
+    gstVideoFrame.setPresentationTime(fromGstClockTime(gst_clock_get_time(m_clock.get())));
+    gstVideoFrame.setMetadataAndContentHint({ metadata }, VideoFrameContentHint::Canvas);
 #endif
 
     videoFrameAvailable(*videoFrame, metadata);

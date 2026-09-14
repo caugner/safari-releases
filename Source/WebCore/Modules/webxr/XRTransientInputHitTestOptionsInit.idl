@@ -29,6 +29,6 @@
     EnabledBySetting=WebXREnabled&WebXRHitTestModuleEnabled,
 ] dictionary XRTransientInputHitTestOptionsInit {
     required DOMString profile;
-    sequence<XRHitTestTrackableType> entityTypes;
-    WebXRRay offsetRay;
+    [ImplementationDefaultValue=[]] sequence<XRHitTestTrackableType> entityTypes;
+    [ImplementationDefaultValue=null] WebXRRay offsetRay;
 };

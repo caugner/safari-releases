@@ -26,6 +26,8 @@
 #import "config.h"
 #import "_WKAutomationSessionConfiguration.h"
 
+#import <wtf/RetainPtr.h>
+
 @implementation _WKAutomationSessionConfiguration
 
 - (instancetype)init
@@ -38,6 +40,7 @@
     _suppressesICECandidateFiltering = NO;
     _alwaysAllowAutoplay = NO;
     _siteIsolationEnabled = NO;
+    _navigatorWebDriverEnabled = YES;
 
     return self;
 }
@@ -51,6 +54,7 @@
     configuration.get().suppressesICECandidateFiltering = self.suppressesICECandidateFiltering;
     configuration.get().alwaysAllowAutoplay = self.alwaysAllowAutoplay;
     configuration.get().siteIsolationEnabled = self.siteIsolationEnabled;
+    configuration.get().navigatorWebDriverEnabled = self.navigatorWebDriverEnabled;
 
     return configuration.leakRef();
 }

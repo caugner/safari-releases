@@ -247,10 +247,13 @@ static CGFloat rollAngleOrDefault(UITouch *touch, bool shouldReadRollAngle)
 {
     auto locationInWindow = [touch locationInView:nil];
     auto locationInRootView = [[self view] convertPoint:locationInWindow fromView:nil];
+    auto previousLocationInWindow = [touch previousLocationInView:nil];
+    auto previousLocationInRootView = [[self view] convertPoint:previousLocationInWindow fromView:nil];
     RetainPtr contentView = [self contentView];
 
     WebKit::WKTouchPoint touchPoint;
     touchPoint.locationInRootViewCoordinates = locationInRootView;
+    touchPoint.previousLocationInRootViewCoordinates = previousLocationInRootView;
     touchPoint.locationInViewport = mapRootViewToViewport(locationInRootView, contentView.get());
     touchPoint.identifier = parentTouchPoint.identifier;
     touchPoint.phase = touch.phase;
@@ -310,7 +313,7 @@ static CGFloat rollAngleOrDefault(UITouch *touch, bool shouldReadRollAngle)
 
     for (UITouch *touch in touches) {
         // Get the identifier of this touch. Or create one if one did not exist.
-        auto associatedIdentifier = dynamic_objc_cast<NSNumber>(objc_getAssociatedObject(touch, &associatedTouchIdentifierKey));
+        RetainPtr associatedIdentifier = dynamic_objc_cast<NSNumber>(objc_getAssociatedObject(touch, &associatedTouchIdentifierKey));
 
         // Create a new identifier for trackpad events in the Begin phase regardless, because the UITouch
         // instance persists between trackpad clicks, and there is existing web content that does not expect subsequent
@@ -322,16 +325,19 @@ static CGFloat rollAngleOrDefault(UITouch *touch, bool shouldReadRollAngle)
 
         if (!associatedIdentifier) {
             associatedIdentifier = [NSNumber numberWithUnsignedInt:nextTouchIdentifier()];
-            objc_setAssociatedObject(touch, &associatedTouchIdentifierKey, associatedIdentifier, OBJC_ASSOCIATION_RETAIN_NONATOMIC);
+            objc_setAssociatedObject(touch, &associatedTouchIdentifierKey, associatedIdentifier.get(), OBJC_ASSOCIATION_RETAIN_NONATOMIC);
         }
 
-        [_activeTouchesByIdentifier setObject:touch forKey:associatedIdentifier];
+        [_activeTouchesByIdentifier setObject:touch forKey:associatedIdentifier.get()];
 
         // iPhone WebKit works as if it is full screen. Therefore Web coords are Global coords.
         auto& touchPoint = _lastTouchEvent.touchPoints[touchIndex];
         auto locationInWindow = [touch locationInView:nil];
         auto locationInRootView = [[self view] convertPoint:locationInWindow fromView:nil];
+        auto previousLocationInWindow = [touch previousLocationInView:nil];
+        auto previousLocationInRootView = [[self view] convertPoint:previousLocationInWindow fromView:nil];
         touchPoint.locationInRootViewCoordinates = locationInRootView;
+        touchPoint.previousLocationInRootViewCoordinates = previousLocationInRootView;
         touchPoint.locationInViewport = mapRootViewToViewport(locationInRootView, contentView.get());
         touchPoint.identifier = [associatedIdentifier unsignedIntValue];
         touchPoint.phase = touch.phase;
@@ -459,7 +465,7 @@ static WebKit::WKTouchEventType lastExpectedWKEventTypeForTouches(NSSet *touches
 
 - (void)performAction
 {
-    [_contentView _touchEventsRecognized];
+    [protect(_contentView) _touchEventsRecognized];
 }
 
 - (BOOL)_hasActiveTouchesForEvent:(UIEvent *)event

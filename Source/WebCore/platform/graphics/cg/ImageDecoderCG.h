@@ -72,6 +72,7 @@ public:
 
     bool fetchFrameMetaDataAtIndex(size_t, SubsamplingLevel, const DecodingOptions&, ImageFrame&) const final;
 
+    std::optional<GainMap> frameGainMapAtIndex(size_t, const DecodingOptions&) final;
     PlatformImagePtr createFrameImageAtIndex(size_t, SubsamplingLevel = SubsamplingLevel::Default, const DecodingOptions& = DecodingOptions(DecodingMode::Synchronous)) final;
 
     void setData(const FragmentedSharedBuffer&, bool allDataReceived) final;
@@ -86,6 +87,7 @@ private:
 
 #if ENABLE(QUICKLOOK_FULLSCREEN)
     bool isMaybePanoramic() const;
+    bool isPanorama() const;
 #endif
 
 #if ENABLE(SPATIAL_IMAGE_DETECTION)

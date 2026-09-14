@@ -140,10 +140,15 @@ constexpr angle::PackedEnumMap<QueueSubmitReason, const char *> kQueueSubmitReas
     {QueueSubmitReason::ForceSubmitStagedTexture,
      "Queue submission imminent due to staged texture updates"},
     {QueueSubmitReason::DrawOverlay, "Queue submission imminent due to drawing overlay"},
-    {QueueSubmitReason::InitNonZeroMemory,
-     "Queue submission imminent due to initializing non-zero memory"},
+    {QueueSubmitReason::InitializeMemory, "Queue submission imminent due to initializing memory"},
 }};
 }  // namespace
+
+std::ostream &operator<<(std::ostream &os, const QueueSubmitReason reason)
+{
+    os << kQueueSubmitReason[reason];
+    return os;
+}
 
 namespace vk
 {
@@ -2178,8 +2183,8 @@ void Renderer::onDestroy(vk::ErrorContext *context)
     cleanupGarbage(nullptr);
     ASSERT(!hasSharedGarbage());
     ASSERT(mOrphanedBufferBlockList.empty());
-    ASSERT(mOrphanedSamplers.empty());
-    ASSERT(mOrphanedSamplerYcbcrConversions.empty());
+    mSamplerCache.destroy(this);
+    mYuvConversionCache.destroy(this);
 
     mRefCountedEventRecycler.destroy(mDevice);
 
@@ -2697,9 +2702,29 @@ angle::Result Renderer::initialize(vk::ErrorContext *context,
 
     ANGLE_VK_CHECK(context, queueFamilyCount > 0, VK_ERROR_INITIALIZATION_FAILED);
 
-    mQueueFamilyProperties.resize(queueFamilyCount);
-    vkGetPhysicalDeviceQueueFamilyProperties(mPhysicalDevice, &queueFamilyCount,
-                                             mQueueFamilyProperties.data());
+    mQueueFamilyProperties2.resize(queueFamilyCount);
+    for (uint32_t i = 0; i < queueFamilyCount; i++)
+    {
+        mQueueFamilyProperties2[i]       = {};
+        mQueueFamilyProperties2[i].sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2;
+    }
+
+    // Query all supported global priorities if supported.
+    std::vector<VkQueueFamilyGlobalPriorityProperties> globalPriorityProperties;
+    if (mFeatures.supportsGlobalPriorityQuery.enabled)
+    {
+        globalPriorityProperties.resize(queueFamilyCount);
+        for (uint32_t i = 0; i < queueFamilyCount; i++)
+        {
+            globalPriorityProperties[i] = {};
+            globalPriorityProperties[i].sType =
+                VK_STRUCTURE_TYPE_QUEUE_FAMILY_GLOBAL_PRIORITY_PROPERTIES_EXT;
+            vk::AddToPNextChain(&mQueueFamilyProperties2[i], &globalPriorityProperties[i]);
+        }
+    }
+
+    vkGetPhysicalDeviceQueueFamilyProperties2(mPhysicalDevice, &queueFamilyCount,
+                                              mQueueFamilyProperties2.data());
 
     uint32_t queueFamilyMatchCount = 0;
 
@@ -2709,14 +2734,14 @@ angle::Result Renderer::initialize(vk::ErrorContext *context,
     {
         queueFamilyBits = VK_QUEUE_COMPUTE_BIT;
         firstQueueFamily =
-            QueueFamily::FindIndex(mQueueFamilyProperties, queueFamilyBits, VK_QUEUE_PROTECTED_BIT,
+            QueueFamily::FindIndex(mQueueFamilyProperties2, queueFamilyBits, VK_QUEUE_PROTECTED_BIT,
                                    VK_QUEUE_GRAPHICS_BIT, &queueFamilyMatchCount);
     }
     if (queueFamilyMatchCount == 0)
     {
         queueFamilyBits = VK_QUEUE_COMPUTE_BIT | VK_QUEUE_GRAPHICS_BIT;
         firstQueueFamily =
-            QueueFamily::FindIndex(mQueueFamilyProperties, queueFamilyBits, VK_QUEUE_PROTECTED_BIT,
+            QueueFamily::FindIndex(mQueueFamilyProperties2, queueFamilyBits, VK_QUEUE_PROTECTED_BIT,
                                    0, &queueFamilyMatchCount);
     }
 
@@ -2724,14 +2749,24 @@ angle::Result Renderer::initialize(vk::ErrorContext *context,
                    queueFamilyMatchCount > 0 && firstQueueFamily != QueueFamily::kInvalidIndex,
                    VK_ERROR_INITIALIZATION_FAILED);
 
+    VkQueueGlobalPriority globalPriority = VK_QUEUE_GLOBAL_PRIORITY_MEDIUM;
+    if (mFeatures.supportsGlobalPriorityQuery.enabled &&
+        HasRequiredGlobalPriority(globalPriorityProperties[firstQueueFamily],
+                                  VK_QUEUE_GLOBAL_PRIORITY_REALTIME_EXT))
+    {
+        // Realtime global priority is supported, so we can use it in
+        // queueGlobalPriorityCreateInfo
+        globalPriority = VK_QUEUE_GLOBAL_PRIORITY_REALTIME_EXT;
+    }
+
     // Store the physical device memory properties so we can find the right memory pools.
     mMemoryProperties.init(mPhysicalDevice);
     ANGLE_VK_CHECK(context, mMemoryProperties.getMemoryTypeCount() > 0,
                    VK_ERROR_INITIALIZATION_FAILED);
 
     // The counters for the memory allocation tracker should be initialized.
-    // Each memory allocation could be made in one of the available memory heaps. We initialize the
-    // per-heap memory allocation trackers for MemoryAllocationType objects here, after
+    // Each memory allocation could be made in one of the available memory heaps. We initialize
+    // the per-heap memory allocation trackers for MemoryAllocationType objects here, after
     // mMemoryProperties has been set up.
     mMemoryAllocationTracker.initMemoryTrackers();
 
@@ -2740,12 +2775,13 @@ angle::Result Renderer::initialize(vk::ErrorContext *context,
 
     ANGLE_TRY(setupDevice(context, featureOverrides, useVulkanSwapchain, nativeWindowSystem));
 
-    // If only one queue family, that's the only choice and the device is initialize with that.  If
-    // there is more than one queue, we still create the device with the first queue family and hope
-    // for the best.  We cannot wait for a window surface to know which supports present because of
-    // EGL_KHR_surfaceless_context or simply pbuffers.  So far, only MoltenVk seems to expose
-    // multiple queue families, and using the first queue family is fine with it.
-    ANGLE_TRY(createDeviceAndQueue(context, firstQueueFamily));
+    // If only one queue family, that's the only choice and the device is initialize with that.
+    // If there is more than one queue, we still create the device with the first queue family
+    // and hope for the best.  We cannot wait for a window surface to know which supports
+    // present because of EGL_KHR_surfaceless_context or simply pbuffers.  So far, only MoltenVk
+    // seems to expose multiple queue families, and using the first queue family is fine with
+    // it.
+    ANGLE_TRY(createDeviceAndQueue(context, firstQueueFamily, globalPriority));
 
     // Initialize the format table.
     mFormatTable.initialize(this, &mNativeTextureCaps);
@@ -2980,6 +3016,7 @@ angle::Result Renderer::initializeMemoryAllocator(vk::ErrorContext *context)
 // - VK_QCOM_tile_memory_heap                          tileMemoryHeapFeatures (feature)
 //                                                     tileMemoryHeapProperties (property)
 // - VK_EXT_texture_compression_astc_3d                textureCompressionASTC_3D (feature)
+// - VK_AMD_shader_core_properties
 //
 
 void Renderer::appendDeviceExtensionFeaturesNotPromoted(
@@ -3195,6 +3232,11 @@ void Renderer::appendDeviceExtensionFeaturesNotPromoted(
     {
         vk::AddToPNextChain(deviceFeatures, &mTileMemoryHeapFeatures);
         vk::AddToPNextChain(deviceProperties, &mTileMemoryHeapProperties);
+    }
+
+    if (ExtensionFound(VK_AMD_SHADER_CORE_PROPERTIES_EXTENSION_NAME, deviceExtensionNames))
+    {
+        vk::AddToPNextChain(deviceProperties, &mShaderCorePropertiesAMD);
     }
 }
 
@@ -3677,6 +3719,9 @@ void Renderer::queryDeviceExtensionFeatures(const vk::ExtensionNameList &deviceE
     mTileMemoryHeapProperties.sType =
         VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TILE_MEMORY_HEAP_PROPERTIES_QCOM;
 
+    mShaderCorePropertiesAMD       = {};
+    mShaderCorePropertiesAMD.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SHADER_CORE_PROPERTIES_AMD;
+
     // Query features and properties.
     VkPhysicalDeviceFeatures2KHR deviceFeatures = {};
     deviceFeatures.sType                        = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
@@ -3770,6 +3815,7 @@ void Renderer::queryDeviceExtensionFeatures(const vk::ExtensionNameList &deviceE
 #endif
     mTileMemoryHeapFeatures.pNext   = nullptr;
     mTileMemoryHeapProperties.pNext = nullptr;
+    mShaderCorePropertiesAMD.pNext  = nullptr;
 }
 
 // See comment above appendDeviceExtensionFeaturesNotPromoted.  Additional extensions are enabled
@@ -3796,6 +3842,7 @@ void Renderer::queryDeviceExtensionFeatures(const vk::ExtensionNameList &deviceE
 // - VK_EXT_full_screen_exclusive
 // - VK_EXT_image_compression_control
 // - VK_EXT_image_compression_control_swapchain
+// - VK_AMD_shader_core_properties
 //
 void Renderer::enableDeviceExtensionsNotPromoted(const vk::ExtensionNameList &deviceExtensionNames)
 {
@@ -4157,6 +4204,11 @@ void Renderer::enableDeviceExtensionsNotPromoted(const vk::ExtensionNameList &de
         mEnabledDeviceExtensions.push_back(VK_QCOM_TILE_MEMORY_HEAP_EXTENSION_NAME);
         vk::AddToPNextChain(&mEnabledFeatures, &mTileMemoryHeapFeatures);
     }
+
+    if (getFeatures().supportsAmdShaderCoreProperties.enabled)
+    {
+        mEnabledDeviceExtensions.push_back(VK_AMD_SHADER_CORE_PROPERTIES_EXTENSION_NAME);
+    }
 }
 
 // See comment above appendDeviceExtensionFeaturesPromotedTo11.
@@ -4423,9 +4475,6 @@ angle::Result Renderer::enableDeviceExtensions(vk::ErrorContext *context,
         initOpenCLFeatures(deviceExtensionNames, featureOverrides);
     }
 
-    // App based feature overrides.
-    appBasedFeatureOverrides(deviceExtensionNames);
-
     // Enable extensions that could be used
     enableDeviceExtensionsNotPromoted(deviceExtensionNames);
     enableDeviceExtensionsPromotedTo11(deviceExtensionNames);
@@ -4639,12 +4688,15 @@ angle::Result Renderer::setupDevice(vk::ErrorContext *context,
     return angle::Result::Continue;
 }
 
-angle::Result Renderer::createDeviceAndQueue(vk::ErrorContext *context, uint32_t queueFamilyIndex)
+angle::Result Renderer::createDeviceAndQueue(vk::ErrorContext *context,
+                                             uint32_t queueFamilyIndex,
+                                             VkQueueGlobalPriority globalPriority)
 {
     mCurrentQueueFamilyIndex = queueFamilyIndex;
 
     vk::QueueFamily queueFamily;
-    queueFamily.initialize(mQueueFamilyProperties[queueFamilyIndex], queueFamilyIndex);
+    queueFamily.initialize(mQueueFamilyProperties2[queueFamilyIndex].queueFamilyProperties,
+                           queueFamilyIndex);
     ANGLE_VK_CHECK(context, queueFamily.getDeviceQueueCount() > 0, VK_ERROR_INITIALIZATION_FAILED);
 
     // We enable protected context only if both supportsProtectedMemory and device also supports
@@ -4669,34 +4721,8 @@ angle::Result Renderer::createDeviceAndQueue(vk::ErrorContext *context, uint32_t
         VK_STRUCTURE_TYPE_DEVICE_QUEUE_GLOBAL_PRIORITY_CREATE_INFO;
     if (mFeatures.supportsGlobalPriorityQuery.enabled)
     {
-        // Query all supported global priorities.
-        uint32_t queueFamilyPropertiesCount = static_cast<uint32_t>(mQueueFamilyProperties.size());
-        std::vector<VkQueueFamilyProperties2> queueFamilyProperties2(queueFamilyPropertiesCount);
-        std::vector<VkQueueFamilyGlobalPriorityPropertiesEXT> globalPriorityProperties(
-            queueFamilyPropertiesCount);
-
-        for (uint32_t i = 0; i < queueFamilyPropertiesCount; i++)
-        {
-            globalPriorityProperties[i] = {};
-            globalPriorityProperties[i].sType =
-                VK_STRUCTURE_TYPE_QUEUE_FAMILY_GLOBAL_PRIORITY_PROPERTIES_EXT;
-
-            queueFamilyProperties2[i]       = {};
-            queueFamilyProperties2[i].sType = VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2;
-            vk::AddToPNextChain(&queueFamilyProperties2[i], &globalPriorityProperties[i]);
-        }
-
-        vkGetPhysicalDeviceQueueFamilyProperties2(mPhysicalDevice, &queueFamilyPropertiesCount,
-                                                  queueFamilyProperties2.data());
-
-        if (HasRequiredGlobalPriority(globalPriorityProperties,
-                                      VK_QUEUE_GLOBAL_PRIORITY_REALTIME_EXT))
-        {
-            // Realtime global priority is supported, so we can use it in
-            // queueGlobalPriorityCreateInfo
-            queueGlobalPriorityCreateInfo.globalPriority = VK_QUEUE_GLOBAL_PRIORITY_REALTIME_EXT;
-            vk::AddToPNextChain(&queueCreateInfo, &queueGlobalPriorityCreateInfo);
-        }
+        queueGlobalPriorityCreateInfo.globalPriority = globalPriority;
+        vk::AddToPNextChain(&queueCreateInfo, &queueGlobalPriorityCreateInfo);
     }
 
     // Setup device initialization struct
@@ -5357,6 +5383,9 @@ void Renderer::initFeatures(const vk::ExtensionNameList &deviceExtensionNames,
                             UseVulkanSwapchain useVulkanSwapchain,
                             angle::NativeWindowSystem nativeWindowSystem)
 {
+    // App based feature overrides.
+    appBasedFeatureOverrides(deviceExtensionNames);
+
     ApplyFeatureOverrides(&mFeatures, featureOverrides);
 
     if (featureOverrides.allDisabled)
@@ -6816,10 +6845,11 @@ void Renderer::initFeatures(const vk::ExtensionNameList &deviceExtensionNames,
     ANGLE_FEATURE_CONDITION(&mFeatures, supportsUnifiedImageLayouts,
                             mUnifiedImageLayoutsFeatures.unifiedImageLayouts == VK_TRUE);
 
-    // Disable the feature on Samsung devices - http://anglebug.com/467875813
+    // This feature is forcing all queue created with VK_QUEUE_GLOBAL_PRIORITY_REALTIME_EXT. Disable
+    // for everybody for now. Disable the feature on Samsung devices - http://anglebug.com/467875813
     ANGLE_FEATURE_CONDITION(
         &mFeatures, supportsGlobalPriority,
-        ExtensionFound(VK_EXT_GLOBAL_PRIORITY_EXTENSION_NAME, deviceExtensionNames) && !isSamsung);
+        ExtensionFound(VK_EXT_GLOBAL_PRIORITY_EXTENSION_NAME, deviceExtensionNames) && false);
 
     // REALTIME priority is not permitted on most operating systems.  This feature is limited to
     // Android for now.
@@ -6830,9 +6860,8 @@ void Renderer::initFeatures(const vk::ExtensionNameList &deviceExtensionNames,
             IsAndroid());
 
     // There are use cases where synchronization is not performed properly when texture is modified
-    // between different contexts. To avoid rendering artifacts, force submit staged updates for
-    // Samsung.
-    ANGLE_FEATURE_CONDITION(&mFeatures, forceSubmitImmutableTextureUpdates, isSamsung);
+    // between different contexts. To avoid rendering artifacts, force submit staged updates.
+    ANGLE_FEATURE_CONDITION(&mFeatures, forceSubmitImmutableTextureUpdates, true);
 
     // Don't expose these 2 extensions on Samsung devices -
     // 1. GL_ANGLE_shader_pixel_local_storage
@@ -6967,6 +6996,10 @@ void Renderer::initOpenCLFeatures(const vk::ExtensionNameList &deviceExtensionNa
 
     ANGLE_FEATURE_CONDITION(&mFeatures, debugClDumpCommandStream, false);
 
+    ANGLE_FEATURE_CONDITION(
+        &mFeatures, supportsAmdShaderCoreProperties,
+        ExtensionFound(VK_AMD_SHADER_CORE_PROPERTIES_EXTENSION_NAME, deviceExtensionNames));
+
     // Set limits to expose to OpenCL.
     // This information cannot yet be queried from the Vulkan device.
     if (isSamsung && mFeatures.supportsShaderFloat64.enabled)
@@ -6995,6 +7028,10 @@ void Renderer::initOpenCLFeatures(const vk::ExtensionNameList &deviceExtensionNa
                 kRequiredSubgroupBits);
 }
 
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+// All features set in this function must use the applyOverride method
+// so that the value set is sticky
+// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 void Renderer::appBasedFeatureOverrides(const vk::ExtensionNameList &extensions) {}
 
 angle::Result Renderer::initPipelineCache(vk::ErrorContext *context,
@@ -7462,57 +7499,10 @@ void Renderer::cleanupGarbage(bool *anyGarbageCleanedOut)
     // Clean up RefCountedEvent that are done resetting
     anyCleaned = mRefCountedEventRecycler.cleanupResettingEvents(this) > 0 || anyCleaned;
 
-    // Clean up samplers that couldn't be destroyed when the share group was.
-    anyCleaned = cleanupOrphanedSamplers() || anyCleaned;
-
     if (anyGarbageCleanedOut != nullptr)
     {
         *anyGarbageCleanedOut = anyCleaned;
     }
-}
-
-bool Renderer::cleanupOrphanedSamplers()
-{
-    std::unique_lock<angle::SimpleMutex> lock(mOrphanedSamplerMutex);
-
-    if (mOrphanedSamplers.empty() && mOrphanedSamplerYcbcrConversions.empty())
-    {
-        return false;
-    }
-
-    // Destroy any sampler that is no longer referenced.
-    const size_t samplerCountBefore = mOrphanedSamplers.size();
-    // Using remove_if to avoid unnecessary reference counter updates.
-    mOrphanedSamplers.erase(
-        std::remove_if(mOrphanedSamplers.begin(), mOrphanedSamplers.end(),
-                       [](SharedSamplerPtr &sampler) { return sampler.unique(); }),
-        mOrphanedSamplers.end());
-    const size_t destroyedSamplerCount = samplerCountBefore - mOrphanedSamplers.size();
-
-    bool anyCleaned = destroyedSamplerCount > 0;
-
-    if (anyCleaned)
-    {
-        onDeallocateHandle(vk::HandleType::Sampler, static_cast<uint32_t>(destroyedSamplerCount));
-    }
-
-    // If all samplers are gone, destroy all the ycbcr conversion objects too.  We don't track which
-    // samplers use which ycbcr conversion objects, so they are destroyed conservatively.
-    if (mOrphanedSamplers.empty() && !mOrphanedSamplerYcbcrConversions.empty())
-    {
-        anyCleaned = true;
-        for (VkSamplerYcbcrConversion handle : mOrphanedSamplerYcbcrConversions)
-        {
-            vk::SamplerYcbcrConversion conversion;
-            conversion.setHandle(handle);
-            conversion.destroy(mDevice);
-        }
-        onDeallocateHandle(vk::HandleType::SamplerYcbcrConversion,
-                           static_cast<uint32_t>(mOrphanedSamplerYcbcrConversions.size()));
-        mOrphanedSamplerYcbcrConversions.clear();
-    }
-
-    return anyCleaned;
 }
 
 void Renderer::cleanupPendingSubmissionGarbage()
@@ -7642,6 +7632,10 @@ void Renderer::initializeDeviceExtensionEntryPointsFromCore() const
     if (mFeatures.supportsYUVSamplerConversion.enabled)
     {
         InitSamplerYcbcrKHRFunctionsFromCore();
+    }
+    if (mFeatures.supportsMaintenance5.enabled)
+    {
+        InitGetImageSubresourceLayoutEXTFunctionFromKHR();
     }
 }
 
@@ -7959,18 +7953,6 @@ void Renderer::releaseQueueSerialIndex(SerialIndex index)
 angle::Result Renderer::cleanupSomeGarbage(ErrorContext *context, bool *anyGarbageCleanedOut)
 {
     return mCommandQueue.cleanupSomeGarbage(context, 0, anyGarbageCleanedOut);
-}
-
-void Renderer::addSamplerToOrphanList(SharedSamplerPtr sampler)
-{
-    std::unique_lock<angle::SimpleMutex> lock(mOrphanedSamplerMutex);
-    mOrphanedSamplers.push_back(sampler);
-}
-
-void Renderer::addSamplerYcbcrConversionToOrphanList(VkSamplerYcbcrConversion conversion)
-{
-    std::unique_lock<angle::SimpleMutex> lock(mOrphanedSamplerMutex);
-    mOrphanedSamplerYcbcrConversions.push_back(conversion);
 }
 
 void Renderer::logFeatures() const

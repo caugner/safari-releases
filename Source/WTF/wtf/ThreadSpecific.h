@@ -41,10 +41,11 @@
 
 #pragma once
 
+#include <wtf/AlignedStorage.h>
 #include <wtf/MainThread.h>
 #include <wtf/Noncopyable.h>
-#include <wtf/StdLibExtras.h>
 #include <wtf/Threading.h>
+#include <wtf/ThreadingEnums.h>
 
 // X11 headers define a bunch of macros with common terms, interfering with WebCore and WTF enum values.
 // As a workaround, we explicitly undef them here.
@@ -56,11 +57,6 @@
 #endif
 
 namespace WTF {
-
-enum class CanBeGCThread {
-    False,
-    True
-};
 
 template<typename T, CanBeGCThread canBeGCThread = CanBeGCThread::False> class ThreadSpecific {
     WTF_MAKE_NONCOPYABLE(ThreadSpecific);
@@ -100,11 +96,9 @@ private:
             owner->setInTLS(nullptr);
         }
 
-        PointerType storagePointer() const { return const_cast<PointerType>(reinterpret_cast<const T*>(&m_storage)); }
+        PointerType storagePointer() const { return const_cast<PointerType>(m_storage.get()); }
 
-        ALLOW_DEPRECATED_DECLARATIONS_BEGIN
-        typename std::aligned_storage<sizeof(T), std::alignment_of<T>::value>::type m_storage;
-        ALLOW_DEPRECATED_DECLARATIONS_END
+        AlignedStorage<T> m_storage;
         ThreadSpecific<T, canBeGCThread>* owner;
     };
 

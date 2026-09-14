@@ -305,7 +305,7 @@ public:
         {
         }
 
-#if OS(WINDOWS)
+#if OS(WINDOWS) && CPU(X86_64)
         template<typename ReturnType, typename... Arguments>
         explicit TrustedImmPtr(ReturnType(SYSV_ABI *value)(Arguments...))
             : m_value(reinterpret_cast<void*>(value))
@@ -854,7 +854,7 @@ public:
             m_jumps.shrink(size);
         }
 
-        const JumpVector& jumps() const { return m_jumps; }
+        const JumpVector& jumps() const LIFETIME_BOUND { return m_jumps; }
 
     private:
         JumpVector m_jumps;
@@ -1171,7 +1171,7 @@ protected:
 
         ALWAYS_INLINE RegisterID registerIDNoInvalidate() { return m_registerID; }
 
-        WARN_UNUSED_RETURN bool value(intptr_t& value)
+        [[nodiscard]] bool value(intptr_t& value)
         {
             value = m_value;
             return m_masm->isTempRegisterValid(m_validBit);
@@ -1222,8 +1222,8 @@ protected:
 
     Vector<std::pair<Label, String>> m_comments;
 
-    Vector<RefPtr<SharedTask<void(LinkBuffer&)>>> m_linkTasks;
-    Vector<RefPtr<SharedTask<void(LinkBuffer&)>>> m_lateLinkTasks;
+    Vector<Ref<SharedTask<void(LinkBuffer&)>>> m_linkTasks;
+    Vector<Ref<SharedTask<void(LinkBuffer&)>>> m_lateLinkTasks;
 
     friend class LinkBuffer;
 }; // class AbstractMacroAssembler

@@ -47,6 +47,14 @@ struct WKAppPrivacyReportTestingData {
     BOOL didPerformSoftUpdate;
 };
 
+@class STWebpageController;
+
+#if TARGET_OS_IPHONE
+typedef UIVisualEffectView _WKPlatformVisualEffectView;
+#else
+typedef NSVisualEffectView _WKPlatformVisualEffectView;
+#endif
+
 @class _WKNowPlayingMetadata;
 @protocol _WKMediaSessionCoordinator;
 
@@ -101,12 +109,18 @@ struct WKAppPrivacyReportTestingData {
 - (void)_didDismissContactPicker;
 - (void)_dismissContactPickerWithContacts:(NSArray *)contacts;
 
+- (STWebpageController *)_screenTimeWebpageController;
+- (_WKPlatformVisualEffectView *)_screenTimeBlurredSnapshot;
+
 - (void)_getRenderTreeAsStringWithCompletionHandler:(NS_SWIFT_UI_ACTOR void (^)(NSString * NS_NULLABLE_RESULT, NSError * _Nullable error))completionHandler WK_API_AVAILABLE(macos(26.4), ios(26.4), visionos(26.4));
 
 @property (nonatomic, setter=_setScrollingUpdatesDisabledForTesting:) BOOL _scrollingUpdatesDisabledForTesting;
 @property (nonatomic, readonly) NSString *_scrollingTreeAsText;
+@property (nonatomic, readonly) double _rubberbandHyperbolicCoefficientForTesting;
 
 @property (nonatomic, readonly) pid_t _networkProcessIdentifier;
+
+@property (nonatomic, readonly) uint64_t _webPageProxyIdentifierForTesting;
 
 @property (nonatomic, readonly) unsigned long _countOfUpdatesWithLayerChanges;
 
@@ -118,6 +132,7 @@ struct WKAppPrivacyReportTestingData {
 - (void)_setThrottleStateForTesting:(int)type;
 
 - (void)_doAfterProcessingAllPendingMouseEvents:(dispatch_block_t)action;
+- (void)_doAfterProcessingAllPendingKeyEvents:(dispatch_block_t)action;
 
 + (void)_setApplicationBundleIdentifier:(NSString *)bundleIdentifier;
 + (void)_clearApplicationBundleIdentifierTestingOverride;
@@ -145,6 +160,8 @@ struct WKAppPrivacyReportTestingData {
 - (void)_gpuToWebProcessConnectionCountForTesting:(void(^)(NSUInteger))completionHandler WK_API_AVAILABLE(macos(13.0), ios(16.0));
 
 - (void)_isLayerTreeFrozenForTesting:(void (^)(BOOL frozen))completionHandler WK_API_AVAILABLE(macos(13.0), ios(16.0));
+
+- (void)_numberOfLiveDocumentsForTesting:(void (^)(NSUInteger count))completionHandler;
 
 - (void)_computePagesForPrinting:(_WKFrameHandle *)handle completionHandler:(void(^)(void))completionHandler WK_API_AVAILABLE(macos(13.0), ios(16.0));
 
@@ -176,6 +193,9 @@ struct WKAppPrivacyReportTestingData {
 #endif
 - (void)_cancelFixedColorExtensionFadeAnimationsForTesting;
 
+- (void)_startMonitoringWheelEventsForTesting:(void(^)(void))completionHandler;
+- (void)_waitForWheelEventsToCompleteForTesting:(void(^)(void))completionHandler;
+
 - (unsigned)_forwardedLogsCountForTesting;
 - (bool)_receivedLogsDuringLaunchForTesting;
 
@@ -187,8 +207,19 @@ struct WKAppPrivacyReportTestingData {
 - (NSString *)_animationStackForLayerWithID:(unsigned long long)layerID;
 - (NSString *)_progressBasedTimelinesForScrollingNodeID:(uint64_t)scrollingNodeID processID:(uint64_t)processID;
 #endif
+- (bool)_displayLinkWantsHighFrameRate;
 
 - (void)_lastPageLoadNetworkActivityCompletionCodeForTesting:(void(^)(NSNumber * _Nullable completionCode))completionHandler;
+
+#if TARGET_OS_IPHONE
++ (void)_setVisibilityEndowmentForTesting:(BOOL)isVisible;
+#endif
+
+#if defined(ENABLE_HORIZONTAL_BANNER_VIEW_OVERLAYS) && ENABLE_HORIZONTAL_BANNER_VIEW_OVERLAYS
+- (void)_enableColorExtensionBehaviorForHorizontalBannerViewOverlaysForTesting;
+- (void)_disableColorExtensionBehaviorForHorizontalBannerViewOverlaysForTesting;
+- (void)_clearColorExtensionBehaviorOverridesForHorizontalBannerViewOverlaysForTesting;
+#endif
 
 @end
 

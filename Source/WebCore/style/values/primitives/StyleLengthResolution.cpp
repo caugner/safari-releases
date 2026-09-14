@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 Samuel Weinig <sam@webkit.org>
+ * Copyright (C) 2025-2026 Samuel Weinig <sam@webkit.org>
  * Copyright (C) 2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -33,15 +33,14 @@
 #include "ContainerQueryEvaluator.h"
 #include "Document.h"
 #include "Element.h"
-#include "FontCascade.h"
+#include "FontCascadeInlines.h"
 #include "FontCascadeDescription.h"
 #include "FontMetrics.h"
 #include "NodeRenderStyle.h"
 #include "RenderBox.h"
 #include "RenderBoxInlines.h"
-#include "RenderStyle.h"
-#include "RenderStyle+GettersInlines.h"
 #include "RenderView.h"
+#include "StyleComputedStyle+GettersInlines.h"
 #include "StyleLineHeight.h"
 #include "StylePrimitiveNumericTypes+Conversions.h"
 #include "StylePrimitiveNumericTypes+Evaluation.h"
@@ -49,7 +48,7 @@
 namespace WebCore {
 namespace Style {
 
-static double adjustValueForPageZoom(double dimension, const CSSToLengthConversionData& conversionData)
+static double NODELETE adjustValueForPageZoom(double dimension, const CSSToLengthConversionData& conversionData)
 {
     if (conversionData.rangeZoomOption() != CSS::RangeZoomOptions::Unzoomed)
         return dimension;
@@ -59,10 +58,10 @@ static double adjustValueForPageZoom(double dimension, const CSSToLengthConversi
     if (!renderView || !style || !evaluationTimeZoomEnabled(*style))
         return dimension;
 
-    return dimension / renderView->zoomFactor();
+    return dimension / renderView->pageZoomFactor();
 }
 
-static double lengthOfViewportPhysicalAxisForLogicalAxis(LogicalBoxAxis logicalAxis, const FloatSize& size, const RenderStyle* style)
+static double NODELETE lengthOfViewportPhysicalAxisForLogicalAxis(LogicalBoxAxis logicalAxis, const FloatSize& size, const Style::ComputedStyle* style)
 {
     if (!style)
         return 0;
@@ -77,9 +76,9 @@ static double lengthOfViewportPhysicalAxisForLogicalAxis(LogicalBoxAxis logicalA
     RELEASE_ASSERT_NOT_REACHED();
 }
 
-static double lengthOfViewportPhysicalAxisForLogicalAxis(LogicalBoxAxis logicalAxis, const FloatSize& size, const RenderView& renderView)
+static double NODELETE lengthOfViewportPhysicalAxisForLogicalAxis(LogicalBoxAxis logicalAxis, const FloatSize& size, const RenderView& renderView)
 {
-    RefPtr rootElement = renderView.document().documentElement();
+    auto* rootElement = renderView.document().documentElement();
     if (!rootElement)
         return 0;
 
@@ -101,6 +100,10 @@ static double unzoomFontMetricIfNeeded(double metric, const FontDescription& fon
 double computeUnzoomedNonCalcLengthDouble(double value, CSS::LengthUnit lengthUnit, CSSPropertyID propertyToCompute, const FontCascade* fontCascadeForUnit, CSS::RangeZoomOptions rangeZoomOption, const RenderView* renderView)
 {
     using enum CSS::LengthUnit;
+
+    auto effectiveRangeZoomOption = (propertyToCompute == CSSPropertyFontSize)
+        ? CSS::RangeZoomOptions::Unzoomed
+        : rangeZoomOption;
 
     switch (lengthUnit) {
     case Px:
@@ -125,7 +128,7 @@ double computeUnzoomedNonCalcLengthDouble(double value, CSS::LengthUnit lengthUn
     case Rem: {
         ASSERT(fontCascadeForUnit);
         auto& fontDescription = fontCascadeForUnit->fontDescription();
-        return ((propertyToCompute == CSSPropertyFontSize) ? fontDescription.specifiedSize() :  fontDescription.computedSizeForRangeZoomOption(rangeZoomOption)) * value;
+        return ((propertyToCompute == CSSPropertyFontSize) ? fontDescription.specifiedSize() :  fontDescription.computedSizeForRangeZoomOption(effectiveRangeZoomOption)) * value;
     }
     case Ex:
     case Rex: {
@@ -133,8 +136,8 @@ double computeUnzoomedNonCalcLengthDouble(double value, CSS::LengthUnit lengthUn
         auto& fontDescription = fontCascadeForUnit->fontDescription();
         auto& fontMetrics = fontCascadeForUnit->metricsOfPrimaryFont();
         if (fontMetrics.xHeight())
-            return unzoomFontMetricIfNeeded(fontMetrics.xHeight().value(), fontDescription, rangeZoomOption) * value;
-        return ((propertyToCompute == CSSPropertyFontSize) ? fontDescription.specifiedSize() : fontDescription.computedSizeForRangeZoomOption(rangeZoomOption)) / 2.0 * value;
+            return unzoomFontMetricIfNeeded(fontMetrics.xHeight().value(), fontDescription, effectiveRangeZoomOption) * value;
+        return ((propertyToCompute == CSSPropertyFontSize) ? fontDescription.specifiedSize() : fontDescription.computedSizeForRangeZoomOption(effectiveRangeZoomOption)) / 2.0 * value;
     }
     case Cap:
     case Rcap: {
@@ -142,14 +145,14 @@ double computeUnzoomedNonCalcLengthDouble(double value, CSS::LengthUnit lengthUn
         auto& fontDescription = fontCascadeForUnit->fontDescription();
         auto& fontMetrics = fontCascadeForUnit->metricsOfPrimaryFont();
         if (fontMetrics.capHeight())
-            return unzoomFontMetricIfNeeded(fontMetrics.capHeight().value(), fontDescription, rangeZoomOption) * value;
-        return unzoomFontMetricIfNeeded(fontMetrics.intAscent(), fontDescription, rangeZoomOption) * value;
+            return unzoomFontMetricIfNeeded(fontMetrics.capHeight().value(), fontDescription, effectiveRangeZoomOption) * value;
+        return unzoomFontMetricIfNeeded(fontMetrics.intAscent(), fontDescription, effectiveRangeZoomOption) * value;
     }
     case Ch:
     case Rch: {
         ASSERT(fontCascadeForUnit);
         auto& fontDescription = fontCascadeForUnit->fontDescription();
-        return unzoomFontMetricIfNeeded(fontCascadeForUnit->zeroWidth(), fontDescription, rangeZoomOption) * value;
+        return unzoomFontMetricIfNeeded(fontCascadeForUnit->zeroWidth(), fontDescription, effectiveRangeZoomOption) * value;
     }
     case Ic:
     case Ric: {
@@ -157,8 +160,8 @@ double computeUnzoomedNonCalcLengthDouble(double value, CSS::LengthUnit lengthUn
         auto& fontDescription = fontCascadeForUnit->fontDescription();
         auto ideogramWidth = fontCascadeForUnit->metricsOfPrimaryFont().ideogramWidth();
         if (!ideogramWidth)
-            return fontDescription.computedSizeForRangeZoomOption(rangeZoomOption) * value;
-        return unzoomFontMetricIfNeeded(ideogramWidth.value(), fontDescription, rangeZoomOption) * value;
+            return fontDescription.computedSizeForRangeZoomOption(effectiveRangeZoomOption) * value;
+        return unzoomFontMetricIfNeeded(ideogramWidth.value(), fontDescription, effectiveRangeZoomOption) * value;
     }
 
     // MARK: "viewport percentage" resolution
@@ -479,7 +482,7 @@ double computeNonCalcLengthDouble(double value, CSS::LengthUnit lengthUnit, cons
     return value * conversionData.zoom();
 }
 
-bool equalForLengthResolution(const RenderStyle& styleA, const RenderStyle& styleB)
+bool equalForLengthResolution(const Style::ComputedStyle& styleA, const Style::ComputedStyle& styleB)
 {
     // These properties affect results of `computeNonCalcLengthDouble` above.
 
@@ -497,6 +500,16 @@ bool equalForLengthResolution(const RenderStyle& styleA, const RenderStyle& styl
         return false;
 
     return true;
+}
+
+double emToPxDouble(double value, const CSSToLengthConversionData& conversionData)
+{
+    return computeNonCalcLengthDouble(value, CSS::LengthUnit::Em, conversionData);
+}
+
+double emToPxDouble(double value, const Style::ComputedStyle& style)
+{
+    return computeNonCalcLengthDouble(value, CSS::LengthUnit::Em, CSSToLengthConversionData(style, nullptr, nullptr, nullptr));
 }
 
 } // namespace Style

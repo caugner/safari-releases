@@ -29,6 +29,7 @@
 
 #import "config.h"
 #import "WebExtensionAPIAction.h"
+#import "WebExtensionAPIKeys.h"
 
 #if ENABLE(WK_WEB_EXTENSIONS)
 
@@ -49,23 +50,8 @@
 #import <UIKit/UIKit.h>
 #endif
 
-static NSString * const tabIdKey = @"tabId";
-static NSString * const windowIdKey = @"windowId";
-
-static NSString * const imageDataKey = @"imageData";
-static NSString * const pathKey = @"path";
-static NSString * const popupKey = @"popup";
-static NSString * const textKey = @"text";
-static NSString * const titleKey = @"title";
-
 #if ENABLE(WK_WEB_EXTENSIONS_ICON_VARIANTS)
-static NSString * const variantsKey = @"variants";
 // FIXME: <https://webkit.org/b/300927> Deprecate `color_schemes` key.
-static NSString * const deprecatedColorSchemesKey = @"color_schemes";
-static NSString * const colorSchemesKey = @"colorSchemes";
-static NSString * const lightKey = @"light";
-static NSString * const darkKey = @"dark";
-static NSString * const anyKey = @"any";
 #endif
 
 namespace WebKit {
@@ -119,7 +105,8 @@ void WebExtensionAPIAction::getTitle(NSDictionary *details, Ref<WebExtensionCall
             return;
         }
 
-        callback->call(JSValueMakeString(callback->globalContext(), toJSString(result.value()).get()));
+        // This is a safer cpp false positive (rdar://163760990).
+        SUPPRESS_UNCOUNTED_ARG callback->call(JSValueMakeString(callback->globalContext(), toJSString(result.value()).get()));
     }, extensionContext().identifier());
 }
 
@@ -178,7 +165,8 @@ void WebExtensionAPIAction::getBadgeText(NSDictionary *details, Ref<WebExtension
             return;
         }
 
-        callback->call(JSValueMakeString(callback->globalContext(), toJSString(result.value()).get()));
+        // This is a safer cpp false positive (rdar://163760990).
+        SUPPRESS_UNCOUNTED_ARG callback->call(JSValueMakeString(callback->globalContext(), toJSString(result.value()).get()));
     }, extensionContext().identifier());
 }
 
@@ -627,7 +615,8 @@ void WebExtensionAPIAction::getPopup(NSDictionary *details, Ref<WebExtensionCall
             return;
         }
 
-        callback->call(JSValueMakeString(callback->globalContext(), toJSString(result.value()).get()));
+        // This is a safer cpp false positive (rdar://163760990).
+        SUPPRESS_UNCOUNTED_ARG callback->call(JSValueMakeString(callback->globalContext(), toJSString(result.value()).get()));
     }, extensionContext().identifier());
 }
 

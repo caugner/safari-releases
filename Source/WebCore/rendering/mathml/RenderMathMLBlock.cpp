@@ -30,13 +30,15 @@
 #if ENABLE(MATHML)
 
 #include "CSSUnits.h"
+#include "FontCascadeInlines.h"
 #include "GraphicsContext.h"
 #include "LayoutRepainter.h"
 #include "MathMLElement.h"
 #include "MathMLNames.h"
 #include "MathMLPresentationElement.h"
-#include "RenderChildIterator.h"
+#include "OpenTypeMathData.h"
 #include "RenderBoxInlines.h"
+#include "RenderChildIterator.h"
 #include "RenderElementStyleInlines.h"
 #include "RenderObjectInlines.h"
 #include "RenderTableInlines.h"
@@ -51,14 +53,14 @@ using namespace MathMLNames;
 WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderMathMLBlock);
 WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderMathMLTable);
 
-RenderMathMLBlock::RenderMathMLBlock(Type type, MathMLPresentationElement& container, RenderStyle&& style)
+RenderMathMLBlock::RenderMathMLBlock(Type type, MathMLPresentationElement& container, Style::ComputedStyle&& style)
     : RenderBlock(type, container, WTF::move(style), { })
     , m_mathMLStyle(MathMLStyle::create())
 {
     setChildrenInline(false); // All of our children must be block-level.
 }
 
-RenderMathMLBlock::RenderMathMLBlock(Type type, Document& document, RenderStyle&& style)
+RenderMathMLBlock::RenderMathMLBlock(Type type, Document& document, Style::ComputedStyle&& style)
     : RenderBlock(type, document, WTF::move(style), { })
     , m_mathMLStyle(MathMLStyle::create())
 {
@@ -67,17 +69,17 @@ RenderMathMLBlock::RenderMathMLBlock(Type type, Document& document, RenderStyle&
 
 RenderMathMLBlock::~RenderMathMLBlock() = default;
 
-bool RenderMathMLBlock::isChildAllowed(const RenderObject& child, const RenderStyle&) const
+bool RenderMathMLBlock::isChildAllowed(const RenderObject& child, const Style::ComputedStyle&) const
 {
     return is<Element>(child.node());
 }
 
-static LayoutUnit axisHeight(const RenderStyle& style)
+static LayoutUnit axisHeight(const Style::ComputedStyle& style)
 {
     // If we have a MATH table we just return the AxisHeight constant.
     Ref primaryFont = style.fontCascade().primaryFont();
     if (RefPtr mathData = primaryFont->mathData())
-        return LayoutUnit(mathData->getMathConstant(primaryFont, OpenTypeMathData::AxisHeight));
+        return LayoutUnit(mathData->getMathConstant(primaryFont, OpenTypeMathData::MathConstant::AxisHeight));
 
     // Otherwise, the idea is to try and use the middle of operators as the math axis which we thus approximate by "half of the x-height".
     // Note that Gecko has a slower but more accurate version that measures half of the height of U+2212 MINUS SIGN.
@@ -97,7 +99,7 @@ LayoutUnit RenderMathMLBlock::mirrorIfNeeded(LayoutUnit horizontalOffset, Layout
     return horizontalOffset;
 }
 
-LayoutUnit toUserUnits(const MathMLElement::Length& length, const RenderStyle& style, const LayoutUnit& referenceValue)
+LayoutUnit toUserUnits(const MathMLElement::Length& length, const Style::ComputedStyle& style, const LayoutUnit& referenceValue)
 {
     switch (length.type) {
     // Zoom for physical units needs to be accounted for.
@@ -153,7 +155,7 @@ void RenderMathMLBlock::layoutItems(RelayoutChildren relayoutChildren)
 
     LayoutUnit preferredHorizontalExtent;
     for (auto* child = firstInFlowChildBox(); child; child = child->nextInFlowSiblingBox()) {
-        LayoutUnit childHorizontalExtent = child->maxPreferredLogicalWidth() - child->horizontalBorderAndPaddingExtent();
+        LayoutUnit childHorizontalExtent = child->maxContentLogicalWidthContribution() - child->horizontalBorderAndPaddingExtent();
         LayoutUnit childHorizontalMarginBoxExtent = child->horizontalBorderAndPaddingExtent() + childHorizontalExtent;
         childHorizontalMarginBoxExtent += child->horizontalMarginExtent();
 
@@ -163,28 +165,28 @@ void RenderMathMLBlock::layoutItems(RelayoutChildren relayoutChildren)
     LayoutUnit currentHorizontalExtent = contentBoxLogicalWidth();
     for (auto* child = firstInFlowChildBox(); child; child = child->nextInFlowSiblingBox()) {
         auto everHadLayout = child->everHadLayout();
-        LayoutUnit childSize = child->maxPreferredLogicalWidth() - child->horizontalBorderAndPaddingExtent();
+        LayoutUnit childSize = child->maxContentLogicalWidthContribution() - child->horizontalBorderAndPaddingExtent();
 
         if (preferredHorizontalExtent > currentHorizontalExtent)
             childSize = currentHorizontalExtent;
 
         LayoutUnit childPreferredSize = childSize + child->horizontalBorderAndPaddingExtent();
 
-        if (childPreferredSize != child->width())
-            child->setChildNeedsLayout(MarkOnlyThis);
+        if (childPreferredSize != child->borderBoxWidth())
+            child->setChildNeedsLayout(MarkingBehavior::MarkOnlyThis);
 
         updateBlockChildDirtyBitsBeforeLayout(relayoutChildren, *child);
         child->layoutIfNeeded();
 
         LayoutUnit childVerticalMarginBoxExtent;
-        childVerticalMarginBoxExtent = child->height() + child->verticalMarginExtent();
+        childVerticalMarginBoxExtent = child->borderBoxHeight() + child->verticalMarginExtent();
 
         setLogicalHeight(std::max(logicalHeight(), verticalOffset + borderAndPaddingAfter() + childVerticalMarginBoxExtent + horizontalScrollbarHeight()));
 
         horizontalOffset += child->marginStart();
 
-        LayoutUnit childHorizontalExtent = child->width();
-        LayoutPoint childLocation(writingMode().isBidiLTR() ? horizontalOffset : width() - horizontalOffset - childHorizontalExtent,
+        LayoutUnit childHorizontalExtent = child->borderBoxWidth();
+        LayoutPoint childLocation(writingMode().isBidiLTR() ? horizontalOffset : borderBoxWidth() - horizontalOffset - childHorizontalExtent,
             verticalOffset + child->marginBefore());
 
         child->setLocation(childLocation);
@@ -228,13 +230,13 @@ void RenderMathMLBlock::computeAndSetBlockDirectionMarginsOfChildren()
         child->computeAndSetBlockDirectionMargins(*this);
 }
 
-void RenderMathMLBlock::styleDidChange(Style::Difference diff, const RenderStyle* oldStyle)
+void RenderMathMLBlock::styleDidChange(Style::Difference diff, const Style::ComputedStyle* oldStyle)
 {
     RenderBlock::styleDidChange(diff, oldStyle);
 
     // MathML displaystyle changes can affect layout.
     if (oldStyle && style().mathStyle() != oldStyle->mathStyle())
-        setNeedsLayoutAndPreferredWidthsUpdate();
+        setNeedsLayoutAndInvalidateContentLogicalWidths();
 }
 
 void RenderMathMLBlock::insertPositionedChildrenIntoContainingBlock()
@@ -266,18 +268,18 @@ void RenderMathMLBlock::shiftInFlowChildren(LayoutUnit left, LayoutUnit top)
         child->setLocation(child->location() + shift);
 }
 
-void RenderMathMLBlock::adjustPreferredLogicalWidthsForBorderAndPadding()
+void RenderMathMLBlock::adjustContentLogicalWidthsForBorderAndPadding()
 {
-    ASSERT(needsPreferredLogicalWidthsUpdate());
-    m_minPreferredLogicalWidth += borderAndPaddingLogicalWidth();
-    m_maxPreferredLogicalWidth += borderAndPaddingLogicalWidth();
+    ASSERT(hasInvalidContentLogicalWidths());
+    m_minContentLogicalWidthContribution += borderAndPaddingLogicalWidth();
+    m_maxContentLogicalWidthContribution += borderAndPaddingLogicalWidth();
 }
 
 void RenderMathMLBlock::adjustLayoutForBorderAndPadding()
 {
     setLogicalWidth(logicalWidth() + borderAndPaddingLogicalWidth());
     setLogicalHeight(logicalHeight() + borderAndPaddingLogicalHeight());
-    shiftInFlowChildren(style().isLeftToRightDirection() ? borderAndPaddingStart() : borderAndPaddingEnd(), borderAndPaddingBefore());
+    shiftInFlowChildren(style().writingMode().deprecatedIsLeftToRightDirection() ? borderAndPaddingStart() : borderAndPaddingEnd(), borderAndPaddingBefore());
 }
 
 RenderMathMLBlock::SizeAppliedToMathContent RenderMathMLBlock::sizeAppliedToMathContent(LayoutPhase phase)
@@ -315,10 +317,10 @@ RenderMathMLBlock::SizeAppliedToMathContent RenderMathMLBlock::sizeAppliedToMath
 LayoutUnit RenderMathMLBlock::applySizeToMathContent(LayoutPhase phase, const SizeAppliedToMathContent& sizes)
 {
     if (phase == LayoutPhase::CalculatePreferredLogicalWidth) {
-        ASSERT(needsPreferredLogicalWidthsUpdate());
+        ASSERT(hasInvalidContentLogicalWidths());
         if (sizes.logicalWidth) {
-            m_minPreferredLogicalWidth = *sizes.logicalWidth;
-            m_maxPreferredLogicalWidth = *sizes.logicalWidth;
+            m_minContentLogicalWidthContribution = *sizes.logicalWidth;
+            m_maxContentLogicalWidthContribution = *sizes.logicalWidth;
         }
         return LayoutUnit();
     }
@@ -330,7 +332,7 @@ LayoutUnit RenderMathMLBlock::applySizeToMathContent(LayoutPhase phase, const Si
         auto oldWidth = logicalWidth();
         if (isMathContentCentered()) {
             inlineShift = (*sizes.logicalWidth - oldWidth) / 2;
-        } else if (!style().isLeftToRightDirection())
+        } else if (!style().writingMode().deprecatedIsLeftToRightDirection())
             inlineShift = *sizes.logicalWidth - oldWidth;
         setLogicalWidth(*sizes.logicalWidth);
     }

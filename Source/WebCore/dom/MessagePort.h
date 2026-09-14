@@ -32,17 +32,22 @@
 #include <WebCore/MessagePortChannel.h>
 #include <WebCore/MessagePortIdentifier.h>
 #include <WebCore/MessageWithMessagePorts.h>
+#include <wtf/Deque.h>
+#include <wtf/ThreadSafeWeakPtr.h>
 #include <wtf/WeakPtr.h>
 
 namespace JSC {
 class CallFrame;
+class JSGlobalObject;
 class JSObject;
 class JSValue;
 }
 
 namespace WebCore {
 
+class JSDOMGlobalObject;
 class LocalFrame;
+class SerializedScriptValue;
 class WebCoreOpaqueRoot;
 
 struct StructuredSerializeOptions;
@@ -62,10 +67,14 @@ public:
     USING_CAN_MAKE_WEAKPTR(EventTarget);
 
     ExceptionOr<void> postMessage(JSC::JSGlobalObject&, JSC::JSValue message, StructuredSerializeOptions&&);
+    ExceptionOr<void> postMessage(JSC::JSGlobalObject&, JSC::JSValue message, Vector<JSC::Strong<JSC::JSObject>>&&);
 
     void start();
     void close();
     void entangle();
+
+    using MessageHandler = Function<void(JSDOMGlobalObject&, SerializedScriptValue&)>;
+    void setMessageHandler(MessageHandler&&);
 
     // Returns nullptr if the passed-in vector is empty.
     static ExceptionOr<Vector<TransferredMessagePort>> disentanglePorts(Vector<Ref<MessagePort>>&&);
@@ -84,15 +93,14 @@ public:
     // Returns null if there is no entangled port, or if the entangled port is run by a different thread.
     // This is used solely to enable a GC optimization. Some platforms may not be able to determine ownership
     // of the remote port (since it may live cross-process) - those platforms may always return null.
-    MessagePort* locallyEntangledPort() const;
+    MessagePort* NODELETE locallyEntangledPort() const;
 
-    const MessagePortIdentifier& identifier() const { return m_identifier; }
-    const MessagePortIdentifier& remoteIdentifier() const { return m_remoteIdentifier; }
+    const MessagePortIdentifier& identifier() const LIFETIME_BOUND { return m_identifier; }
+    const MessagePortIdentifier& remoteIdentifier() const LIFETIME_BOUND { return m_remoteIdentifier; }
 
     // EventTarget.
     enum EventTargetInterfaceType eventTargetInterface() const final { return EventTargetInterfaceType::MessagePort; }
     ScriptExecutionContext* scriptExecutionContext() const final;
-    using ActiveDOMObject::protectedScriptExecutionContext;
     void refEventTarget() final { ref(); }
     void derefEventTarget() final { deref(); }
 
@@ -101,11 +109,17 @@ public:
     TransferredMessagePort disentangle();
     static Ref<MessagePort> entangle(ScriptExecutionContext&, TransferredMessagePort&&);
 
+    // Short-circuits message delivery for same-context ports. Should only be used for
+    // ports that have never been shippped, to avoid potential message reordering.
+    static void NODELETE entangleLocally(MessagePort&, MessagePort&);
+
 private:
     MessagePort(ScriptExecutionContext&, const MessagePortIdentifier& local, const MessagePortIdentifier& remote);
 
     bool addEventListener(const AtomString& eventType, Ref<EventListener>&&, const AddEventListenerOptions&) final;
+    using EventTarget::addEventListener;
     bool removeEventListener(const AtomString& eventType, EventListener&, const EventListenerOptions&) final;
+    void drainOneLocalMessage();
 
     // ActiveDOMObject.
     void contextDestroyed() final;
@@ -122,9 +136,14 @@ private:
 
     MessagePortIdentifier m_identifier;
     MessagePortIdentifier m_remoteIdentifier;
+
+    MessageHandler m_messageHandler;
+    Deque<MessageWithMessagePorts> m_localQueue;
+    ThreadSafeWeakPtr<MessagePort> m_localPartner;
+    unsigned m_newLocalMessages { 0 };
 };
 
-WebCoreOpaqueRoot root(MessagePort*);
+WebCoreOpaqueRoot NODELETE root(MessagePort*);
 
 } // namespace WebCore
 

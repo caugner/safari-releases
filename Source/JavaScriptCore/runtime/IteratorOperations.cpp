@@ -29,13 +29,19 @@
 
 #include "CachedCall.h"
 #include "InterpreterInlines.h"
+#include "JSArrayIterator.h"
+#include "JSAsyncFromSyncIterator.h"
 #include "JSCInlines.h"
+#include "JSMap.h"
+#include "JSMapIterator.h"
+#include "JSSet.h"
+#include "JSSetIterator.h"
 #include "ObjectConstructor.h"
 #include "VMEntryScopeInlines.h"
 
 namespace JSC {
 
-JSValue iteratorNext(JSGlobalObject* globalObject, IterationRecord iterationRecord, JSValue argument)
+static JSValue iteratorNextImpl(JSGlobalObject* globalObject, IterationRecord iterationRecord, JSValue argument)
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
@@ -82,18 +88,38 @@ JSValue iteratorNextWithCachedCall(JSGlobalObject* globalObject, IterationRecord
     return result;
 }
 
+JSValue iteratorNext(JSGlobalObject* globalObject, IterationRecord iterationRecord, JSValue argument)
+{
+    return iteratorNextImpl(globalObject, iterationRecord, argument);
+}
+
+JSValue iteratorNextExported(JSGlobalObject* globalObject, IterationRecord iterationRecord, JSValue argument)
+{
+    return iteratorNextImpl(globalObject, iterationRecord, argument);
+}
+
 JSValue iteratorValue(JSGlobalObject* globalObject, JSValue iterResult)
 {
     return iterResult.get(globalObject, globalObject->vm().propertyNames->value);
 }
 
-bool iteratorComplete(JSGlobalObject* globalObject, JSValue iterResult)
+static bool iteratorCompleteImpl(JSGlobalObject* globalObject, JSValue iterResult)
 {
     VM& vm = globalObject->vm();
     auto scope = DECLARE_THROW_SCOPE(vm);
     JSValue done = iterResult.get(globalObject, globalObject->vm().propertyNames->done);
     RETURN_IF_EXCEPTION(scope, true);
     RELEASE_AND_RETURN(scope, done.toBoolean(globalObject));
+}
+
+bool iteratorComplete(JSGlobalObject* globalObject, JSValue iterResult)
+{
+    return iteratorCompleteImpl(globalObject, iterResult);
+}
+
+bool iteratorCompleteExported(JSGlobalObject* globalObject, JSValue iterResult)
+{
+    return iteratorCompleteImpl(globalObject, iterResult);
 }
 
 JSValue iteratorStep(JSGlobalObject* globalObject, IterationRecord iterationRecord)
@@ -127,34 +153,30 @@ JSValue iteratorStepWithCachedCall(JSGlobalObject* globalObject, IterationRecord
 void iteratorClose(JSGlobalObject* globalObject, JSValue iterator)
 {
     VM& vm = globalObject->vm();
-    auto throwScope = DECLARE_THROW_SCOPE(vm);
-    auto catchScope = DECLARE_CATCH_SCOPE(vm);
+    auto scope = DECLARE_THROW_SCOPE(vm);
 
-    Exception* exception = nullptr;
-    if (catchScope.exception()) [[unlikely]] {
-        exception = catchScope.exception();
-        catchScope.clearException();
-    }
+    Exception* exception = scope.exception();
+    TRY_CLEAR_EXCEPTION(scope, void());
 
     JSValue returnFunction = iterator.get(globalObject, vm.propertyNames->returnKeyword);
-    if (throwScope.exception()) [[unlikely]] {
+    if (scope.exception()) [[unlikely]] {
         if (exception)
-            throwException(globalObject, throwScope, exception);
+            throwException(globalObject, scope, exception);
         return;
     }
 
     if (returnFunction.isUndefinedOrNull()) {
         if (exception)
-            throwException(globalObject, throwScope, exception);
+            throwException(globalObject, scope, exception);
         return;
     }
 
     auto returnFunctionCallData = JSC::getCallDataInline(returnFunction);
     if (returnFunctionCallData.type == CallData::Type::None) {
         if (exception)
-            throwException(globalObject, throwScope, exception);
+            throwException(globalObject, scope, exception);
         else
-            throwTypeError(globalObject, throwScope);
+            throwTypeError(globalObject, scope);
         return;
     }
 
@@ -163,20 +185,17 @@ void iteratorClose(JSGlobalObject* globalObject, JSValue iterator)
     JSValue innerResult = call(globalObject, returnFunction, returnFunctionCallData, iterator, returnFunctionArguments);
 
     if (exception) {
-        throwException(globalObject, throwScope, exception);
+        throwException(globalObject, scope, exception);
         return;
     }
 
-    RETURN_IF_EXCEPTION(throwScope, void());
+    RETURN_IF_EXCEPTION(scope, void());
 
     if (!innerResult.isObject()) {
-        throwTypeError(globalObject, throwScope, "Iterator result interface is not an object."_s);
+        throwTypeError(globalObject, scope, "Iterator result interface is not an object."_s);
         return;
     }
 }
-
-static constexpr PropertyOffset valuePropertyOffset = 0;
-static constexpr PropertyOffset donePropertyOffset = 1;
 
 Structure* createIteratorResultObjectStructure(VM& vm, JSGlobalObject& globalObject)
 {
@@ -184,9 +203,9 @@ Structure* createIteratorResultObjectStructure(VM& vm, JSGlobalObject& globalObj
     Structure* iteratorResultStructure = globalObject.structureCache().emptyObjectStructureForPrototype(&globalObject, globalObject.objectPrototype(), inlineCapacity);
     PropertyOffset offset;
     iteratorResultStructure = Structure::addPropertyTransition(vm, iteratorResultStructure, vm.propertyNames->value, 0, offset);
-    RELEASE_ASSERT(offset == valuePropertyOffset);
+    RELEASE_ASSERT(offset == iteratorResultObjectValuePropertyOffset);
     iteratorResultStructure = Structure::addPropertyTransition(vm, iteratorResultStructure, vm.propertyNames->done, 0, offset);
-    RELEASE_ASSERT(offset == donePropertyOffset);
+    RELEASE_ASSERT(offset == iteratorResultObjectDonePropertyOffset);
     return iteratorResultStructure;
 }
 
@@ -194,8 +213,8 @@ JSObject* createIteratorResultObject(JSGlobalObject* globalObject, JSValue value
 {
     VM& vm = globalObject->vm();
     JSObject* resultObject = constructEmptyObject(vm, globalObject->iteratorResultObjectStructure());
-    resultObject->putDirectOffset(vm, valuePropertyOffset, value);
-    resultObject->putDirectOffset(vm, donePropertyOffset, jsBoolean(done));
+    resultObject->putDirectOffset(vm, iteratorResultObjectValuePropertyOffset, value);
+    resultObject->putDirectOffset(vm, iteratorResultObjectDonePropertyOffset, jsBoolean(done));
     return resultObject;
 }
 
@@ -287,6 +306,80 @@ IterationRecord iteratorDirect(JSGlobalObject* globalObject, JSValue object)
     return { object, object.get(globalObject, globalObject->vm().propertyNames->next) };
 }
 
+// https://tc39.es/ecma262/multipage/abstract-operations.html#sec-getiterator, ASYNC kind
+static IterationRecord getAsyncIteratorImpl(JSGlobalObject& globalObject, JSValue iterable)
+{
+    auto& vm = globalObject.vm();
+    auto throwScope = DECLARE_THROW_SCOPE(vm);
+
+    auto* iterableObject = iterable.getObject();
+    if (!iterableObject) [[unlikely]] {
+        throwTypeError(&globalObject, throwScope, "iterable should be an object"_s);
+        return { };
+    }
+
+    CallData callData;
+    auto method = iterableObject->getMethod(&globalObject, callData, vm.propertyNames->asyncIteratorSymbol, "asyncIteratorSymbol property should be callable"_s);
+    RETURN_IF_EXCEPTION(throwScope, { });
+
+    if (method.isUndefined()) {
+        auto syncMethod = iteratorMethod(&globalObject, iterableObject);
+        RETURN_IF_EXCEPTION(throwScope, { });
+
+        if (syncMethod.isUndefined()) [[unlikely]] {
+            throwTypeError(&globalObject, throwScope, "iterable should have an iterator symbol"_s);
+            return { };
+        }
+
+        callData = getCallData(syncMethod);
+        auto iterator = call(&globalObject, syncMethod, callData, iterableObject, { });
+        RETURN_IF_EXCEPTION(throwScope, { });
+
+        auto* iteratorObject = iterator.getObject();
+        if (!iteratorObject) [[unlikely]] {
+            throwTypeError(&globalObject, throwScope, "iterator method should return an object"_s);
+            return { };
+        }
+
+        auto syncIteratorRecord = iteratorDirect(&globalObject, iterator);
+        RETURN_IF_EXCEPTION(throwScope, { });
+
+        auto* asyncFromSyncIterator = JSAsyncFromSyncIterator::create(vm, globalObject.asyncFromSyncIteratorStructure(), syncIteratorRecord.iterator, syncIteratorRecord.nextMethod);
+        RETURN_IF_EXCEPTION(throwScope, { });
+
+        auto record = iteratorDirect(&globalObject, asyncFromSyncIterator);
+        RETURN_IF_EXCEPTION(throwScope, { });
+        return record;
+    }
+
+    if (method.isUndefined()) [[unlikely]] {
+        throwTypeError(&globalObject, throwScope, "iterable should have an iterator symbol"_s);
+        return { };
+    }
+
+    callData = getCallData(method);
+    auto iterator = call(&globalObject, method, callData, iterableObject, { });
+    RETURN_IF_EXCEPTION(throwScope, { });
+
+    auto* iteratorObject = iterator.getObject();
+    if (!iteratorObject) [[unlikely]] {
+        throwTypeError(&globalObject, throwScope, "iterator method should return an object"_s);
+        return { };
+    }
+
+    RELEASE_AND_RETURN(throwScope, iteratorDirect(&globalObject, iterator));
+}
+
+IterationRecord getAsyncIterator(JSGlobalObject& globalObject, JSValue iterable)
+{
+    return getAsyncIteratorImpl(globalObject, iterable);
+}
+
+IterationRecord getAsyncIteratorExported(JSGlobalObject& globalObject, JSValue iterable)
+{
+    return getAsyncIteratorImpl(globalObject, iterable);
+}
+
 IterableValidationResult validateIterable(VM&, JSValue iterable, JSValue symbolIterator)
 {
     if (!symbolIterator.isCallable()) [[unlikely]] {
@@ -335,23 +428,136 @@ ASCIILiteral getIteratorErrorMessage(IterableValidationResult result, JSValue it
 
 IterationMode getIterationMode(VM&, JSGlobalObject* globalObject, JSValue iterable, JSValue symbolIterator)
 {
-    if (!isJSArray(iterable))
-        return IterationMode::Generic;
-
-    if (!globalObject->arrayIteratorProtocolWatchpointSet().isStillValid())
+    if (!iterable.isCell()) [[unlikely]]
         return IterationMode::Generic;
 
     // This is correct because we just checked the watchpoint is still valid.
-    JSFunction* symbolIteratorFunction = jsDynamicCast<JSFunction*>(symbolIterator);
+    JSFunction* symbolIteratorFunction = dynamicDowncast<JSFunction>(symbolIterator);
     if (!symbolIteratorFunction)
         return IterationMode::Generic;
 
-    // We don't want to allocate the values function just to check if it's the same as our function so we use the concurrent accessor.
-    // FIXME: This only works for arrays from the same global object as ourselves but we should be able to support any pairing.
-    if (globalObject->arrayProtoValuesFunctionConcurrently() != symbolIteratorFunction)
-        return IterationMode::Generic;
+    if (isJSArray(iterable)) {
+        if (!globalObject->arrayIteratorProtocolWatchpointSet().isStillValid())
+            return IterationMode::Generic;
 
-    return IterationMode::FastArray;
+        // We don't want to allocate the values function just to check if it's the same as our function so we use the concurrent accessor.
+        // FIXME: This only works for arrays from the same global object as ourselves but we should be able to support any pairing.
+        if (globalObject->arrayProtoValuesFunctionConcurrently() != symbolIteratorFunction)
+            return IterationMode::Generic;
+
+        return IterationMode::FastArray;
+    }
+
+    if (auto* arrayIterator = dynamicDowncast<JSArrayIterator>(iterable.asCell())) {
+        if (!globalObject->arrayIteratorProtocolWatchpointSet().isStillValid())
+            return IterationMode::Generic;
+
+        // arrIter[Symbol.iterator] is inherited from %IteratorPrototype% and just returns this; identity-check it
+        // so we can skip the call entirely and use the iterator as-is.
+        if (globalObject->iteratorProtoSymbolIteratorFunction() != symbolIteratorFunction)
+            return IterationMode::Generic;
+
+        // Structure check ensures the prototype chain is the original arrayIteratorPrototype -> iteratorPrototype.
+        // Also, DFG fast path needs to ensure that incoming array iterator meets the same realm's one. To ensure that DFG is using
+        // MatchStructure. Thus we should gate the fast path for the array iterator with specific structure here.
+        if (arrayIterator->structure() != globalObject->arrayIteratorStructure())
+            return IterationMode::Generic;
+
+        // Our fast paths require the underlying iterated object to be a plain JSArray (TypedArrays,
+        // arguments objects, etc. take a different code path).
+        JSObject* iteratedObject = arrayIterator->iteratedObject();
+        auto* array = dynamicDowncast<JSArray>(iteratedObject);
+        if (!array || !isJSArray(array))
+            return IterationMode::Generic;
+
+        switch (arrayIterator->kind()) {
+        case IterationKind::Values:
+            return IterationMode::FastArrayValues;
+        case IterationKind::Keys:
+            return IterationMode::FastArrayKeys;
+        case IterationKind::Entries:
+            return IterationMode::FastArrayEntries;
+        }
+        RELEASE_ASSERT_NOT_REACHED();
+    }
+
+    if (dynamicDowncast<JSMap>(iterable.asCell())) {
+        if (!globalObject->mapIteratorProtocolWatchpointSet().isStillValid())
+            return IterationMode::Generic;
+
+        if (globalObject->mapProtoEntriesFunctionConcurrently() != symbolIteratorFunction)
+            return IterationMode::Generic;
+
+        return IterationMode::FastMap;
+    }
+
+    if (auto* mapIterator = dynamicDowncast<JSMapIterator>(iterable.asCell())) {
+        if (!globalObject->mapIteratorProtocolWatchpointSet().isStillValid())
+            return IterationMode::Generic;
+
+        // mapIter[Symbol.iterator] is inherited from %IteratorPrototype% and just returns this; identity-check it
+        // so we can skip the call entirely and use the iterator as-is.
+        if (globalObject->iteratorProtoSymbolIteratorFunction() != symbolIteratorFunction)
+            return IterationMode::Generic;
+
+        // Structure check ensures the prototype chain is the original mapIteratorPrototype -> iteratorPrototype.
+        // Also, DFG fast path needs to ensure that the incoming map iterator meets the same realm's one. To ensure that DFG is using
+        // MatchStructure. Thus we should gate the fast path for the map iterator with specific structure here.
+        if (mapIterator->structure() != globalObject->mapIteratorStructure())
+            return IterationMode::Generic;
+
+        switch (mapIterator->kind()) {
+        case IterationKind::Keys:
+            return IterationMode::FastMapKeys;
+        case IterationKind::Values:
+            return IterationMode::FastMapValues;
+        case IterationKind::Entries:
+            return IterationMode::FastMapEntries;
+        }
+        RELEASE_ASSERT_NOT_REACHED();
+    }
+
+    if (dynamicDowncast<JSSet>(iterable.asCell())) {
+        if (!globalObject->setIteratorProtocolWatchpointSet().isStillValid())
+            return IterationMode::Generic;
+
+        if (globalObject->setProtoValuesFunctionConcurrently() != symbolIteratorFunction)
+            return IterationMode::Generic;
+
+        return IterationMode::FastSet;
+    }
+
+    if (auto* setIterator = dynamicDowncast<JSSetIterator>(iterable.asCell())) {
+        if (!globalObject->setIteratorProtocolWatchpointSet().isStillValid())
+            return IterationMode::Generic;
+
+        if (globalObject->iteratorProtoSymbolIteratorFunction() != symbolIteratorFunction)
+            return IterationMode::Generic;
+
+        if (setIterator->structure() != globalObject->setIteratorStructure())
+            return IterationMode::Generic;
+
+        switch (setIterator->kind()) {
+        case IterationKind::Values:
+        case IterationKind::Keys:
+            return IterationMode::FastSetValues;
+        case IterationKind::Entries:
+            return IterationMode::FastSetEntries;
+        }
+        RELEASE_ASSERT_NOT_REACHED();
+    }
+
+    if (iterable.isString()) {
+        if (!globalObject->stringIteratorProtocolWatchpointSet().isStillValid())
+            return IterationMode::Generic;
+
+        if (globalObject->stringProtoSymbolIteratorFunctionConcurrently() != symbolIteratorFunction)
+            return IterationMode::Generic;
+
+        return IterationMode::FastString;
+    }
+
+    return IterationMode::Generic;
 }
 
 IterationMode getIterationMode(VM&, JSGlobalObject* globalObject, JSValue iterable)
@@ -359,7 +565,7 @@ IterationMode getIterationMode(VM&, JSGlobalObject* globalObject, JSValue iterab
     if (!isJSArray(iterable))
         return IterationMode::Generic;
 
-    JSArray* array = jsCast<JSArray*>(iterable);
+    JSArray* array = uncheckedDowncast<JSArray>(iterable);
     Structure* structure = array->structure();
     // FIXME: We want to support broader JSArrays as long as array[@@iterator] is not defined.
     if (!globalObject->isOriginalArrayStructure(structure))

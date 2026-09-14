@@ -213,7 +213,7 @@ enum class FeatureToAnimate {
 {
     // If we are currently animating,  stop
     if (scrollbarPartAnimation) {
-        [scrollbarPartAnimation stopAnimation];
+        [scrollbarPartAnimation invalidate];
         scrollbarPartAnimation = nil;
     }
 
@@ -502,7 +502,7 @@ void ScrollerMac::visibilityChanged(bool isVisible)
     RefPtr pair = m_pair.get();
     if (!pair)
         return;
-    if (RefPtr node = pair->protectedNode())
+    if (RefPtr node = pair->node())
         node->scrollbarVisibilityDidChange(m_orientation, isVisible);
 }
 
@@ -515,7 +515,7 @@ void ScrollerMac::updateMinimumKnobLength(int minimumKnobLength)
     RefPtr pair = m_pair.get();
     if (!pair)
         return;
-    if (RefPtr node = pair->protectedNode())
+    if (RefPtr node = pair->node())
         node->scrollbarMinimumThumbLengthDidChange(m_orientation, m_minimumKnobLength);
 }
 

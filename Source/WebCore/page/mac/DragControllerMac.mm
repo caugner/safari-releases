@@ -62,7 +62,7 @@ const int DragController::DragIconBottomInset = 3;
 
 const float DragController::DragImageAlpha = 0.75f;
 
-bool DragController::isCopyKeyDown(const DragData& dragData)
+bool NODELETE DragController::isCopyKeyDown(const DragData& dragData)
 {
     return dragData.flags().contains(DragApplicationFlags::IsCopyKeyDown);
 }
@@ -87,7 +87,7 @@ std::optional<DragOperation> DragController::dragOperation(const DragData& dragD
     return std::nullopt;
 }
 
-const IntSize& DragController::maxDragImageSize()
+const IntSize& NODELETE DragController::maxDragImageSize()
 {
     static const IntSize maxDragImageSize(400, 400);
     
@@ -156,7 +156,7 @@ void DragController::updateSupportedTypeIdentifiersForDragHandlingMethod(DragHan
 
 void DragController::declareAndWriteDragImage(DataTransfer& dataTransfer, Element& element, const URL& url, const String& label)
 {
-    client().declareAndWriteDragImage(dataTransfer.pasteboard().name(), element, url, label, element.document().frame());
+    client().declareAndWriteDragImage(dataTransfer.pasteboard().name(), element, url, label, protect(element.document())->frame());
 }
 
 } // namespace WebCore

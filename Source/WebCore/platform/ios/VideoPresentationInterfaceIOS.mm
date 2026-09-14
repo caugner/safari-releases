@@ -175,7 +175,7 @@ void VideoPresentationInterfaceIOS::ensurePipPlacardIsShowing()
         [pipLabel setText:@"This video is playing in picture in picture."];
         [pipLabel setTextAlignment:NSTextAlignmentCenter];
         [pipLabel setTextColor:greyUIColor()];
-        [pipLabel setFont:[PAL::getUIFontClassSingleton() systemFontOfSize:16]];
+        [pipLabel setFont:static_cast<UIFont *>([PAL::getUIFontClassSingleton() systemFontOfSize:16])];
         [pipLabel setTranslatesAutoresizingMaskIntoConstraints:NO];
 
         [pipPlacard addSubview:pipLabel.get()];
@@ -298,6 +298,11 @@ void VideoPresentationInterfaceIOS::preparedToReturnToInline(bool visible, const
     }
 }
 
+bool VideoPresentationInterfaceIOS::shouldCreateWindow() const
+{
+    return ![[m_parentView window] _isHostedInAnotherProcess] && !m_window && !PAL::currentUserInterfaceIdiomIsVision();
+}
+
 void VideoPresentationInterfaceIOS::doSetup()
 {
     if (m_currentMode.hasVideo() && m_targetMode.hasVideo()) {
@@ -321,9 +326,10 @@ void VideoPresentationInterfaceIOS::doSetup()
     [CATransaction setDisableActions:YES];
 
 #if !PLATFORM(WATCHOS)
-    if (![[m_parentView window] _isHostedInAnotherProcess] && !m_window && !PAL::currentUserInterfaceIdiomIsVision()) {
+    if (shouldCreateWindow()) {
         m_window = adoptNS([PAL::allocUIWindowInstance() initWithWindowScene:[[m_parentView window] windowScene]]);
         [m_window setBackgroundColor:clearUIColor()];
+        [m_window setValue:@"WebCore::VideoPresentationInterfaceIOS" forKey:@"_debugName"];
         if (!m_viewController)
             m_viewController = adoptNS([PAL::allocUIViewControllerInstance() init]);
         [[m_viewController view] setFrame:[m_window bounds]];

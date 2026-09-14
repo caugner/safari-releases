@@ -40,6 +40,7 @@
 #include <wpe/WPEKeymap.h>
 #include <wpe/WPEScreen.h>
 #include <wpe/WPESettings.h>
+#include <wpe/WPEToplevel.h>
 #include <wpe/WPEView.h>
 
 G_BEGIN_DECLS
@@ -75,6 +76,8 @@ struct _WPEDisplayClass
     gboolean                (* use_explicit_sync)            (WPEDisplay *display);
     WPEInputMethodContext  *(* create_input_method_context)  (WPEDisplay *display,
                                                               WPEView    *view);
+    WPEToplevel            *(* create_toplevel)              (WPEDisplay *display,
+                                                              guint       max_views);
     WPEGamepadManager      *(* create_gamepad_manager)       (WPEDisplay *display);
 
     gpointer padding[32];
@@ -86,8 +89,9 @@ struct _WPEDisplayClass
  * WPEDisplayError:
  * @WPE_DISPLAY_ERROR_NOT_SUPPORTED: Operation not supported
  * @WPE_DISPLAY_ERROR_CONNECTION_FAILED: Failed to connect to the native system
+ * @WPE_DISPLAY_ERROR_CONNECTION_LOST: The connection to the native system was lost
  *
- * #WPEDisplay errors
+ * [class@Display] errors.
  */
 typedef enum {
     WPE_DISPLAY_ERROR_NOT_SUPPORTED,
@@ -122,6 +126,8 @@ WPE_API WPESettings             *wpe_display_get_settings                 (WPEDi
 WPE_API WPEAvailableInputDevices wpe_display_get_available_input_devices  (WPEDisplay *display);
 WPE_API void                     wpe_display_set_available_input_devices  (WPEDisplay *display,
                                                                            WPEAvailableInputDevices devices);
+WPE_API WPEToplevel             *wpe_display_create_toplevel              (WPEDisplay *display,
+                                                                           guint       max_views);
 WPE_API WPEGamepadManager       *wpe_display_create_gamepad_manager       (WPEDisplay *display);
 
 G_END_DECLS

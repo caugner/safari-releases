@@ -2,7 +2,7 @@
  * Copyright (C) 2000 Lars Knoll (knoll@kde.org)
  *           (C) 2000 Antti Koivisto (koivisto@kde.org)
  *           (C) 2000 Dirk Mueller (mueller@kde.org)
- * Copyright (C) 2003-2023 Apple Inc. All rights reserved.
+ * Copyright (C) 2003-2026 Apple Inc. All rights reserved.
  * Copyright (C) 2014-2021 Google Inc. All rights reserved.
  * Copyright (C) 2006 Graham Dennis (graham.dennis@gmail.com)
  * Copyright (C) 2025-2026 Samuel Weinig <sam@webkit.org>
@@ -57,9 +57,6 @@ class LayoutRect;
 class LayoutSize;
 class LayoutUnit;
 class RenderElement;
-class RenderStyle;
-class RenderStyleBase;
-class RenderStyleProperties;
 class ScrollTimeline;
 class TransformationMatrix;
 class ViewTimeline;
@@ -95,13 +92,11 @@ enum class ColumnFill : bool;
 enum class ColumnProgression : bool;
 enum class ColumnSpan : bool;
 enum class CompositeOperator : uint8_t;
-enum class ContainerType : uint8_t;
 enum class ContentDistribution : uint8_t;
 enum class ContentPosition : uint8_t;
 enum class ContentVisibility : uint8_t;
 enum class CursorType : uint8_t;
 enum class CursorVisibility : bool;
-enum class DisplayType : uint8_t;
 enum class DominantBaseline : uint8_t;
 enum class EmptyCell : bool;
 enum class EventListenerRegionType : uint64_t;
@@ -115,7 +110,8 @@ enum class Float : uint8_t;
 enum class FontOpticalSizing : bool;
 enum class FontOrientation : bool;
 enum class FontSmoothingMode : uint8_t;
-enum class FontSynthesisLonghandValue : bool;
+enum class FontSynthesisLonghandValue : uint8_t;
+enum class FontSynthesisStyleLonghandValue : uint8_t;
 enum class FontVariantCaps : uint8_t;
 enum class FontVariantEmoji : uint8_t;
 enum class FontVariantPosition : uint8_t;
@@ -207,6 +203,7 @@ using IntOutsets = RectEdges<int>;
 
 namespace Style {
 class ChangedAnimatablePropertiesFunctions;
+class ComputedStyle;
 class CustomProperty;
 class CustomPropertyData;
 class CustomPropertyRegistry;
@@ -252,6 +249,7 @@ struct CounterIncrement;
 struct CounterReset;
 struct CounterSet;
 struct Cursor;
+struct Display;
 struct DynamicRangeLimit;
 struct Filter;
 struct FlexBasis;
@@ -309,6 +307,9 @@ struct OffsetPosition;
 struct OffsetRotate;
 struct Opacity;
 struct Orphans;
+struct ObjectViewBox;
+struct OutlineOffset;
+struct OverflowClipMargin;
 struct PaddingEdge;
 struct PageSize;
 struct Perspective;
@@ -320,8 +321,6 @@ struct PositionX;
 struct PositionY;
 struct PositionTryFallbacks;
 struct PreferredSize;
-struct ProgressTimelineAxes;
-struct ProgressTimelineNames;
 struct Quotes;
 struct RepeatStyle;
 struct Rotate;
@@ -342,7 +341,8 @@ struct ScrollMarginEdge;
 struct ScrollPaddingEdge;
 struct ScrollSnapAlign;
 struct ScrollSnapType;
-struct ScrollTimelines;
+struct ContainerType;
+struct ScrollTimeline;
 struct ScrollbarColor;
 struct ScrollbarGutter;
 struct ShapeMargin;
@@ -370,8 +370,7 @@ struct TransformOrigin;
 struct Transition;
 struct Translate;
 struct VerticalAlign;
-struct ViewTimelineInsets;
-struct ViewTimelines;
+struct ViewTimeline;
 struct ViewTransitionClasses;
 struct ViewTransitionName;
 struct WebkitBoxReflect;
@@ -392,11 +391,11 @@ struct Zoom;
 struct ZoomFactor;
 
 enum class Change : uint8_t;
+enum class DisplayType : uint8_t;
 enum class GridTrackSizingDirection : bool;
 enum class ImageOrientation : bool;
 enum class PositionTryOrder : uint8_t;
 enum class Resize : uint8_t;
-enum class SVGGlyphOrientationHorizontal : uint8_t;
 enum class SVGGlyphOrientationVertical : uint8_t;
 enum class ScrollBehavior : bool;
 enum class ScrollbarWidth : uint8_t;
@@ -411,7 +410,7 @@ template<typename> struct Shadows;
 
 using Animations = CoordinatedValueList<Animation>;
 using BackgroundLayers = CoordinatedValueList<BackgroundLayer>;
-using BorderRadiusValue = MinimallySerializingSpaceSeparatedSize<LengthPercentage<CSS::Nonnegative>>;
+using BorderRadiusValue = MinimallySerializingSpaceSeparatedSize<LengthPercentage<CSS::NonnegativeUnzoomed>>;
 using BoxShadows = Shadows<BoxShadow>;
 using FlexGrow = Number<CSS::Nonnegative, float>;
 using FlexShrink = Number<CSS::Nonnegative, float>;
@@ -427,28 +426,26 @@ using PerspectiveOriginX = PositionX;
 using PerspectiveOriginY = PositionY;
 using ScrollMarginBox = MinimallySerializingSpaceSeparatedRectEdges<ScrollMarginEdge>;
 using ScrollPaddingBox = MinimallySerializingSpaceSeparatedRectEdges<ScrollPaddingEdge>;
+using ScrollTimelines = CoordinatedValueList<ScrollTimeline>;
 using ShapeImageThreshold = Number<CSS::ClosedUnitRangeClampBoth, float>;
 using TextShadows = Shadows<TextShadow>;
 using TransformOriginX = PositionX;
 using TransformOriginXY = Position;
 using TransformOriginY = PositionY;
-using TransformOriginZ = Length<>;
+using TransformOriginZ = Length<CSS::AllUnzoomed>;
 using Transitions = CoordinatedValueList<Transition>;
+using ViewTimelines = CoordinatedValueList<ViewTimeline>;
 using WebkitBorderSpacing = Length<CSS::NonnegativeUnzoomed>;
 using WebkitBoxFlex = Number<CSS::All, float>;
 using WebkitBoxFlexGroup = Integer<CSS::Nonnegative>;
 using WebkitBoxOrdinalGroup = Integer<CSS::Positive>;
 
-constexpr auto PublicPseudoIDBits = 17;
+constexpr auto PublicPseudoIDBits = 19;
 constexpr auto TextDecorationLineBits = 5;
 constexpr auto TextTransformBits = 6;
 constexpr auto PseudoElementTypeBits = 5;
 
-DECLARE_ALLOCATOR_WITH_HEAP_IDENTIFIER(PseudoStyleCache);
-struct PseudoStyleCache {
-    WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED_WITH_HEAP_IDENTIFIER(PseudoStyleCache, PseudoStyleCache);
-    HashMap<PseudoElementIdentifier, std::unique_ptr<RenderStyle>> styles;
-};
+using PseudoElementStyles = HashMap<PseudoElementIdentifier, std::unique_ptr<ComputedStyle>>;
 
 DECLARE_ALLOCATOR_WITH_HEAP_IDENTIFIER(ComputedStyleBase);
 class ComputedStyleBase : public CanMakeCheckedPtr<ComputedStyleBase, WTF::DefaultedOperatorEqual::No, WTF::CheckedPtrDeleteCheckException::Yes> {
@@ -467,8 +464,8 @@ public:
     inline bool usesViewportUnits() const;
     inline void setUsesViewportUnits();
 
-    inline bool usesContainerUnits() const;
-    inline void setUsesContainerUnits();
+    inline bool isContainerDependent() const;
+    inline void setIsContainerDependent();
 
     inline bool useTreeCountingFunctions() const;
     inline void setUsesTreeCountingFunctions();
@@ -478,9 +475,6 @@ public:
 
     inline bool isLink() const;
     inline void setIsLink(bool);
-
-    inline bool emptyState() const;
-    inline void setEmptyState(bool);
 
     inline bool firstChildState() const;
     inline void setFirstChildState();
@@ -543,11 +537,10 @@ public:
     inline void setIsEffectivelyTransparent(bool);
 
     // No setter. Set via `ComputedStyleProperties::setDisplay()`.
-    inline constexpr DisplayType originalDisplay() const;
+    inline constexpr Display originalDisplay() const;
 
-    // `effectiveDisplay()` getter is an alias of `ComputedStyleProperties::display()`.
-    inline DisplayType effectiveDisplay() const;
-    inline void setEffectiveDisplay(DisplayType);
+    // Sets the value of `display`, but leaves the value of `originalDisplay` unchanged.
+    inline void setDisplayMaintainingOriginalDisplay(Display);
 
     inline StyleAppearance usedAppearance() const;
     inline void setUsedAppearance(StyleAppearance);
@@ -573,33 +566,33 @@ public:
 #if ENABLE(TEXT_AUTOSIZING)
     // MARK: - Text Autosizing
 
-    AutosizeStatus autosizeStatus() const;
-    void setAutosizeStatus(AutosizeStatus);
+    AutosizeStatus NODELETE autosizeStatus() const;
+    void NODELETE setAutosizeStatus(AutosizeStatus);
 
 #endif
 
     // MARK: - Pseudo element/style
 
     inline std::optional<PseudoElementType> pseudoElementType() const;
-    const AtomString& pseudoElementNameArgument() const;
+    const AtomString& pseudoElementNameArgument() const LIFETIME_BOUND;
 
-    std::optional<PseudoElementIdentifier> pseudoElementIdentifier() const;
+    std::optional<PseudoElementIdentifier> NODELETE pseudoElementIdentifier() const;
     void setPseudoElementIdentifier(std::optional<PseudoElementIdentifier>&&);
 
     inline bool hasAnyPublicPseudoStyles() const;
     inline bool hasPseudoStyle(PseudoElementType) const;
     inline void setHasPseudoStyles(EnumSet<PseudoElementType>);
 
-    RenderStyle* getCachedPseudoStyle(const PseudoElementIdentifier&) const;
-    RenderStyle* addCachedPseudoStyle(std::unique_ptr<RenderStyle>);
+    Style::ComputedStyle* NODELETE pseudoElementStyle(const PseudoElementIdentifier&) const;
+    Style::ComputedStyle* addPseudoElementStyle(std::unique_ptr<Style::ComputedStyle>);
 
-    bool hasCachedPseudoStyles() const { return m_cachedPseudoStyles && m_cachedPseudoStyles->styles.size(); }
-    const PseudoStyleCache* cachedPseudoStyles() const { return m_cachedPseudoStyles.get(); }
+    bool hasPseudoElementStyles() const { return !m_pseudoElementStyles.isEmpty(); }
+    const PseudoElementStyles& pseudoElementStyles() const LIFETIME_BOUND { return m_pseudoElementStyles; }
 
     // MARK: - Custom properties
 
-    inline const CustomPropertyData& inheritedCustomProperties() const;
-    inline const CustomPropertyData& nonInheritedCustomProperties() const;
+    inline const CustomPropertyData& inheritedCustomProperties() const LIFETIME_BOUND;
+    inline const CustomPropertyData& nonInheritedCustomProperties() const LIFETIME_BOUND;
     const CustomProperty* customPropertyValue(const AtomString&) const;
     void setCustomPropertyValue(Ref<const CustomProperty>&&, bool isInherited);
     bool customPropertyValueEqual(const ComputedStyleBase&, const AtomString&) const;
@@ -615,34 +608,35 @@ public:
     inline bool evaluationTimeZoomEnabled() const;
     inline void setEvaluationTimeZoomEnabled(bool);
 
-    inline float deviceScaleFactor() const;
-    inline void setDeviceScaleFactor(float);
-
     inline bool useSVGZoomRulesForLength() const;
     inline void setUseSVGZoomRulesForLength(bool);
 
     inline float usedZoom() const;
     inline bool setUsedZoom(float);
 
+    inline float deviceScaleFactor() const;
+    inline void setDeviceScaleFactor(float);
+
+    void setZoomFromAnimation(Zoom);
+
     inline ZoomFactor usedZoomForLength() const;
 
     // MARK: - Fonts
 
     inline const FontCascade& fontCascade() const;
-    CheckedRef<const FontCascade> checkedFontCascade() const;
     WEBCORE_EXPORT FontCascade& mutableFontCascadeWithoutUpdate();
     void setFontCascade(FontCascade&&);
 
-    WEBCORE_EXPORT const FontCascadeDescription& fontDescription() const;
+    WEBCORE_EXPORT const FontCascadeDescription& NODELETE fontDescription() const;
     WEBCORE_EXPORT FontCascadeDescription& mutableFontDescriptionWithoutUpdate();
     WEBCORE_EXPORT void setFontDescription(FontCascadeDescription&&);
     bool setFontDescriptionWithoutUpdate(FontCascadeDescription&&);
 
-    WEBCORE_EXPORT const FontMetrics& metricsOfPrimaryFont() const;
-    std::pair<FontOrientation, NonCJKGlyphOrientation> fontAndGlyphOrientation();
-    float computedFontSize() const;
+    WEBCORE_EXPORT const FontMetrics& metricsOfPrimaryFont() const LIFETIME_BOUND;
+    std::pair<FontOrientation, NonCJKGlyphOrientation> NODELETE fontAndGlyphOrientation();
+    float NODELETE computedFontSize() const;
     inline WebkitLocale computedLocale() const;
-    const LineHeight& specifiedLineHeight() const;
+    const LineHeight& NODELETE specifiedLineHeight() const;
 #if ENABLE(TEXT_AUTOSIZING)
     void setSpecifiedLineHeight(LineHeight&&);
 #endif
@@ -660,7 +654,7 @@ public:
 
     // MARK: - Used Counter Directives
 
-    const CounterDirectiveMap& usedCounterDirectives() const;
+    const CounterDirectiveMap& NODELETE usedCounterDirectives() const;
     void updateUsedCounterIncrementDirectives();
     void updateUsedCounterResetDirectives();
     void updateUsedCounterSetDirectives();
@@ -674,42 +668,38 @@ public:
         return m_inheritedFlags.writingMode;
     }
 
-    // FIXME: *Deprecated* Deprecated due to confusion between physical inline directions and bidi / line-relative directions.
-    bool isLeftToRightDirection() const
-    {
-        return writingMode().isBidiLTR();
-    }
-
     // MARK: - Aggregates
 
-    inline Animations& ensureAnimations();
-    inline BackgroundLayers& ensureBackgroundLayers();
-    inline MaskLayers& ensureMaskLayers();
-    inline Transitions& ensureTransitions();
+    inline Animations& ensureAnimations() LIFETIME_BOUND;
+    inline BackgroundLayers& ensureBackgroundLayers() LIFETIME_BOUND;
+    inline MaskLayers& ensureMaskLayers() LIFETIME_BOUND;
+    inline Transitions& ensureTransitions() LIFETIME_BOUND;
+    inline ScrollTimelines& ensureScrollTimelines() LIFETIME_BOUND;
+    inline ViewTimelines& ensureViewTimelines() LIFETIME_BOUND;
 
-    inline const BorderData& border() const;
-    inline const BorderValue& borderBottom() const;
-    inline const BorderValue& borderLeft() const;
-    inline const BorderValue& borderRight() const;
-    inline const BorderValue& borderTop() const;
-    inline const BorderValue& columnRule() const;
-    inline const OutlineValue& outline() const;
-    inline const Animations& animations() const;
-    inline const BackgroundLayers& backgroundLayers() const;
-    inline const BorderImage& borderImage() const;
-    inline const BorderRadius& borderRadii() const;
-    inline const InsetBox& insetBox() const;
-    inline const MarginBox& marginBox() const;
-    inline const MaskBorder& maskBorder() const;
-    inline const MaskLayers& maskLayers() const;
-    inline const PaddingBox& paddingBox() const;
-    inline const PerspectiveOrigin& perspectiveOrigin() const;
-    inline const ScrollMarginBox& scrollMarginBox() const;
-    inline const ScrollPaddingBox& scrollPaddingBox() const;
-    inline const ScrollTimelines& scrollTimelines() const;
-    inline const TransformOrigin& transformOrigin() const;
-    inline const Transitions& transitions() const;
-    inline const ViewTimelines& viewTimelines() const;
+    inline const BorderData& border() const LIFETIME_BOUND;
+    inline const BorderValue& borderBottom() const LIFETIME_BOUND;
+    inline const BorderValue& borderLeft() const LIFETIME_BOUND;
+    inline const BorderValue& borderRight() const LIFETIME_BOUND;
+    inline const BorderValue& borderTop() const LIFETIME_BOUND;
+    inline const BorderValue& columnRule() const LIFETIME_BOUND;
+    inline const OutlineValue& outline() const LIFETIME_BOUND;
+    inline const Animations& animations() const LIFETIME_BOUND;
+    inline const BackgroundLayers& backgroundLayers() const LIFETIME_BOUND;
+    inline const BorderImage& borderImage() const LIFETIME_BOUND;
+    inline const BorderRadius& borderRadii() const LIFETIME_BOUND;
+    inline const InsetBox& insetBox() const LIFETIME_BOUND;
+    inline const MarginBox& marginBox() const LIFETIME_BOUND;
+    inline const MaskBorder& maskBorder() const LIFETIME_BOUND;
+    inline const MaskLayers& maskLayers() const LIFETIME_BOUND;
+    inline const PaddingBox& paddingBox() const LIFETIME_BOUND;
+    inline const PerspectiveOrigin& perspectiveOrigin() const LIFETIME_BOUND;
+    inline const ScrollMarginBox& scrollMarginBox() const LIFETIME_BOUND;
+    inline const ScrollPaddingBox& scrollPaddingBox() const LIFETIME_BOUND;
+    inline const ScrollTimelines& scrollTimelines() const LIFETIME_BOUND;
+    inline const TransformOrigin& transformOrigin() const LIFETIME_BOUND;
+    inline const Transitions& transitions() const LIFETIME_BOUND;
+    inline const ViewTimelines& viewTimelines() const LIFETIME_BOUND;
 
     inline void setBackgroundLayers(BackgroundLayers&&);
     inline void setBorderImage(BorderImage&&);
@@ -732,7 +722,7 @@ public:
     inline CursorType cursorType() const;
 
     // `@page size`
-    inline const PageSize& pageSize() const;
+    inline const PageSize& pageSize() const LIFETIME_BOUND;
     inline void setPageSize(PageSize&&);
 
     struct NonInheritedFlags {
@@ -748,8 +738,8 @@ public:
         void dumpDifferences(TextStream&, const NonInheritedFlags&) const;
 #endif
 
-        PREFERRED_TYPE(DisplayType) unsigned effectiveDisplay : 5;
-        PREFERRED_TYPE(DisplayType) unsigned originalDisplay : 5;
+        PREFERRED_TYPE(Style::DisplayType) unsigned display : 5;
+        PREFERRED_TYPE(Style::DisplayType) unsigned originalDisplay : 5;
         PREFERRED_TYPE(Overflow) unsigned overflowX : 3;
         PREFERRED_TYPE(Overflow) unsigned overflowY : 3;
         PREFERRED_TYPE(Clear) unsigned clear : 3;
@@ -758,13 +748,12 @@ public:
         PREFERRED_TYPE(Float) unsigned floating : 3;
 
         PREFERRED_TYPE(bool) unsigned usesViewportUnits : 1;
-        PREFERRED_TYPE(bool) unsigned usesContainerUnits : 1;
+        PREFERRED_TYPE(bool) unsigned isContainerDependent : 1;
         PREFERRED_TYPE(bool) unsigned useTreeCountingFunctions : 1;
         PREFERRED_TYPE(bool) unsigned hasExplicitlyInheritedProperties : 1; // Explicitly inherits a non-inherited property.
         PREFERRED_TYPE(bool) unsigned disallowsFastPathInheritance : 1;
 
         // Non-property related state bits.
-        PREFERRED_TYPE(bool) unsigned emptyState : 1;
         PREFERRED_TYPE(bool) unsigned firstChildState : 1;
         PREFERRED_TYPE(bool) unsigned lastChildState : 1;
         PREFERRED_TYPE(bool) unsigned isLink : 1;
@@ -826,11 +815,9 @@ public:
     };
 
 protected:
+    friend class Adjuster;
     friend class ChangedAnimatablePropertiesFunctions;
     friend class DifferenceFunctions;
-    friend class WebCore::RenderStyle;
-    friend class WebCore::RenderStyleBase;
-    friend class WebCore::RenderStyleProperties;
 
     ComputedStyleBase(ComputedStyleBase&&);
     ComputedStyleBase& operator=(ComputedStyleBase&&);
@@ -840,34 +827,38 @@ protected:
 
     ComputedStyleBase(ComputedStyleBase&, ComputedStyleBase&&);
 
-    const NonInheritedFlags& nonInheritedFlags() const { return m_nonInheritedFlags; }
-    const NonInheritedData& nonInheritedData() const { return m_nonInheritedData; }
+    const NonInheritedFlags& nonInheritedFlags() const LIFETIME_BOUND { return m_nonInheritedFlags; }
+    const NonInheritedData& nonInheritedData() const LIFETIME_BOUND { return m_nonInheritedData; }
 
-    const InheritedFlags& inheritedFlags() const { return m_inheritedFlags; }
-    const InheritedData& inheritedData() const { return m_inheritedData; }
-    const InheritedRareData& inheritedRareData() const { return m_inheritedRareData; }
+    const InheritedFlags& inheritedFlags() const LIFETIME_BOUND { return m_inheritedFlags; }
+    const InheritedData& inheritedData() const LIFETIME_BOUND { return m_inheritedData; }
+    const InheritedRareData& inheritedRareData() const LIFETIME_BOUND { return m_inheritedRareData; }
 
-    const SVGData& svgData() const { return m_svgData; }
+    const SVGData& svgData() const LIFETIME_BOUND { return m_svgData; }
+
+    // Non-inherited and inherited flags
+    NonInheritedFlags m_nonInheritedFlags;
+    InheritedFlags m_inheritedFlags;
 
     // Non-inherited data
     DataRef<NonInheritedData> m_nonInheritedData;
-    NonInheritedFlags m_nonInheritedFlags;
 
     // Inherited data
     DataRef<InheritedRareData> m_inheritedRareData;
     DataRef<InheritedData> m_inheritedData;
-    InheritedFlags m_inheritedFlags;
 
     // Non-inherited and inherited data specialized to SVG
     DataRef<SVGData> m_svgData;
 
     // Associated pseudo styles
-    std::unique_ptr<PseudoStyleCache> m_cachedPseudoStyles;
+    PseudoElementStyles m_pseudoElementStyles;
 
 #if ASSERT_ENABLED || ENABLE(SECURITY_ASSERTIONS)
     bool m_deletionHasBegun { false };
 #endif
 };
+
+std::optional<PseudoElementType> pseudoElementType(const ComputedStyleBase&);
 
 } // namespace Style
 } // namespace WebCore

@@ -119,11 +119,6 @@ Ref<DOMStringList> IDBDatabase::objectStoreNames() const
     return objectStoreNames;
 }
 
-RefPtr<IDBTransaction> IDBDatabase::protectedVersionChangeTransaction() const
-{
-    return m_versionChangeTransaction;
-}
-
 void IDBDatabase::renameObjectStore(IDBObjectStore& objectStore, const String& newName)
 {
     ASSERT(canCurrentThreadAccessThreadLocalData(originThread()));
@@ -132,7 +127,7 @@ void IDBDatabase::renameObjectStore(IDBObjectStore& objectStore, const String& n
 
     m_info.renameObjectStore(objectStore.info().identifier(), newName);
 
-    protectedVersionChangeTransaction()->renameObjectStore(objectStore, newName);
+    protect(m_versionChangeTransaction)->renameObjectStore(objectStore, newName);
 }
 
 void IDBDatabase::renameIndex(IDBIndex& index, const String& newName)
@@ -144,7 +139,7 @@ void IDBDatabase::renameIndex(IDBIndex& index, const String& newName)
 
     m_info.infoForExistingObjectStore(index.objectStore().info().name())->infoForExistingIndex(index.info().identifier())->rename(newName);
 
-    protectedVersionChangeTransaction()->renameIndex(index, newName);
+    protect(m_versionChangeTransaction)->renameIndex(index, newName);
 }
 
 ScriptExecutionContext* IDBDatabase::scriptExecutionContext() const
@@ -222,7 +217,7 @@ ExceptionOr<Ref<IDBTransaction>> IDBDatabase::transaction(StringOrVectorOfString
 
     LOG(IndexedDB, "IDBDatabase::transaction - Added active transaction %s", info.identifier().loggingString().utf8().data());
 
-    m_activeTransactions.set(info.identifier(), transaction.ptr());
+    m_activeTransactions.set(info.identifier(), transaction);
 
     return transaction;
 }
@@ -348,7 +343,7 @@ Ref<IDBTransaction> IDBDatabase::startVersionChangeTransaction(const IDBTransact
     Ref<IDBTransaction> transaction = IDBTransaction::create(*this, info, request);
     m_versionChangeTransaction = transaction.get();
 
-    m_activeTransactions.set(transaction->info().identifier(), &transaction.get());
+    m_activeTransactions.set(transaction->info().identifier(), transaction);
 
     return transaction;
 }
@@ -364,7 +359,7 @@ void IDBDatabase::didStartTransaction(IDBTransaction& transaction)
     if (m_abortingTransactions.contains(transaction.info().identifier()) || m_committingTransactions.contains(transaction.info().identifier()))
         return;
 
-    m_activeTransactions.set(transaction.info().identifier(), &transaction);
+    m_activeTransactions.set(transaction.info().identifier(), transaction);
 }
 
 void IDBDatabase::willCommitTransaction(IDBTransaction& transaction)
@@ -373,9 +368,8 @@ void IDBDatabase::willCommitTransaction(IDBTransaction& transaction)
 
     ASSERT(canCurrentThreadAccessThreadLocalData(originThread()));
 
-    auto refTransaction = m_activeTransactions.take(transaction.info().identifier());
-    ASSERT(refTransaction);
-    m_committingTransactions.set(transaction.info().identifier(), WTF::move(refTransaction));
+    RefPtr refTransaction = m_activeTransactions.take(transaction.info().identifier());
+    m_committingTransactions.set(transaction.info().identifier(), refTransaction.releaseNonNull());
 }
 
 void IDBDatabase::didCommitTransaction(IDBTransaction& transaction)
@@ -396,12 +390,11 @@ void IDBDatabase::willAbortTransaction(IDBTransaction& transaction)
 
     ASSERT(canCurrentThreadAccessThreadLocalData(originThread()));
 
-    auto refTransaction = m_activeTransactions.take(transaction.info().identifier());
+    RefPtr refTransaction = m_activeTransactions.take(transaction.info().identifier());
     if (!refTransaction)
         refTransaction = m_committingTransactions.take(transaction.info().identifier());
 
-    ASSERT(refTransaction);
-    m_abortingTransactions.set(transaction.info().identifier(), WTF::move(refTransaction));
+    m_abortingTransactions.set(transaction.info().identifier(), refTransaction.releaseNonNull());
 
     if (transaction.isVersionChange()) {
         ASSERT(transaction.originalDatabaseInfo());
@@ -435,7 +428,7 @@ void IDBDatabase::didCommitOrAbortTransaction(IDBTransaction& transaction)
     if (m_versionChangeTransaction == &transaction)
         m_versionChangeTransaction = nullptr;
 
-#ifndef NDBEBUG
+#if ASSERT_ENABLED
     unsigned count = 0;
     if (m_activeTransactions.contains(transaction.info().identifier()))
         ++count;
@@ -444,7 +437,7 @@ void IDBDatabase::didCommitOrAbortTransaction(IDBTransaction& transaction)
     if (m_abortingTransactions.contains(transaction.info().identifier()))
         ++count;
 
-    ASSERT_UNUSED(count, count == 1);
+    ASSERT(count == 1);
 #endif
 
     m_activeTransactions.remove(transaction.info().identifier());
@@ -506,7 +499,7 @@ void IDBDatabase::didDeleteIndexInfo(const IDBIndexInfo& info)
 
 std::optional<ScriptExecutionContextIdentifier> IDBDatabase::scriptExecutionContextIdentifier() const
 {
-    if (RefPtr context = scriptExecutionContext())
+    if (auto* context = scriptExecutionContext())
         return context->identifier();
 
     return std::nullopt;

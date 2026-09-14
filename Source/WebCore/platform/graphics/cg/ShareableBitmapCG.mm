@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2010-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2010-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -29,7 +29,7 @@
 #include "BitmapImage.h"
 #include "GraphicsContextCG.h"
 #include "IOSurface.h"
-#include "ImageBufferUtilitiesCG.h"
+#include "ImageUtilities.h"
 #include "Logging.h"
 #include "NativeImage.h"
 #include "PlatformScreen.h"
@@ -41,14 +41,15 @@
 
 namespace WebCore {
 
-ShareableBitmapConfiguration::ShareableBitmapConfiguration(NativeImage& image)
+ShareableBitmapConfiguration::ShareableBitmapConfiguration(const NativeImage& image)
     : m_size(image.size())
     , m_colorSpace(image.colorSpace())
-    , m_headroom(image.headroom())
+    , m_baseImageHeadroom(image.baseImageHeadroom())
     , m_bitsPerComponent(CGImageGetBitsPerComponent(image.platformImage().get()))
     , m_bytesPerPixel(CGImageGetBitsPerPixel(image.platformImage().get()) / 8)
     , m_bytesPerRow(CGImageGetBytesPerRow(image.platformImage().get()))
     , m_bitmapInfo(CGImageGetBitmapInfo(image.platformImage().get()))
+    , m_shareableGainMap(ShareableGainMap::create(image.gainMap()))
 {
 }
 
@@ -108,10 +109,10 @@ CGBitmapInfo ShareableBitmapConfiguration::calculateBitmapInfo(const Destination
     return info;
 }
 
-RefPtr<ShareableBitmap> ShareableBitmap::createFromImagePixels(NativeImage& image)
+RefPtr<ShareableBitmap> ShareableBitmap::createFromImagePixels(const NativeImage& image)
 {
     auto colorSpace = image.colorSpace();
-    if (CGColorSpaceGetModel(colorSpace.protectedPlatformColorSpace().get()) != kCGColorSpaceModelRGB)
+    if (CGColorSpaceGetModel(protect(colorSpace.platformColorSpace()).get()) != kCGColorSpaceModelRGB)
         return nullptr;
 
     RetainPtr sourceProvider = CGImageGetDataProvider(image.platformImage().get());
@@ -166,7 +167,7 @@ std::unique_ptr<GraphicsContext> ShareableBitmap::createGraphicsContext()
     ref(); // Balanced by deref in releaseBitmapContextData.
 
     m_releaseBitmapContextDataCalled = false;
-    RetainPtr<CGContextRef> bitmapContext = adoptCF(CGBitmapContextCreateWithData(mutableSpan().data(), size().width(), size().height(), bitsPerComponent, bytesPerRow, m_configuration.protectedPlatformColorSpace().get(), m_configuration.bitmapInfo(), releaseBitmapContextData, this));
+    RetainPtr<CGContextRef> bitmapContext = adoptCF(CGBitmapContextCreateWithData(mutableSpan().data(), size().width(), size().height(), bitsPerComponent, bytesPerRow, protect(m_configuration.platformColorSpace()).get(), m_configuration.bitmapInfo(), releaseBitmapContextData, this));
     if (!bitmapContext) {
         // When CGBitmapContextCreateWithData fails and returns null, it will only
         // call the release callback in some circumstances <rdar://82228446>. We
@@ -210,7 +211,7 @@ void ShareableBitmap::paint(GraphicsContext& context, float scaleFactor, const I
     CGContextRestoreGState(cgContext.get());
 }
 
-PlatformImagePtr ShareableBitmap::createPlatformImage(BackingStoreCopy copyBehavior, ShouldInterpolate shouldInterpolate)
+PlatformImagePtr ShareableBitmap::createBasePlatformImage(BackingStoreCopy copyBehavior, ShouldInterpolate shouldInterpolate)
 {
     verifyImageBufferIsBigEnough(span());
 
@@ -236,11 +237,32 @@ PlatformImagePtr ShareableBitmap::createPlatformImage(BackingStoreCopy copyBehav
     unsigned bytesPerRow = m_configuration.bytesPerRow();
 
 #if HAVE(SUPPORT_HDR_DISPLAY_APIS)
-    if (m_configuration.headroom() > Headroom::None)
-        return adoptCF(CGImageCreateWithContentHeadroom(m_configuration.headroom(), size().width(), size().height(), bitsPerComponent, bitsPerPixel, bytesPerRow, m_configuration.protectedPlatformColorSpace().get(), m_configuration.bitmapInfo(), dataProvider.get(), 0, shouldInterpolate == ShouldInterpolate::Yes, kCGRenderingIntentDefault));
+    if (m_configuration.baseImageHeadroom() > Headroom::None)
+        return adoptCF(CGImageCreateWithContentHeadroom(m_configuration.baseImageHeadroom(), size().width(), size().height(), bitsPerComponent, bitsPerPixel, bytesPerRow, protect(m_configuration.platformColorSpace()).get(), m_configuration.bitmapInfo(), dataProvider.get(), 0, shouldInterpolate == ShouldInterpolate::Yes, kCGRenderingIntentDefault));
 #endif
-    return adoptCF(CGImageCreate(size().width(), size().height(), bitsPerComponent, bitsPerPixel, bytesPerRow, m_configuration.protectedPlatformColorSpace().get(), m_configuration.bitmapInfo(), dataProvider.get(), 0, shouldInterpolate == ShouldInterpolate::Yes, kCGRenderingIntentDefault));
+    return adoptCF(CGImageCreate(size().width(), size().height(), bitsPerComponent, bitsPerPixel, bytesPerRow, protect(m_configuration.platformColorSpace()).get(), m_configuration.bitmapInfo(), dataProvider.get(), 0, shouldInterpolate == ShouldInterpolate::Yes, kCGRenderingIntentDefault));
+}
 
+PlatformImagePtr ShareableBitmap::createPlatformImage(BackingStoreCopy copyBehavior, ShouldInterpolate shouldInterpolate)
+{
+    RetainPtr basePlatformImage = createBasePlatformImage(copyBehavior, shouldInterpolate);
+    if (!basePlatformImage)
+        return basePlatformImage;
+
+    auto shareableGainMap = m_configuration.shareableGainMap();
+    if (!shareableGainMap)
+        return basePlatformImage;
+
+    RetainPtr outputPlatformImage = shareableGainMap->applyGainMapToBaseImage(basePlatformImage);
+    if (!outputPlatformImage)
+        return basePlatformImage;
+
+#if ENABLE(DUMP_GAIN_MAP_IMAGES)
+    CGImageDumpToFile(basePlatformImage.get(), "*/base-image.br2");
+    CGImageDumpToFile(outputPlatformImage.get(), "*/output-image.br2");
+#endif
+
+    return outputPlatformImage;
 }
 
 void ShareableBitmap::releaseBitmapContextData(void* typelessBitmap, void* typelessData)

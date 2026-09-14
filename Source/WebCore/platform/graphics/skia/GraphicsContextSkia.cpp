@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Igalia S.L.
+ * Copyright (C) 2024, 2026 Igalia S.L.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -40,8 +40,12 @@
 #include "Pattern.h"
 #include "PlatformDisplay.h"
 #include "ProcessCapabilities.h"
+#include "SkiaImageAtlasLayoutBuilder.h"
 #include "SkiaPaintingEngine.h"
+#include "SkiaRecordingResult.h"
+#include "SkiaUtilities.h"
 #include <cmath>
+#include <ranges>
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
 #include <skia/core/SkColorFilter.h>
 #include <skia/core/SkImage.h>
@@ -55,8 +59,6 @@ WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
 #include <skia/core/SkSurface.h>
 #include <skia/core/SkTileMode.h>
 #include <skia/effects/SkImageFilters.h>
-#include <skia/gpu/ganesh/GrBackendSurface.h>
-#include <skia/gpu/ganesh/SkImageGanesh.h>
 #include <skia/gpu/ganesh/SkSurfaceGanesh.h>
 WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
 #include <wtf/MathExtras.h>
@@ -105,16 +107,44 @@ const DestinationColorSpace& GraphicsContextSkia::colorSpace() const
 
 bool GraphicsContextSkia::makeGLContextCurrentIfNeeded() const
 {
-    if (m_renderingMode == RenderingMode::Unaccelerated || m_renderingPurpose != RenderingPurpose::Canvas)
+    if (m_renderingMode == RenderingMode::Unaccelerated)
+        return true;
+
+    if (m_contextMode != ContextMode::PaintingMode)
+        return true;
+
+    if (m_renderingPurpose != RenderingPurpose::Canvas && m_renderingPurpose != RenderingPurpose::DOM)
         return true;
 
     return PlatformDisplay::sharedDisplay().skiaGLContext()->makeContextCurrent();
 }
 
+void GraphicsContextSkia::pushSkiaState()
+{
+    SkiaState state;
+    state.stroke = m_skiaState.stroke;
+    if (m_enableStateReplayTracking) [[unlikely]]
+        state.matrix = m_canvas.getTotalMatrix();
+    m_skiaStateStack.append(WTF::move(state));
+}
+
+void GraphicsContextSkia::popSkiaState()
+{
+    if (m_skiaStateStack.isEmpty())
+        return;
+    m_skiaState.stroke = m_skiaStateStack.takeLast().stroke;
+}
+
+void GraphicsContextSkia::recordClipIfNeeded(ClipRecord&& record)
+{
+    if (m_enableStateReplayTracking && !m_skiaStateStack.isEmpty()) [[unlikely]]
+        m_skiaStateStack.last().clips.append(WTF::move(record));
+}
+
 void GraphicsContextSkia::save(GraphicsContextState::Purpose purpose)
 {
     GraphicsContext::save(purpose);
-    m_skiaStateStack.append(m_skiaState);
+    pushSkiaState();
     m_canvas.save();
 }
 
@@ -124,14 +154,8 @@ void GraphicsContextSkia::restore(GraphicsContextState::Purpose purpose)
         return;
 
     GraphicsContext::restore(purpose);
-
-    if (!m_skiaStateStack.isEmpty()) {
-        m_skiaState = m_skiaStateStack.takeLast();
-        if (m_skiaStateStack.isEmpty())
-            m_skiaStateStack.clear();
-    }
-
     m_canvas.restore();
+    popSkiaState();
 }
 
 // Draws a filled rectangle with a stroked border.
@@ -161,104 +185,58 @@ void GraphicsContextSkia::drawRect(const FloatRect& rect, float borderThickness)
     m_canvas.drawRegion(region, strokePaint);
 }
 
-static SkBlendMode toSkiaBlendMode(CompositeOperator operation, BlendMode blendMode)
-{
-    switch (blendMode) {
-    case BlendMode::Normal:
-        switch (operation) {
-        case CompositeOperator::Clear:
-            return SkBlendMode::kClear;
-        case CompositeOperator::Copy:
-            return SkBlendMode::kSrc;
-        case CompositeOperator::SourceOver:
-            return SkBlendMode::kSrcOver;
-        case CompositeOperator::SourceIn:
-            return SkBlendMode::kSrcIn;
-        case CompositeOperator::SourceOut:
-            return SkBlendMode::kSrcOut;
-        case CompositeOperator::SourceAtop:
-            return SkBlendMode::kSrcATop;
-        case CompositeOperator::DestinationOver:
-            return SkBlendMode::kDstOver;
-        case CompositeOperator::DestinationIn:
-            return SkBlendMode::kDstIn;
-        case CompositeOperator::DestinationOut:
-            return SkBlendMode::kDstOut;
-        case CompositeOperator::DestinationAtop:
-            return SkBlendMode::kDstATop;
-        case CompositeOperator::XOR:
-            return SkBlendMode::kXor;
-        case CompositeOperator::PlusLighter:
-            return SkBlendMode::kPlus;
-        case CompositeOperator::PlusDarker:
-            notImplemented();
-            return SkBlendMode::kSrcOver;
-        case CompositeOperator::Difference:
-            return SkBlendMode::kDifference;
-        }
-        break;
-    case BlendMode::Multiply:
-        return SkBlendMode::kMultiply;
-    case BlendMode::Screen:
-        return SkBlendMode::kScreen;
-    case BlendMode::Overlay:
-        return SkBlendMode::kOverlay;
-    case BlendMode::Darken:
-        return SkBlendMode::kDarken;
-    case BlendMode::Lighten:
-        return SkBlendMode::kLighten;
-    case BlendMode::ColorDodge:
-        return SkBlendMode::kColorDodge;
-    case BlendMode::ColorBurn:
-        return SkBlendMode::kColorBurn;
-    case BlendMode::HardLight:
-        return SkBlendMode::kHardLight;
-    case BlendMode::SoftLight:
-        return SkBlendMode::kSoftLight;
-    case BlendMode::Difference:
-        return SkBlendMode::kDifference;
-    case BlendMode::Exclusion:
-        return SkBlendMode::kExclusion;
-    case BlendMode::Hue:
-        return SkBlendMode::kHue;
-    case BlendMode::Saturation:
-        return SkBlendMode::kSaturation;
-    case BlendMode::Color:
-        return SkBlendMode::kColor;
-    case BlendMode::Luminosity:
-        return SkBlendMode::kLuminosity;
-    case BlendMode::PlusLighter:
-        return SkBlendMode::kPlus;
-    case BlendMode::PlusDarker:
-        notImplemented();
-        break;
-    }
-
-    return SkBlendMode::kSrcOver;
-}
-
 static SkSamplingOptions toSkSamplingOptions(InterpolationQuality quality)
 {
     switch (quality) {
     case InterpolationQuality::DoNotInterpolate:
         return SkSamplingOptions(SkFilterMode::kNearest, SkMipmapMode::kNone);
     case InterpolationQuality::Low:
-        return SkSamplingOptions(SkFilterMode::kLinear, SkMipmapMode::kNone);
     case InterpolationQuality::Medium:
     case InterpolationQuality::Default:
-        return SkSamplingOptions(SkFilterMode::kLinear, SkMipmapMode::kNearest);
+        return SkSamplingOptions(SkFilterMode::kLinear, SkMipmapMode::kNone);
     case InterpolationQuality::High:
         return SkSamplingOptions(SkCubicResampler::CatmullRom());
     }
 
-    return SkSamplingOptions(SkFilterMode::kLinear, SkMipmapMode::kNearest);
+    return SkSamplingOptions(SkFilterMode::kLinear, SkMipmapMode::kNone);
 }
 
-void GraphicsContextSkia::drawNativeImage(NativeImage& nativeImage, const FloatRect& destRect, const FloatRect& srcRect, ImagePaintingOptions options)
+sk_sp<SkImage> GraphicsContextSkia::imageForCurrentThread(const sk_sp<SkImage>& image) const
+{
+    if (!image->isTextureBacked())
+        return image;
+
+    auto* glContext = PlatformDisplay::sharedDisplay().skiaGLContext();
+    if (!glContext || !glContext->makeContextCurrent())
+        return image;
+
+    // Use the destination context (current thread's context), not nativeImage.grContext()
+    // (source context). For cross-thread transfers, we must check validity against the
+    // destination context and rewrap the texture for use in this context.
+    auto* grContext = PlatformDisplay::sharedDisplay().skiaGrContext();
+    RELEASE_ASSERT(grContext);
+
+    // Check if the GPU texture is valid for the current context.
+    // If the image was created in a different thread/context, we need to rewrap it.
+    sk_sp<SkImage> imageInThisThread = image->isValid(grContext->asRecorder()) ? image : SkiaUtilities::rewrapImageForContext(grContext, *image);
+    if (renderingMode() == RenderingMode::Accelerated)
+        return imageInThisThread;
+
+    // When drawing GPU-backed image on CPU-backed canvas we need to convert image to CPU-backed one.
+    return imageInThisThread->makeRasterImage(grContext);
+}
+
+void GraphicsContextSkia::drawNativeImage(const NativeImage& nativeImage, const FloatRect& destRect, const FloatRect& srcRect, ImagePaintingOptions options)
 {
     auto image = nativeImage.platformImage();
     if (!image)
         return;
+
+    // Collect raster images for atlas batching during recording.
+    if (m_contextMode == ContextMode::TileRecordingMode && m_renderingMode == RenderingMode::Accelerated && !image->isTextureBacked()) {
+        ASSERT(m_atlasLayoutBuilder);
+        m_atlasLayoutBuilder->collectRasterImage(image);
+    }
 
     auto imageSize = nativeImage.size();
     if (options.orientation().usesWidthAsHeight())
@@ -292,62 +270,31 @@ void GraphicsContextSkia::drawNativeImage(NativeImage& nativeImage, const FloatR
 
     SkPaint paint = createFillPaint();
     paint.setAlphaf(alpha());
-    paint.setBlendMode(toSkiaBlendMode(options.compositeOperator(), options.blendMode()));
+    paint.setBlendMode(SkiaUtilities::toSkiaBlendMode(options.blendMode(), options.compositeOperator()));
     bool inExtraTransparencyLayer = false;
     auto clampingConstraint = options.strictImageClamping() == StrictImageClamping::Yes ? SkCanvas::kStrict_SrcRectConstraint : SkCanvas::kFast_SrcRectConstraint;
 
     // 'imageInThisThread' is either the incoming 'image', or a wrapper around the 'image' accessible in the current thread.
-    // When you want to access the image, use 'imageInThisThread' if it's non-zero or 'image'.
-    sk_sp<SkImage> imageInThisThread;
-
-    if (image->isTextureBacked()) {
-        auto* glContext = PlatformDisplay::sharedDisplay().skiaGLContext();
-        if (glContext && glContext->makeContextCurrent()) {
-            // Use the destination context (current thread's context), not nativeImage.grContext()
-            // (source context). For cross-thread transfers, we must check validity against the
-            // destination context and rewrap the texture for use in this context.
-            auto* grContext = PlatformDisplay::sharedDisplay().skiaGrContext();
-            RELEASE_ASSERT(grContext);
-
-            // Check if the GPU texture is valid for the current context.
-            // If the image was created in a different thread/context, we need to rewrap it.
-            if (!image->isValid(grContext->asRecorder())) {
-                // Ensure any pending GPU operations on the source image are complete before
-                // accessing its backend texture for rewrapping.
-                if (auto fence = createAcceleratedRenderingFence(nativeImage.platformImage(), nativeImage.grContext()))
-                    fence->serverWait();
-
-                GrBackendTexture backendTexture;
-                if (SkImages::GetBackendTextureFromImage(image.get(), &backendTexture, false))
-                    imageInThisThread = SkImages::BorrowTextureFrom(grContext, backendTexture, kTopLeft_GrSurfaceOrigin, image->colorType(), image->alphaType(), image->refColorSpace());
-            }
-        }
-    }
+    auto imageInThisThread = imageForCurrentThread(image);
+    if (m_threadSafeGrContext)
+        imageInThisThread = SkiaUtilities::createPromiseImageIfNeeded(imageInThisThread, m_threadSafeGrContext);
+    else
+        trackAcceleratedRenderingFenceIfNeeded(imageInThisThread, nativeImage.grContext());
 
     // 'imageForDrawing' references the incoming image (or if it's not directly accessible in this thread the 'imageInThisThread' which is).
     // However, if we have to make a raster copy (see the hasDropShadow() case below), then imageForDrawing will point to the raster copy instead.
     // This is the image we have to pass on to m_canvas.drawImageRect(...) below.
-    SkImage* imageForDrawing = imageInThisThread ? imageInThisThread.get() : image.get();
+    auto* imageForDrawing = imageInThisThread.get();
 
-    sk_sp<SkImage> imageRasterCopy;
     if (hasDropShadow()) {
-        if (imageForDrawing->isTextureBacked()) {
-            if (renderingMode() == RenderingMode::Unaccelerated) {
-                // When drawing GPU-backed image on CPU-backed canvas with filter, we need to convert image to CPU-backed one.
-                imageRasterCopy = imageInThisThread ? imageInThisThread->makeRasterImage() : image->makeRasterImage();
-                imageForDrawing = imageRasterCopy.get();
-            } else
-                trackAcceleratedRenderingFenceIfNeeded(imageInThisThread ? imageInThisThread : image, nativeImage.grContext());
-        }
         inExtraTransparencyLayer = drawOutsetShadow(paint, [&](const SkPaint& paint) {
             m_canvas.drawImageRect(imageForDrawing, normalizedSrcRect, normalizedDestRect, toSkSamplingOptions(m_state.imageInterpolationQuality()), &paint, clampingConstraint);
         });
-    } else
-        trackAcceleratedRenderingFenceIfNeeded(imageInThisThread ? imageInThisThread : image, nativeImage.grContext());
+    }
 
     m_canvas.drawImageRect(imageForDrawing, normalizedSrcRect, normalizedDestRect, toSkSamplingOptions(m_state.imageInterpolationQuality()), &paint, clampingConstraint);
     if (inExtraTransparencyLayer)
-        endTransparencyLayer();
+        restoreLayer();
 
     if (options.orientation() != ImageOrientation::Orientation::None)
         m_canvas.restore();
@@ -433,7 +380,7 @@ void GraphicsContextSkia::drawSkiaPath(const SkPath& path, SkPaint& paint)
     }
     m_canvas.drawPath(path, paint);
     if (inExtraTransparencyLayer)
-        endTransparencyLayer();
+        restoreLayer();
 }
 
 bool GraphicsContextSkia::drawPathAsSingleElement(const Path& path, SkPaint& paint)
@@ -591,11 +538,12 @@ bool GraphicsContextSkia::drawOutsetShadow(SkPaint& paint, Function<void(const S
     paint.setImageFilter(shadow);
     drawFunction(paint);
     paint.setImageFilter(nullptr);
-    if (!m_layerStateStack.isEmpty()) {
-        if (auto compositeMode = m_layerStateStack.last().compositeMode) {
-            beginTransparencyLayer(compositeMode->operation, compositeMode->blendMode);
-            return true;
-        }
+
+    auto reversed = m_skiaStateStack | std::views::reverse;
+    auto it = std::ranges::find(reversed, true, &SkiaState::isLayer);
+    if (it != reversed.end() && it->compositeMode) {
+        saveLayer(it->alpha, *it->compositeMode);
+        return true;
     }
     return false;
 }
@@ -605,17 +553,17 @@ SkPaint GraphicsContextSkia::createFillPaint() const
     SkPaint paint;
     paint.setAntiAlias(shouldAntialias());
     paint.setStyle(SkPaint::kFill_Style);
-    paint.setBlendMode(toSkiaBlendMode(compositeMode().operation, blendMode()));
-
+    paint.setBlendMode(SkiaUtilities::toSkiaBlendMode(blendMode(), compositeMode().operation));
     return paint;
 }
 
 void GraphicsContextSkia::setupFillSource(SkPaint& paint)
 {
     if (auto fillPattern = fillBrush().pattern()) {
-        paint.setShader(fillPattern->createPlatformPattern({ }, toSkSamplingOptions(imageInterpolationQuality())));
+        paint.setShader(fillPattern->createPlatformPattern(toSkSamplingOptions(imageInterpolationQuality()), m_threadSafeGrContext));
         paint.setAlphaf(alpha());
-        trackAcceleratedRenderingFenceIfNeeded(*fillPattern);
+        if (!m_threadSafeGrContext)
+            trackAcceleratedRenderingFenceIfNeeded(*fillPattern);
     } else if (auto fillGradient = fillBrush().gradient())
         paint.setShader(fillGradient->shader(alpha(), fillBrush().gradientSpaceTransform()));
     else
@@ -627,20 +575,21 @@ SkPaint GraphicsContextSkia::createStrokePaint() const
     SkPaint paint;
     paint.setAntiAlias(shouldAntialias());
     paint.setStyle(SkPaint::kStroke_Style);
-    paint.setBlendMode(toSkiaBlendMode(compositeMode().operation, blendMode()));
-    paint.setStrokeCap(m_skiaState.m_stroke.cap);
-    paint.setStrokeJoin(m_skiaState.m_stroke.join);
-    paint.setStrokeMiter(m_skiaState.m_stroke.miter);
+    paint.setBlendMode(SkiaUtilities::toSkiaBlendMode(blendMode(), compositeMode().operation));
+    paint.setStrokeCap(m_skiaState.stroke.cap);
+    paint.setStrokeJoin(m_skiaState.stroke.join);
+    paint.setStrokeMiter(m_skiaState.stroke.miter);
     paint.setStrokeWidth(SkFloatToScalar(strokeThickness()));
-    paint.setPathEffect(m_skiaState.m_stroke.dash);
+    paint.setPathEffect(m_skiaState.stroke.dash);
     return paint;
 }
 
 void GraphicsContextSkia::setupStrokeSource(SkPaint& paint)
 {
     if (auto strokePattern = strokeBrush().pattern()) {
-        paint.setShader(strokePattern->createPlatformPattern({ }, toSkSamplingOptions(imageInterpolationQuality())));
-        trackAcceleratedRenderingFenceIfNeeded(*strokePattern);
+        paint.setShader(strokePattern->createPlatformPattern(toSkSamplingOptions(imageInterpolationQuality()), m_threadSafeGrContext));
+        if (!m_threadSafeGrContext)
+            trackAcceleratedRenderingFenceIfNeeded(*strokePattern);
     } else if (auto strokeGradient = strokeBrush().gradient())
         paint.setShader(strokeGradient->shader(alpha(), strokeBrush().gradientSpaceTransform()));
     else
@@ -657,7 +606,7 @@ void GraphicsContextSkia::drawSkiaRect(const SkRect& boundaries, SkPaint& paint)
     }
     m_canvas.drawRect(boundaries, paint);
     if (inExtraTransparencyLayer)
-        endTransparencyLayer();
+        restoreLayer();
 }
 
 void GraphicsContextSkia::fillRect(const FloatRect& boundaries, RequiresClipToRect)
@@ -697,6 +646,15 @@ void GraphicsContextSkia::resetClip()
 
 void GraphicsContextSkia::clip(const FloatRect& rect)
 {
+    recordClipIfNeeded({
+        .type = ClipRecord::Type::Rect,
+        .matrix = m_canvas.getTotalMatrix(),
+        .op = SkClipOp::kIntersect,
+        .antialias = false,
+        .rect = rect,
+        .path = { },
+        .shader = { },
+    });
     m_canvas.clipRect(rect, SkClipOp::kIntersect, false);
 }
 
@@ -704,14 +662,26 @@ void GraphicsContextSkia::clipPath(const Path& path, WindRule clipRule)
 {
     auto fillRule = toSkiaFillType(clipRule);
     auto& skiaPath = *path.platformPath();
-    if (skiaPath.getFillType() == fillRule) {
-        m_canvas.clipPath(skiaPath, true);
-        return;
+
+    const SkPath* pathForClip = &skiaPath;
+    SkPath skiaPathCopy;
+    if (skiaPath.getFillType() != fillRule) {
+        skiaPathCopy = skiaPath;
+        skiaPathCopy.setFillType(fillRule);
+        pathForClip = &skiaPathCopy;
     }
 
-    auto skiaPathCopy = skiaPath;
-    skiaPathCopy.setFillType(fillRule);
-    m_canvas.clipPath(skiaPathCopy, true);
+    recordClipIfNeeded({
+        .type = ClipRecord::Type::Path,
+        .matrix = m_canvas.getTotalMatrix(),
+        .op = SkClipOp::kIntersect,
+        .antialias = true,
+        .rect = { },
+        .path = *pathForClip,
+        .shader = { },
+    });
+
+    m_canvas.clipPath(*pathForClip, true);
 }
 
 IntRect GraphicsContextSkia::clipBounds() const
@@ -723,12 +693,27 @@ void GraphicsContextSkia::clipToImageBuffer(ImageBuffer& buffer, const FloatRect
 {
     if (auto nativeImage = nativeImageForDrawing(buffer)) {
         auto image = nativeImage->platformImage();
-        trackAcceleratedRenderingFenceIfNeeded(image, nativeImage->grContext());
-        m_canvas.clipShader(image->makeShader(SkTileMode::kDecal, SkTileMode::kDecal, { }, SkMatrix::Translate(SkFloatToScalar(destRect.x()), SkFloatToScalar(destRect.y()))));
+        if (m_threadSafeGrContext)
+            image = SkiaUtilities::createPromiseImageIfNeeded(image, m_threadSafeGrContext);
+        else
+            trackAcceleratedRenderingFenceIfNeeded(image, nativeImage->grContext());
+        auto shader = image->makeShader(SkTileMode::kDecal, SkTileMode::kDecal, { }, SkMatrix::Translate(SkFloatToScalar(destRect.x()), SkFloatToScalar(destRect.y())));
+
+        recordClipIfNeeded({
+            .type = ClipRecord::Type::Shader,
+            .matrix = m_canvas.getTotalMatrix(),
+            .op = SkClipOp::kIntersect,
+            .antialias = false,
+            .rect = { },
+            .path = { },
+            .shader = shader,
+        });
+
+        m_canvas.clipShader(WTF::move(shader));
     }
 }
 
-void GraphicsContextSkia::drawFocusRing(const Path& path, float, const Color& color)
+void GraphicsContextSkia::drawFocusRing(const Path& path, float, const Color& color, float)
 {
 #if USE(THEME_ADWAITA)
     Adwaita::paintFocus(*this, path, color);
@@ -739,7 +724,7 @@ void GraphicsContextSkia::drawFocusRing(const Path& path, float, const Color& co
 #endif
 }
 
-void GraphicsContextSkia::drawFocusRing(const Vector<FloatRect>& rects, float, float, const Color& color)
+void GraphicsContextSkia::drawFocusRing(const Vector<FloatRect>& rects, float, const Color& color, float)
 {
 #if USE(THEME_ADWAITA)
     Adwaita::paintFocus(*this, rects, color);
@@ -854,18 +839,47 @@ void GraphicsContextSkia::setCTM(const AffineTransform& ctm)
     m_canvas.setMatrix(ctm);
 }
 
+void GraphicsContextSkia::saveLayer(float opacity, CompositeMode compositeMode)
+{
+    pushSkiaState();
+    auto& currentState = m_skiaStateStack.last();
+    currentState.isLayer = true;
+    currentState.compositeMode = m_state.compositeMode();
+    currentState.alpha = m_state.alpha();
+
+    SkPaint paint;
+    paint.setAlphaf(opacity);
+    paint.setBlendMode(SkiaUtilities::toSkiaBlendMode(compositeMode.blendMode, compositeMode.operation));
+    if (m_enableStateReplayTracking) [[unlikely]]
+        currentState.layerPaint = paint;
+
+    m_canvas.saveLayer(nullptr, &paint);
+
+    // When on transparency layer, we don't want to apply opacity and blend operations as when layer ends, we apply them as a whole.
+    setCompositeMode({ CompositeOperator::SourceOver, BlendMode::Normal });
+    setAlpha(1);
+}
+
+void GraphicsContextSkia::restoreLayer()
+{
+    m_canvas.restore();
+    ASSERT(!m_skiaStateStack.isEmpty());
+    ASSERT(m_skiaStateStack.last().isLayer);
+    auto compositeMode = m_skiaStateStack.last().compositeMode;
+    auto alpha = m_skiaStateStack.last().alpha;
+    popSkiaState();
+    if (compositeMode)
+        setCompositeMode(*compositeMode);
+    setAlpha(alpha);
+}
+
 void GraphicsContextSkia::beginTransparencyLayer(float opacity)
 {
     if (!makeGLContextCurrentIfNeeded())
         return;
 
     GraphicsContext::beginTransparencyLayer(opacity);
-    m_layerStateStack.append({ });
-
-    SkPaint paint;
-    paint.setAlphaf(opacity);
-    paint.setBlendMode(toSkiaBlendMode(m_state.compositeMode().operation, m_state.compositeMode().blendMode));
-    m_canvas.saveLayer(nullptr, &paint);
+    saveLayer(opacity, m_state.compositeMode());
 }
 
 void GraphicsContextSkia::beginTransparencyLayer(CompositeOperator operation, BlendMode blendMode)
@@ -874,13 +888,7 @@ void GraphicsContextSkia::beginTransparencyLayer(CompositeOperator operation, Bl
         return;
 
     GraphicsContext::beginTransparencyLayer(operation, blendMode);
-    m_layerStateStack.append({ CompositeMode(operation, blendMode) });
-
-    SkPaint paint;
-    paint.setBlendMode(toSkiaBlendMode(operation, blendMode));
-    m_canvas.saveLayer(nullptr, &paint);
-    // When on transparency layer, we don't want to blend operations as when layer ends, we blend it as a whole.
-    setCompositeMode({ CompositeOperator::SourceOver, BlendMode::Normal });
+    saveLayer(m_state.alpha(), CompositeMode(operation, blendMode));
 }
 
 void GraphicsContextSkia::endTransparencyLayer()
@@ -889,12 +897,7 @@ void GraphicsContextSkia::endTransparencyLayer()
         return;
 
     GraphicsContext::endTransparencyLayer();
-    m_canvas.restore();
-    if (!m_layerStateStack.isEmpty()) {
-        auto layerState = m_layerStateStack.takeLast();
-        if (layerState.compositeMode)
-            setCompositeMode(*layerState.compositeMode);
-    }
+    restoreLayer();
 }
 
 void GraphicsContextSkia::clearRect(const FloatRect& rect)
@@ -933,7 +936,7 @@ void GraphicsContextSkia::setLineCap(LineCap lineCap)
         return SkPaint::Cap::kDefault_Cap;
     };
 
-    m_skiaState.m_stroke.cap = toSkiaCap(lineCap);
+    m_skiaState.stroke.cap = toSkiaCap(lineCap);
 }
 
 static bool isValidDashArray(const DashArray& dashArray)
@@ -952,7 +955,7 @@ static bool isValidDashArray(const DashArray& dashArray)
 void GraphicsContextSkia::setLineDash(const DashArray& dashArray, float dashOffset)
 {
     if (!isValidDashArray(dashArray)) {
-        m_skiaState.m_stroke.dash = nullptr;
+        m_skiaState.stroke.dash = nullptr;
         return;
     }
 
@@ -961,9 +964,9 @@ void GraphicsContextSkia::setLineDash(const DashArray& dashArray, float dashOffs
         auto repeatedDashArray = DashArray::createWithSizeFromGenerator(dashArray.size() * 2, [&](auto i) {
             return dashArray[i % dashArray.size()];
         });
-        m_skiaState.m_stroke.dash = SkDashPathEffect::Make(repeatedDashArray.span(), dashOffset);
+        m_skiaState.stroke.dash = SkDashPathEffect::Make(repeatedDashArray.span(), dashOffset);
     } else
-        m_skiaState.m_stroke.dash = SkDashPathEffect::Make(dashArray.span(), dashOffset);
+        m_skiaState.stroke.dash = SkDashPathEffect::Make(dashArray.span(), dashOffset);
 }
 
 void GraphicsContextSkia::setLineJoin(LineJoin lineJoin)
@@ -981,18 +984,29 @@ void GraphicsContextSkia::setLineJoin(LineJoin lineJoin)
         return SkPaint::Join::kDefault_Join;
     };
 
-    m_skiaState.m_stroke.join = toSkiaJoin(lineJoin);
+    m_skiaState.stroke.join = toSkiaJoin(lineJoin);
 }
 
 void GraphicsContextSkia::setMiterLimit(float miter)
 {
-    m_skiaState.m_stroke.miter = SkFloatToScalar(miter);
+    m_skiaState.stroke.miter = SkFloatToScalar(miter);
 }
 
 void GraphicsContextSkia::clipOut(const Path& path)
 {
     auto& skiaPath = *path.platformPath();
     skiaPath.toggleInverseFillType();
+
+    recordClipIfNeeded({
+        .type = ClipRecord::Type::Path,
+        .matrix = m_canvas.getTotalMatrix(),
+        .op = SkClipOp::kIntersect,
+        .antialias = true,
+        .rect = { },
+        .path = skiaPath,
+        .shader = { },
+    });
+
     m_canvas.clipPath(skiaPath, true);
     skiaPath.toggleInverseFillType();
 }
@@ -1009,6 +1023,15 @@ void GraphicsContextSkia::scale(const FloatSize& scale)
 
 void GraphicsContextSkia::clipOut(const FloatRect& rect)
 {
+    recordClipIfNeeded({
+        .type = ClipRecord::Type::Rect,
+        .matrix = m_canvas.getTotalMatrix(),
+        .op = SkClipOp::kDifference,
+        .antialias = false,
+        .rect = rect,
+        .path = { },
+        .shader = { },
+    });
     m_canvas.clipRect(rect, SkClipOp::kDifference, false);
 }
 
@@ -1027,7 +1050,7 @@ void GraphicsContextSkia::fillRoundedRectImpl(const FloatRoundedRect& rect, cons
     }
     m_canvas.drawRRect(rect, paint);
     if (inExtraTransparencyLayer)
-        endTransparencyLayer();
+        restoreLayer();
 }
 
 void GraphicsContextSkia::fillRectWithRoundedHole(const FloatRect& outerRect, const FloatRoundedRect& innerRRect, const Color& color)
@@ -1055,7 +1078,7 @@ static sk_sp<SkSurface> createAcceleratedSurface(const IntSize& size)
     RELEASE_ASSERT(grContext);
 
     auto imageInfo = SkImageInfo::Make(size.width(), size.height(), kRGBA_8888_SkColorType, kPremul_SkAlphaType, SkColorSpace::MakeSRGB());
-    SkSurfaceProps properties { 0, FontRenderOptions::singleton().subpixelOrder() };
+    SkSurfaceProps properties = FontRenderOptions::singleton().createSurfaceProps();
     auto surface = SkSurfaces::RenderTarget(grContext, skgpu::Budgeted::kNo, imageInfo, PlatformDisplay::sharedDisplay().msaaSampleCount(), kTopLeft_GrSurfaceOrigin, &properties);
     if (!surface || !surface->getCanvas())
         return nullptr;
@@ -1063,7 +1086,7 @@ static sk_sp<SkSurface> createAcceleratedSurface(const IntSize& size)
     return surface;
 }
 
-void GraphicsContextSkia::drawPattern(NativeImage& nativeImage, const FloatRect& destRect, const FloatRect& tileRect, const AffineTransform& patternTransform, const FloatPoint& phase, const FloatSize& spacing, ImagePaintingOptions options)
+void GraphicsContextSkia::drawPattern(const NativeImage& nativeImage, const FloatRect& destRect, const FloatRect& tileRect, const AffineTransform& patternTransform, const FloatPoint& phase, const FloatSize& spacing, ImagePaintingOptions options)
 {
     if (!patternTransform.isInvertible())
         return;
@@ -1075,6 +1098,8 @@ void GraphicsContextSkia::drawPattern(NativeImage& nativeImage, const FloatRect&
     if (!makeGLContextCurrentIfNeeded())
         return;
 
+    image = imageForCurrentThread(image);
+
     FloatPoint phaseOffset(tileRect.location());
     phaseOffset.scale(patternTransform.a(), patternTransform.d());
     phaseOffset.moveBy(phase);
@@ -1084,7 +1109,7 @@ void GraphicsContextSkia::drawPattern(NativeImage& nativeImage, const FloatRect&
     auto samplingOptions = toSkSamplingOptions(m_state.imageInterpolationQuality());
 
     SkPaint paint = createFillPaint();
-    paint.setBlendMode(toSkiaBlendMode(options.compositeOperator(), options.blendMode()));
+    paint.setBlendMode(SkiaUtilities::toSkiaBlendMode(options.blendMode(), options.compositeOperator()));
 
     auto size = nativeImage.size();
     if (spacing.isZero() && tileRect.size() == size) {
@@ -1101,8 +1126,11 @@ void GraphicsContextSkia::drawPattern(NativeImage& nativeImage, const FloatRect&
             repeatX = imageSampledRect.x() < 0 || std::trunc(imageSampledRect.right()) > size.width();
             repeatY = imageSampledRect.y() < 0 || std::trunc(imageSampledRect.bottom()) > size.height();
         }
+        if (m_threadSafeGrContext)
+            image = SkiaUtilities::createPromiseImageIfNeeded(image, m_threadSafeGrContext);
         paint.setShader(image->makeShader(repeatX ? SkTileMode::kRepeat : SkTileMode::kClamp, repeatY ? SkTileMode::kRepeat : SkTileMode::kClamp, samplingOptions, &shaderMatrix));
-        trackAcceleratedRenderingFenceIfNeeded(image, nativeImage.grContext());
+        if (!m_threadSafeGrContext)
+            trackAcceleratedRenderingFenceIfNeeded(image, nativeImage.grContext());
     } else {
         auto tileFloatRectWithSpacing = FloatRect(0, 0, tileRect.width() + spacing.width() / patternTransform.a(), tileRect.height() + spacing.height() / patternTransform.d());
         if (image->isTextureBacked()) {
@@ -1114,8 +1142,11 @@ void GraphicsContextSkia::drawPattern(NativeImage& nativeImage, const FloatRect&
                 auto* recordingContext = surface->recordingContext();
                 auto* grContext = recordingContext ? recordingContext->asDirectContext() : nullptr;
                 auto tileImage = surface->makeImageSnapshot();
+                if (m_threadSafeGrContext)
+                    tileImage = SkiaUtilities::createPromiseImageIfNeeded(tileImage, m_threadSafeGrContext);
                 paint.setShader(tileImage->makeShader(SkTileMode::kRepeat, SkTileMode::kRepeat, samplingOptions, &shaderMatrix));
-                trackAcceleratedRenderingFenceIfNeeded(tileImage, grContext);
+                if (!m_threadSafeGrContext)
+                    trackAcceleratedRenderingFenceIfNeeded(tileImage, grContext);
             }
         } else {
             auto dstRect = SkRect::MakeWH(tileRect.width(), tileRect.height());
@@ -1133,76 +1164,103 @@ void GraphicsContextSkia::drawPattern(NativeImage& nativeImage, const FloatRect&
     m_canvas.drawRect(destRect, paint);
 }
 
-void GraphicsContextSkia::beginRecording()
+void GraphicsContextSkia::beginRecording(RecordingMode recordingMode, const sk_sp<GrContextThreadSafeProxy>& threadSafeGrContext)
 {
     ASSERT(m_contextMode == ContextMode::PaintingMode);
-    m_contextMode = ContextMode::RecordingMode;
+    switch (recordingMode) {
+    case RecordingMode::Tile:
+        m_contextMode = ContextMode::TileRecordingMode;
+        if (m_renderingMode == RenderingMode::Accelerated) {
+            m_threadSafeGrContext = threadSafeGrContext;
+            m_atlasLayoutBuilder = makeUnique<SkiaImageAtlasLayoutBuilder>();
+        } else
+            ASSERT(!m_atlasLayoutBuilder);
+        break;
+    case RecordingMode::Canvas:
+        ASSERT(!threadSafeGrContext);
+        m_contextMode = ContextMode::CanvasRecordingMode;
+        if (!m_enableStateReplayTracking) {
+            m_enableStateReplayTracking = true;
+
+            // Seed a base entry so clips issued before the first save() are tracked.
+            pushSkiaState();
+        }
+        break;
+    }
 }
 
-SkiaImageToFenceMap GraphicsContextSkia::endRecording()
+SkiaRecordingData GraphicsContextSkia::endRecording()
 {
-    ASSERT(m_contextMode == ContextMode::RecordingMode);
-    m_contextMode = ContextMode::PaintingMode;
-    return WTF::move(m_imageToFenceMap);
-}
-
-static std::unique_ptr<GLFence> createFenceAfterFlush(GrDirectContext* grContext)
-{
-    auto& glDisplay = PlatformDisplay::sharedDisplay().glDisplay();
-    if (GLFence::isSupported(glDisplay)) {
-        grContext->submit(GrSyncCpu::kNo);
-
-        if (auto fence = GLFence::create(glDisplay))
-            return fence;
+    auto contextMode = std::exchange(m_contextMode, ContextMode::PaintingMode);
+    switch (contextMode) {
+    case ContextMode::TileRecordingMode: {
+        Vector<Ref<SkiaImageAtlasLayout>> atlasLayouts;
+        unsigned imageSetFingerprint = 0;
+        if (m_atlasLayoutBuilder) {
+            atlasLayouts = m_atlasLayoutBuilder->finalize();
+            imageSetFingerprint = m_atlasLayoutBuilder->imageSetFingerprint();
+            m_atlasLayoutBuilder = nullptr;
+        }
+        m_threadSafeGrContext = nullptr;
+        return { WTF::move(m_imageToFenceMap), WTF::move(atlasLayouts), imageSetFingerprint };
+    }
+    case ContextMode::CanvasRecordingMode:
+        ASSERT(!m_threadSafeGrContext);
+        return { };
+    case ContextMode::PaintingMode:
+        RELEASE_ASSERT_NOT_REACHED();
     }
 
-    grContext->submit(GrSyncCpu::kYes);
-    return nullptr;
+    return { };
 }
 
-std::unique_ptr<GLFence> GraphicsContextSkia::createAcceleratedRenderingFence(SkSurface* surface)
+void GraphicsContextSkia::replayStateOnCanvas(SkCanvas& canvas) const
 {
-    auto* glContext = PlatformDisplay::sharedDisplay().skiaGLContext();
-    if (!glContext || !glContext->makeContextCurrent())
-        return nullptr;
+    for (const auto& state : m_skiaStateStack) {
+        canvas.setMatrix(state.matrix);
+        if (state.isLayer) {
+            SkCanvas::SaveLayerRec rec(state.layerBounds ? &state.layerBounds.value() : nullptr, state.layerPaint ? &state.layerPaint.value() : nullptr, 0);
+            canvas.saveLayer(rec);
+        } else
+            canvas.save();
 
-    auto* recordingContext = surface->recordingContext();
-    auto* grContext = recordingContext ? recordingContext->asDirectContext() : nullptr;
-    if (!grContext)
-        return nullptr;
-
-    grContext->flush(surface);
-    return createFenceAfterFlush(grContext);
-}
-
-std::unique_ptr<GLFence> GraphicsContextSkia::createAcceleratedRenderingFence(const sk_sp<SkImage>& image, GrDirectContext* grContext)
-{
-    auto* glContext = PlatformDisplay::sharedDisplay().skiaGLContext();
-    if (!glContext || !glContext->makeContextCurrent())
-        return nullptr;
-
-    if (!grContext)
-        return nullptr;
-
-    grContext->flush(image);
-    return createFenceAfterFlush(grContext);
+        for (const auto& clip : state.clips) {
+            canvas.setMatrix(clip.matrix);
+            switch (clip.type) {
+            case ClipRecord::Type::Rect:
+                canvas.clipRect(clip.rect, clip.op, clip.antialias);
+                break;
+            case ClipRecord::Type::Path:
+                canvas.clipPath(clip.path, clip.op, clip.antialias);
+                break;
+            case ClipRecord::Type::Shader:
+                canvas.clipShader(clip.shader, clip.op);
+                break;
+            }
+        }
+    }
+    canvas.setMatrix(m_canvas.getTotalMatrix());
 }
 
 void GraphicsContextSkia::trackAcceleratedRenderingFenceIfNeeded(const sk_sp<SkImage>& image, GrDirectContext* grContext)
 {
-    if (m_contextMode != ContextMode::RecordingMode)
+    ASSERT(!m_threadSafeGrContext);
+
+    if (m_contextMode != ContextMode::TileRecordingMode)
         return;
 
     if (!image || !image->isTextureBacked())
         return;
 
-    if (auto fence = createAcceleratedRenderingFence(image, grContext))
+    if (auto fence = SkiaUtilities::flushAndSubmitImageWithFence(grContext, image))
         m_imageToFenceMap.add(image.get(), WTF::move(fence));
 }
 
 void GraphicsContextSkia::trackAcceleratedRenderingFenceIfNeeded(Pattern& pattern)
 {
-    if (m_contextMode != ContextMode::RecordingMode)
+    ASSERT(!m_threadSafeGrContext);
+
+    if (m_contextMode != ContextMode::TileRecordingMode)
         return;
 
     auto nativeImage = pattern.tileNativeImage();
@@ -1234,7 +1292,7 @@ void GraphicsContextSkia::drawSkiaText(const sk_sp<SkTextBlob>& blob, SkScalar x
         }
         m_canvas.drawTextBlob(blob, x, y, paint);
         if (inExtraTransparencyLayer)
-            endTransparencyLayer();
+            restoreLayer();
     }
 
     if (textDrawingMode().contains(TextDrawingMode::Stroke)) {

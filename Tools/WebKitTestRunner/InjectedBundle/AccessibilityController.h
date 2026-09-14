@@ -63,6 +63,10 @@ public:
     void setForceDeferredSpellChecking(bool);
     void setForceInitialFrameCaching(bool);
 
+    // Client accessibility mode - uses AXUIElement APIs instead of internal accessibility objects
+    void setClientAccessibilityMode(bool);
+    bool clientAccessibilityModeEnabled() const { return m_enableClientAccessibilityMode; }
+
     JSRetainPtr<JSStringRef> platformName();
 
     // Controller Methods - platform-independent implementations.
@@ -82,6 +86,7 @@ public:
     bool removeNotificationListener();
     void injectAccessibilityPreference(JSStringRef domain, JSStringRef key, JSStringRef value);
 
+    void printToStderr(JSStringRef) const;
     // Here for consistency with DRT. Not implemented because they don't do anything on the Mac.
     void logFocusEvents() { }
     void logValueChangeEvents() { }
@@ -100,6 +105,7 @@ public:
 private:
     AccessibilityController();
     void platformInitialize();
+    void platformInitializeClientAccessibility();
 
 #if PLATFORM(COCOA)
     RetainPtr<id> m_globalNotificationHandler;
@@ -118,6 +124,8 @@ private:
 
     bool m_accessibilityIsolatedTreeMode { false };
 #endif
+
+    bool m_enableClientAccessibilityMode { false };
 };
 
 #if PLATFORM(COCOA)
@@ -128,6 +136,7 @@ class AXThread {
 public:
     static bool isCurrentThread();
     static void dispatch(Function<void()>&&);
+    static void clearQueuedFunctions();
 
     // Will dispatch the given function on the main thread once all pending functions
     // on the AX thread have finished executing. Used for synchronization purposes.

@@ -27,7 +27,7 @@
 
 #if !PLATFORM(IOS_FAMILY)
 
-#import "PlatformUtilities.h"
+#import "Helpers/PlatformUtilities.h"
 #import <JavaScriptCore/InitializeThreading.h>
 #import <WebCore/FrameLoadRequest.h>
 #import <WebCore/LocalFrameInlines.h>
@@ -138,7 +138,7 @@ public:
 
 TEST_F(WebCoreNSURLSessionTest, BasicOperation)
 {
-    auto session = adoptNS([[WebCoreNSURLSession alloc] initWithResourceLoader:*loader delegate:delegate.get() delegateQueue:[NSOperationQueue mainQueue]]);
+    RetainPtr session = adoptNS([[WebCoreNSURLSession alloc] initWithResourceLoader:*loader delegate:delegate.get() delegateQueue:[NSOperationQueue mainQueue]]);
     didRecieveResponse = false;
     didRecieveData = false;
     didComplete = false;
@@ -159,9 +159,14 @@ TEST_F(WebCoreNSURLSessionTest, BasicOperation)
     TestWebKitAPI::Util::run(&didInvalidate);
 }
 
+// FIXME when webkit.org/b/306646 is resolved.
+#if PLATFORM(MAC) && !defined(NDEBUG)
+TEST_F(WebCoreNSURLSessionTest, DISABLED_InvalidateEmpty)
+#else
 TEST_F(WebCoreNSURLSessionTest, InvalidateEmpty)
+#endif
 {
-    auto session = adoptNS([[WebCoreNSURLSession alloc] initWithResourceLoader:*loader delegate:delegate.get() delegateQueue:[NSOperationQueue mainQueue]]);
+    RetainPtr session = adoptNS([[WebCoreNSURLSession alloc] initWithResourceLoader:*loader delegate:delegate.get() delegateQueue:[NSOperationQueue mainQueue]]);
     didInvalidate = false;
     [session finishTasksAndInvalidate];
     TestWebKitAPI::Util::run(&didInvalidate);

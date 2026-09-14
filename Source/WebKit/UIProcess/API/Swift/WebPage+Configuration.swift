@@ -21,10 +21,9 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 // THE POSSIBILITY OF SUCH DAMAGE.
 
-#if ENABLE_SWIFTUI && compiler(>=6.0)
+#if ENABLE_SWIFTUI
 
 import Foundation
-internal import WebKit_Internal
 
 extension WebPage {
     /// A configuration type that specifies the preferences and behaviors of a webpage.
@@ -99,6 +98,25 @@ extension WebPage {
         /// If true, they are enabled based on the system setting.
         public var allowsInlinePredictions: Bool = false
 
+        private var backingAllowsImmersiveEnvironments = false
+
+        /// Indicates whether website immersive environments are allowed.
+        ///
+        /// Set this property to `true` to enable support for website immersive environments.
+        /// If `false`, requests to present immersive environments are ignored.
+        /// If `true`, requests are routed through the `onWebViewImmersiveEnvironmentRequest` view modifier callbacks.
+        ///
+        /// The default value is `false`.
+        @available(visionOS 27.0, *)
+        @available(iOS, unavailable)
+        @available(macOS, unavailable)
+        @available(watchOS, unavailable)
+        @available(tvOS, unavailable)
+        public var allowsImmersiveEnvironments: Bool {
+            get { backingAllowsImmersiveEnvironments }
+            set { backingAllowsImmersiveEnvironments = newValue }
+        }
+
         /// Indicates whether insertion of adaptive image glyphs is allowed.
         ///
         /// The default value is `false`. If `false`, adaptive image glyphs are inserted as regular images.
@@ -145,6 +163,20 @@ extension WebPage {
         /// The default value of this property is `.content`.
         public var userInterfaceDirectionPolicy: WKUserInterfaceDirectionPolicy = .content
         #endif
+
+        /// The process pool to use for the page, used for testing.
+        @_spi(Testing)
+        public var processPool: WKProcessPool? = nil
+
+        #if os(macOS)
+        /// If `false`, the editor state is always forced to update.
+        @_spi(Testing)
+        public var requiresUserActionForEditingControlsManager: Bool = false
+        #endif
+
+        /// Indicates whether the page is controlled by automation, used for testing.
+        @_spi(Testing)
+        public var isControlledByAutomation: Bool = false
     }
 }
 

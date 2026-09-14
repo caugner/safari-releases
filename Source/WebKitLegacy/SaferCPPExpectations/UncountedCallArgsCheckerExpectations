@@ -3,9 +3,7 @@ Storage/StorageAreaImpl.cpp
 Storage/StorageAreaSync.cpp
 Storage/StorageNamespaceImpl.cpp
 Storage/StorageThread.cpp
-Storage/WebDatabaseProvider.cpp
 Storage/WebStorageNamespaceProvider.cpp
-WebCoreSupport/PageStorageSessionProvider.h
 WebCoreSupport/PingHandle.h
 WebCoreSupport/SocketStreamHandleImpl.cpp
 WebCoreSupport/SocketStreamHandleImplCFNet.cpp
@@ -145,6 +143,7 @@ mac/WebCoreSupport/WebNotificationClient.mm
 mac/WebCoreSupport/WebOpenPanelResultListener.mm
 mac/WebCoreSupport/WebSecurityOrigin.mm
 mac/WebCoreSupport/WebValidationMessageClient.mm
+[ iOS ] mac/WebInspector/WebNodeHighlightView.mm
 mac/WebView/WebArchive.mm
 mac/WebView/WebDataSource.mm
 mac/WebView/WebFrame.mm

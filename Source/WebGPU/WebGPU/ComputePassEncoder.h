@@ -33,7 +33,7 @@
 #import <wtf/HashMap.h>
 #import <wtf/Ref.h>
 #import <wtf/RefCounted.h>
-#import <wtf/RetainReleaseSwift.h>
+#import <wtf/SwiftBridging.h>
 #import <wtf/TZoneMalloc.h>
 #import <wtf/Vector.h>
 #import <wtf/WeakPtr.h>
@@ -79,21 +79,18 @@ public:
 
     Device& device() const { return m_device; }
 
-    bool isValid() const;
-    id<MTLComputeCommandEncoder> computeCommandEncoder() const;
+    bool NODELETE isValid() const;
+    id<MTLComputeCommandEncoder> NODELETE computeCommandEncoder() const;
 
 private:
     ComputePassEncoder(id<MTLComputeCommandEncoder>, const WGPUComputePassDescriptor&, CommandEncoder&, Device&);
     ComputePassEncoder(CommandEncoder&, Device&, NSString*);
 
-    bool validatePopDebugGroup() const;
+    bool NODELETE validatePopDebugGroup() const;
 
     void makeInvalid(NSString* = nil);
     void executePreDispatchCommands(const Buffer* = nullptr);
     id<MTLBuffer> runPredispatchIndirectCallValidation(const Buffer&, uint64_t);
-
-    Ref<CommandEncoder> protectedParentEncoder() { return m_parentEncoder; }
-    Ref<Device> protectedDevice() const { return m_device; }
 
     id<MTLComputeCommandEncoder> m_computeCommandEncoder { nil };
 
@@ -107,7 +104,7 @@ private:
     const Ref<CommandEncoder> m_parentEncoder;
     HashMap<uint32_t, Vector<uint32_t>, DefaultHash<uint32_t>, WTF::UnsignedWithZeroKeyHashTraits<uint32_t>> m_bindGroupDynamicOffsets;
     HashMap<uint32_t, Vector<const BindableResources*>, DefaultHash<uint32_t>, WTF::UnsignedWithZeroKeyHashTraits<uint32_t>> m_bindGroupResources;
-    HashMap<uint32_t, RefPtr<const BindGroup>, DefaultHash<uint32_t>, WTF::UnsignedWithZeroKeyHashTraits<uint32_t>> m_bindGroups;
+    HashMap<uint32_t, Ref<const BindGroup>, DefaultHash<uint32_t>, WTF::UnsignedWithZeroKeyHashTraits<uint32_t>> m_bindGroups;
     std::array<uint32_t, 32> m_maxDynamicOffsetAtIndex;
     NSString *m_lastErrorString { nil };
     bool m_passEnded { false };
@@ -118,10 +115,10 @@ private:
 
 inline void refComputePassEncoder(WebGPU::ComputePassEncoder* obj)
 {
-    WTF::ref(obj);
+    obj->ref();
 }
 
 inline void derefComputePassEncoder(WebGPU::ComputePassEncoder* obj)
 {
-    WTF::deref(obj);
+    obj->deref();
 }

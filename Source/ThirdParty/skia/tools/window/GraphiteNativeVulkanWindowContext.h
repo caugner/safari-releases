@@ -1,5 +1,5 @@
 /*
- * Copyright 2023 Google Inc.
+ * Copyright 2023 Google LLC
  *
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
@@ -51,7 +51,7 @@ private:
     void destroyContext();
 
     bool createSwapchain(int width, int height);
-    bool populateSwapchainImages(VkFormat, VkImageUsageFlags, SkColorType, VkSharingMode);
+    bool populateSwapchainImages(VkFormat, VkImageUsageFlags, VkSharingMode);
 
     /**
      * Swap backbuffers/frames, presenting the next available image.

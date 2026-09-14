@@ -279,6 +279,15 @@ SubsamplingLevel BitmapImageDescriptor::subsamplingLevelForScaleFactor(GraphicsC
 #endif
 }
 
+#if ENABLE(QUICKLOOK_FULLSCREEN)
+bool BitmapImageDescriptor::isPanorama() const
+{
+    if (auto decoder = m_source->decoderIfExists())
+        return decoder->isPanorama();
+    return false;
+}
+#endif
+
 #if ENABLE(SPATIAL_IMAGE_DETECTION)
 bool BitmapImageDescriptor::isSpatial() const
 {

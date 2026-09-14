@@ -39,6 +39,7 @@
 #import "MenuUtilities.h"
 #import "MessageSenderInlines.h"
 #import "NativeWebKeyboardEvent.h"
+#import "NativeWebWheelEvent.h"
 #import "NetworkProcessMessages.h"
 #import "PDFContextMenu.h"
 #import "PageClient.h"
@@ -81,13 +82,20 @@
 #import <wtf/FileHandle.h>
 #import <wtf/FileSystem.h>
 #import <wtf/ProcessPrivilege.h>
+#import <wtf/UUID.h>
 #import <wtf/cocoa/RuntimeApplicationChecksCocoa.h>
 #import <wtf/cocoa/SpanCocoa.h>
 #import <wtf/text/cf/StringConcatenateCF.h>
 
+#if HAVE(APPKIT_GESTURES_SUPPORT)
+#import <WebKitAdditions/AppKitUtilities.h>
+#endif
+
 #define MESSAGE_CHECK(assertion, connection) MESSAGE_CHECK_BASE(assertion, connection)
 #define MESSAGE_CHECK_COMPLETION(assertion, connection, completion) MESSAGE_CHECK_COMPLETION_BASE(assertion, connection, completion)
 #define MESSAGE_CHECK_URL(url) MESSAGE_CHECK_BASE(checkURLReceivedFromCurrentOrPreviousWebProcess(process, url), connection)
+
+#define WEBPAGEPROXY_RELEASE_LOG_ERROR(channel, fmt, ...) RELEASE_LOG_ERROR(channel, "%p - [pageProxyID=%" PRIu64 ", webPageID=%" PRIu64 ", PID=%i] WebPageProxy::" fmt, this, identifier().toUInt64(), m_webPageID.toUInt64(), m_legacyMainFrameProcess->processID(), ##__VA_ARGS__)
 
 @interface NSApplication ()
 - (BOOL)isSpeaking;
@@ -175,7 +183,11 @@ void WebPageProxy::speak(const String& string)
 void WebPageProxy::stopSpeaking()
 {
     ASSERT(hasProcessPrivilege(ProcessPrivilege::CanCommunicateWithWindowServer));
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnonnull"
+    // Work around incorrect nullability annotation in the internal SDK, cf. rdar://179681908
     [NSApp stopSpeaking:nil];
+#pragma clang diagnostic pop
 }
 
 void WebPageProxy::searchTheWeb(const String& string)
@@ -198,7 +210,7 @@ void WebPageProxy::windowAndViewFramesChanged(const FloatRect& viewFrameInWindow
         if (!pageClient)
             return;
 
-        FloatRect windowFrameInUnflippedScreenCoordinates = protectedPageClient()->convertToUserSpace(windowFrameInScreenCoordinates);
+        FloatRect windowFrameInUnflippedScreenCoordinates = pageClient->convertToUserSpace(windowFrameInScreenCoordinates);
 
         m_viewWindowCoordinates = makeUnique<ViewWindowCoordinates>();
         auto& coordinates = *m_viewWindowCoordinates;
@@ -210,7 +222,7 @@ void WebPageProxy::windowAndViewFramesChanged(const FloatRect& viewFrameInWindow
         if (!hasRunningProcess())
             return;
 
-        protectedLegacyMainFrameProcess()->sendWithAsyncReply(
+        protect(legacyMainFrameProcess())->sendWithAsyncReply(
             Messages::WebPage::WindowAndViewFramesChanged(*m_viewWindowCoordinates),
             [this, protectedThis, viewFrameInWindowCoordinates]() {
                 updateMouseEventTargetAfterWindowAndViewFramesChanged(viewFrameInWindowCoordinates);
@@ -233,7 +245,7 @@ void WebPageProxy::updateMouseEventTargetAfterWindowAndViewFramesChanged(const F
     // do same conversion as above
     auto macMouseLocationInScreen = [NSEvent mouseLocation];
     auto webMouseLocationInScreen = DoublePoint(macMouseLocationInScreen.x, [[NSScreen mainScreen] frame].size.height - macMouseLocationInScreen.y);
-    protectedLegacyMainFrameProcess()->send(Messages::WebPage::UpdateMouseEventTargetAfterWindowAndViewFramesChanged(webMouseLocationInWindow, webMouseLocationInScreen), webPageIDInMainFrameProcess());
+    protect(legacyMainFrameProcess())->send(Messages::WebPage::UpdateMouseEventTargetAfterWindowAndViewFramesChanged(webMouseLocationInWindow, webMouseLocationInScreen), webPageIDInMainFrameProcess());
 }
 
 void WebPageProxy::setMainFrameIsScrollable(bool isScrollable)
@@ -241,7 +253,7 @@ void WebPageProxy::setMainFrameIsScrollable(bool isScrollable)
     if (!hasRunningProcess())
         return;
 
-    protectedLegacyMainFrameProcess()->send(Messages::WebPage::SetMainFrameIsScrollable(isScrollable), webPageIDInMainFrameProcess());
+    protect(legacyMainFrameProcess())->send(Messages::WebPage::SetMainFrameIsScrollable(isScrollable), webPageIDInMainFrameProcess());
 }
 
 void WebPageProxy::attributedSubstringForCharacterRangeAsync(const EditingRange& range, CompletionHandler<void(const WebCore::AttributedString&, const EditingRange&)>&& callbackFunction)
@@ -251,7 +263,7 @@ void WebPageProxy::attributedSubstringForCharacterRangeAsync(const EditingRange&
         return;
     }
 
-    protectedLegacyMainFrameProcess()->sendWithAsyncReply(Messages::WebPage::AttributedSubstringForCharacterRangeAsync(range), WTF::move(callbackFunction), webPageIDInMainFrameProcess());
+    protect(legacyMainFrameProcess())->sendWithAsyncReply(Messages::WebPage::AttributedSubstringForCharacterRangeAsync(range), WTF::move(callbackFunction), webPageIDInMainFrameProcess());
 }
 
 static constexpr auto timeoutForPasteboardSyncIPC = 5_s;
@@ -261,10 +273,10 @@ String WebPageProxy::stringSelectionForPasteboard()
     if (!hasRunningProcess())
         return { };
 
-    if (!editorState().selectionIsRange)
+    if (editorState().selectionType != WebCore::SelectionType::Range)
         return { };
 
-    auto sendResult = protectedLegacyMainFrameProcess()->sendSync(Messages::WebPage::GetStringSelectionForPasteboard(), webPageIDInMainFrameProcess(), timeoutForPasteboardSyncIPC);
+    auto sendResult = protect(legacyMainFrameProcess())->sendSync(Messages::WebPage::GetStringSelectionForPasteboard(), webPageIDInMainFrameProcess(), timeoutForPasteboardSyncIPC);
     auto [value] = sendResult.takeReplyOr(String { });
     return value;
 }
@@ -274,10 +286,10 @@ RefPtr<WebCore::SharedBuffer> WebPageProxy::dataSelectionForPasteboard(const Str
     if (!hasRunningProcess())
         return nullptr;
 
-    if (!editorState().selectionIsRange)
+    if (editorState().selectionType != WebCore::SelectionType::Range)
         return nullptr;
 
-    auto sendResult = protectedLegacyMainFrameProcess()->sendSync(Messages::WebPage::GetDataSelectionForPasteboard(pasteboardType), webPageIDInMainFrameProcess(), timeoutForPasteboardSyncIPC);
+    auto sendResult = protect(legacyMainFrameProcess())->sendSync(Messages::WebPage::GetDataSelectionForPasteboard(pasteboardType), webPageIDInMainFrameProcess(), timeoutForPasteboardSyncIPC);
     auto [buffer] = sendResult.takeReplyOr(nullptr);
     return buffer;
 }
@@ -288,10 +300,10 @@ bool WebPageProxy::readSelectionFromPasteboard(const String& pasteboardName)
         return false;
 
     if (auto replyID = grantAccessToCurrentPasteboardData(pasteboardName, [] () { }))
-        protectedWebsiteDataStore()->protectedNetworkProcess()->protectedConnection()->waitForAsyncReplyAndDispatchImmediately<Messages::NetworkProcess::AllowFilesAccessFromWebProcess>(*replyID, 100_ms);
+        protect(protect(protect(websiteDataStore())->networkProcess())->connection())->waitForAsyncReplyAndDispatchImmediately<Messages::NetworkProcess::AllowFilesAccessFromWebProcess>(*replyID, 100_ms);
 
     const Seconds messageTimeout(20);
-    auto sendResult = protectedLegacyMainFrameProcess()->sendSync(Messages::WebPage::ReadSelectionFromPasteboard(pasteboardName), webPageIDInMainFrameProcess(), messageTimeout);
+    auto sendResult = protect(legacyMainFrameProcess())->sendSync(Messages::WebPage::ReadSelectionFromPasteboard(pasteboardName), webPageIDInMainFrameProcess(), messageTimeout);
     auto [result] = sendResult.takeReplyOr(false);
     return result;
 }
@@ -329,7 +341,7 @@ void WebPageProxy::setSmartInsertDeleteEnabled(bool isSmartInsertDeleteEnabled)
 
     TextChecker::setSmartInsertDeleteEnabled(isSmartInsertDeleteEnabled);
     m_isSmartInsertDeleteEnabled = isSmartInsertDeleteEnabled;
-    protectedLegacyMainFrameProcess()->send(Messages::WebPage::SetSmartInsertDeleteEnabled(isSmartInsertDeleteEnabled), webPageIDInMainFrameProcess());
+    protect(legacyMainFrameProcess())->send(Messages::WebPage::SetSmartInsertDeleteEnabled(isSmartInsertDeleteEnabled), webPageIDInMainFrameProcess());
 }
 
 void WebPageProxy::didPerformDictionaryLookup(const DictionaryPopupInfo& dictionaryPopupInfo)
@@ -337,7 +349,7 @@ void WebPageProxy::didPerformDictionaryLookup(const DictionaryPopupInfo& diction
     if (RefPtr pageClient = this->pageClient()) {
         pageClient->didPerformDictionaryLookup(dictionaryPopupInfo);
 
-        DictionaryLookup::showPopup(dictionaryPopupInfo, pageClient->protectedViewForPresentingRevealPopover().get(), [this](TextIndicator& textIndicator) {
+        DictionaryLookup::showPopup(dictionaryPopupInfo, protect(pageClient->viewForPresentingRevealPopover()).get(), [this](TextIndicator& textIndicator) {
             setTextIndicator(textIndicator, WebCore::TextIndicatorLifetime::Permanent);
         }, nullptr, [weakThis = WeakPtr { *this }] {
             if (RefPtr protectedThis = weakThis.get())
@@ -353,7 +365,7 @@ void WebPageProxy::registerWebProcessAccessibilityToken(std::span<const uint8_t>
 
     // Note: The WebFrameProxy with this FrameIdentifier might not exist in the UI process. See rdar://130998804.
     if (RefPtr pageClient = this->pageClient())
-        pageClient->accessibilityWebProcessTokenReceived(data, protectedLegacyMainFrameProcess()->protectedConnection()->remoteProcessID());
+        pageClient->accessibilityWebProcessTokenReceived(data, protect(protect(legacyMainFrameProcess())->connection())->remoteProcessID());
 }
 
 void WebPageProxy::makeFirstResponder()
@@ -379,12 +391,7 @@ void WebPageProxy::semanticContextDidChange()
     if (!hasRunningProcess())
         return;
 
-    protectedLegacyMainFrameProcess()->send(Messages::WebPage::SemanticContextDidChange(useFormSemanticContext()), webPageIDInMainFrameProcess());
-}
-
-WebCore::DestinationColorSpace WebPageProxy::colorSpace()
-{
-    return protectedPageClient()->colorSpace();
+    protect(legacyMainFrameProcess())->send(Messages::WebPage::SemanticContextDidChange(useFormSemanticContext()), webPageIDInMainFrameProcess());
 }
 
 void WebPageProxy::registerUIProcessAccessibilityTokens(WebCore::AccessibilityRemoteToken elementToken, WebCore::AccessibilityRemoteToken windowToken)
@@ -392,7 +399,7 @@ void WebPageProxy::registerUIProcessAccessibilityTokens(WebCore::AccessibilityRe
     if (!hasRunningProcess())
         return;
 
-    protectedLegacyMainFrameProcess()->send(Messages::WebPage::RegisterUIProcessAccessibilityTokens(elementToken, windowToken), webPageIDInMainFrameProcess());
+    protect(legacyMainFrameProcess())->send(Messages::WebPage::RegisterUIProcessAccessibilityTokens(elementToken, windowToken), webPageIDInMainFrameProcess());
 }
 
 void WebPageProxy::executeSavedCommandBySelector(IPC::Connection& connection, const String& selector, CompletionHandler<void(bool)>&& completionHandler)
@@ -407,11 +414,11 @@ void WebPageProxy::executeSavedCommandBySelector(IPC::Connection& connection, co
 
 bool WebPageProxy::shouldDelayWindowOrderingForEvent(const WebKit::WebMouseEvent& event)
 {
-    if (protectedLegacyMainFrameProcess()->state() != WebProcessProxy::State::Running)
+    if (legacyMainFrameProcess().state() != WebProcessProxy::State::Running)
         return false;
 
     const Seconds messageTimeout(3);
-    auto sendResult = protectedLegacyMainFrameProcess()->sendSync(Messages::WebPage::ShouldDelayWindowOrderingEvent(event), webPageIDInMainFrameProcess(), messageTimeout);
+    auto sendResult = protect(legacyMainFrameProcess())->sendSync(Messages::WebPage::ShouldDelayWindowOrderingEvent(event), webPageIDInMainFrameProcess(), messageTimeout);
     auto [result] = sendResult.takeReplyOr(false);
     return result;
 }
@@ -429,10 +436,12 @@ bool WebPageProxy::acceptsFirstMouse(int eventNumber, const WebKit::WebMouseEven
         return false;
 
     legacyMainFrameProcess->send(Messages::WebPage::RequestAcceptsFirstMouse(eventNumber, event), webPageIDInMainFrameProcess(), IPC::SendOption::DispatchMessageEvenWhenWaitingForUnboundedSyncReply);
-    bool receivedReply = legacyMainFrameProcess->protectedConnection()->waitForAndDispatchImmediately<Messages::WebPageProxy::HandleAcceptsFirstMouse>(webPageIDInMainFrameProcess(), 3_s, IPC::WaitForOption::InterruptWaitingIfSyncMessageArrives) == IPC::Error::NoError;
+    bool receivedReply = protect(legacyMainFrameProcess->connection())->waitForAndDispatchImmediately<Messages::WebPageProxy::HandleAcceptsFirstMouse>(webPageIDInMainFrameProcess(), 250_ms, IPC::WaitForOption::InterruptWaitingIfSyncMessageArrives) == IPC::Error::NoError;
 
-    if (!receivedReply)
+    if (!receivedReply) {
+        WEBPAGEPROXY_RELEASE_LOG_ERROR(MouseHandling, "acceptsFirstMouse: associated WebContent failed to process RequestAcceptsFirstMouse within 250 ms");
         return false;
+    }
 
     return m_acceptsFirstMouse;
 }
@@ -468,8 +477,39 @@ void WebPageProxy::setOverflowHeightForTopScrollEdgeEffect(double value)
 
     m_overflowHeightForTopScrollEdgeEffect = value;
 
-    protectedLegacyMainFrameProcess()->send(Messages::WebPage::SetOverflowHeightForTopScrollEdgeEffect(value), webPageIDInMainFrameProcess());
+    protect(legacyMainFrameProcess())->send(Messages::WebPage::SetOverflowHeightForTopScrollEdgeEffect(value), webPageIDInMainFrameProcess());
 }
+
+#if ENABLE(SCROLL_POCKET_IN_FULLSCREEN)
+
+void WebPageProxy::setWindowIsInNativeFullScreen(WindowIsInNativeFullScreen windowIsInNativeFullScreen)
+{
+    auto isInFullScreen = windowIsInNativeFullScreen == WindowIsInNativeFullScreen::Yes;
+    if (m_windowIsInNativeFullScreen == isInFullScreen)
+        return;
+
+    m_windowIsInNativeFullScreen = isInFullScreen;
+
+    if (!hasRunningProcess())
+        return;
+
+    protect(legacyMainFrameProcess())->send(Messages::WebPage::SetFullScreenTitlebarOverlayIsDisplayed(fullScreenTitlebarOverlayIsDisplayed()), webPageIDInMainFrameProcess());
+}
+
+void WebPageProxy::setFullScreenTitlebarOverlayIsRevealed(bool fullScreenTitlebarOverlayIsRevealed)
+{
+    if (m_fullScreenTitlebarOverlayIsRevealed == fullScreenTitlebarOverlayIsRevealed)
+        return;
+
+    m_fullScreenTitlebarOverlayIsRevealed = fullScreenTitlebarOverlayIsRevealed;
+
+    if (!hasRunningProcess())
+        return;
+
+    protect(legacyMainFrameProcess())->send(Messages::WebPage::SetFullScreenTitlebarOverlayIsDisplayed(fullScreenTitlebarOverlayIsDisplayed()), webPageIDInMainFrameProcess());
+}
+
+#endif
 
 void WebPageProxy::setObscuredContentInsetsAsync(const FloatBoxExtent& obscuredContentInsets)
 {
@@ -533,31 +573,16 @@ CALayer *WebPageProxy::acceleratedCompositingRootLayer() const
     return pageClient ? pageClient->acceleratedCompositingRootLayer() : nullptr;
 }
 
-RetainPtr<CALayer> WebPageProxy::protectedAcceleratedCompositingRootLayer() const
-{
-    return acceleratedCompositingRootLayer();
-}
-
 CALayer *WebPageProxy::headerBannerLayer() const
 {
     RefPtr pageClient = this->pageClient();
     return pageClient ? pageClient->headerBannerLayer() : nullptr;
 }
 
-RetainPtr<CALayer> WebPageProxy::protectedHeaderBannerLayer() const
-{
-    return headerBannerLayer();
-}
-
 CALayer *WebPageProxy::footerBannerLayer() const
 {
     RefPtr pageClient = this->pageClient();
     return pageClient ? pageClient->footerBannerLayer() : nullptr;
-}
-
-RetainPtr<CALayer> WebPageProxy::protectedFooterBannerLayer() const
-{
-    return footerBannerLayer();
 }
 
 int WebPageProxy::headerBannerHeight() const
@@ -716,19 +741,36 @@ void WebPageProxy::showPDFContextMenu(const WebKit::PDFContextMenu& contextMenu,
         [nsMenu insertItem:nsItem.get() atIndex:i];
     }
     RetainPtr window = pageClient->platformWindow();
-    auto location = [window convertRectFromScreen: { contextMenu.point, NSZeroSize }].origin;
-    auto event = createSyntheticEventForContextMenu(location);
 
     RetainPtr<NSView> view = window.get().contentView;
-    [NSMenu popUpContextMenu:nsMenu.get() withEvent:event.get() forView:view.get()];
+    auto locationInWindowCoordinates = [window convertRectFromScreen: { contextMenu.point, NSZeroSize }].origin;
 
-    if (RetainPtr selectedMenuItem = [menuTarget selectedMenuItem]) {
-        NSInteger tag = selectedMenuItem.get().tag;
-        if (contextMenu.openInDefaultViewerTag == tag)
-            pdfOpenWithPreview(identifier, frameID);
-        return completionHandler(tag);
+    auto handleSelectedMenuItem = [this, protectedThis = Ref { *this }, menuTarget, contextMenu, frameID, identifier, completionHandler = WTF::move(completionHandler)] mutable {
+        if (RetainPtr selectedMenuItem = [menuTarget selectedMenuItem]) {
+            NSInteger tag = [selectedMenuItem tag];
+            if (contextMenu.openInDefaultViewerTag == tag)
+                pdfOpenWithPreview(identifier, frameID);
+
+            completionHandler(tag);
+            return;
+        }
+
+        completionHandler(std::nullopt);
+    };
+
+    if (contextMenu.inputSource == WebEventInputSource::Automation) {
+#if HAVE(APPKIT_GESTURES_SUPPORT)
+        NSPoint locationInScreenCoordinates = [window convertPointToScreen:locationInWindowCoordinates];
+        RetainPtr screenRelativeContext = [_NSViewMenuContext menuContextWithLocation:locationInScreenCoordinates source:ContextMenuRequestSourceForAutomation];
+        [NSMenu _popUpContextMenu:nsMenu.get() withContext:screenRelativeContext.get() forView:view.get() completionBlock:makeBlockPtr(WTF::move(handleSelectedMenuItem)).get()];
+#else
+        RELEASE_ASSERT_NOT_REACHED();
+#endif
+    } else {
+        RetainPtr event = createSyntheticEventForContextMenu(locationInWindowCoordinates);
+        [NSMenu popUpContextMenu:nsMenu.get() withEvent:event.get() forView:view.get()];
+        handleSelectedMenuItem();
     }
-    completionHandler(std::nullopt);
 }
 #endif
 
@@ -739,7 +781,7 @@ void WebPageProxy::showTelephoneNumberMenu(const String& telephoneNumber, const 
     if (!pageClient)
         return;
 
-    RetainPtr menu = menuForTelephoneNumber(telephoneNumber, pageClient->protectedViewForPresentingRevealPopover().get(), rect);
+    RetainPtr menu = menuForTelephoneNumber(telephoneNumber, protect(pageClient->viewForPresentingRevealPopover()).get(), rect);
     pageClient->showPlatformContextMenu(menu.get(), point);
 }
 #endif
@@ -752,7 +794,7 @@ CGRect WebPageProxy::boundsOfLayerInLayerBackedWindowCoordinates(CALayer *layer)
 
 void WebPageProxy::didUpdateEditorState(const EditorState& oldEditorState, const EditorState& newEditorState)
 {
-    bool couldChangeSecureInputState = newEditorState.isInPasswordField != oldEditorState.isInPasswordField || oldEditorState.selectionIsNone;
+    bool couldChangeSecureInputState = newEditorState.isInPasswordField != oldEditorState.isInPasswordField || oldEditorState.selectionType == WebCore::SelectionType::None;
 
     // FIXME: <rdar://175390893> WebPageProxy::didUpdateEditorState only updates
     // the secure input state if `isInPasswordField` changed across EditorStates.
@@ -763,7 +805,7 @@ void WebPageProxy::didUpdateEditorState(const EditorState& oldEditorState, const
         couldChangeSecureInputState = true;
 
     // Selection being none is a temporary state when editing. Flipping secure input state too quickly was causing trouble (not fully understood).
-    if (couldChangeSecureInputState && !newEditorState.selectionIsNone) {
+    if (couldChangeSecureInputState && newEditorState.selectionType != WebCore::SelectionType::None) {
         if (RefPtr pageClient = this->pageClient())
             pageClient->updateSecureInputState();
     }
@@ -788,25 +830,16 @@ NSWindow *WebPageProxy::platformWindow()
     return pageClient ? pageClient->platformWindow() : nullptr;
 }
 
-RetainPtr<NSWindow> WebPageProxy::protectedPlatformWindow()
-{
-    return platformWindow();
-}
-
 void WebPageProxy::rootViewToWindow(const WebCore::IntRect& viewRect, WebCore::IntRect& windowRect)
 {
     RefPtr pageClient = this->pageClient();
     windowRect = pageClient ? pageClient->rootViewToWindow(viewRect) : WebCore::IntRect { };
 }
 
-void WebPageProxy::showValidationMessage(const IntRect& anchorClientRect, String&& message)
+void WebPageProxy::showValidationMessageWithMainFrameRect(const IntRect& mainFrameAnchorRect)
 {
-    RefPtr pageClient = this->pageClient();
-    if (!pageClient)
-        return;
-
-    m_validationBubble = protectedPageClient()->createValidationBubble(WTF::move(message), { protectedPreferences()->minimumFontSize() });
-    RefPtr { m_validationBubble }->showRelativeTo(anchorClientRect);
+    if (RefPtr bubble = m_validationBubble)
+        bubble->showRelativeTo(mainFrameAnchorRect);
 }
 
 RetainPtr<NSView> WebPageProxy::inspectorAttachmentView()
@@ -826,7 +859,7 @@ NSMenu *WebPageProxy::activeContextMenu() const
 
 RetainPtr<NSEvent> WebPageProxy::createSyntheticEventForContextMenu(FloatPoint location) const
 {
-    RetainPtr window = protectedPageClient()->platformWindow();
+    RetainPtr window = protect(pageClient())->platformWindow();
     return [NSEvent mouseEventWithType:NSEventTypeRightMouseUp location:location modifierFlags:0 timestamp:0 windowNumber:[window windowNumber] context:nil eventNumber:0 clickCount:0 pressure:0];
 }
 
@@ -852,7 +885,7 @@ std::optional<IPC::AsyncReplyID> WebPageProxy::willPerformPasteCommand(DOMPasteA
 
 RetainPtr<NSView> WebPageProxy::Internals::platformView() const
 {
-    RefPtr pageClient = protectedPage()->pageClient();
+    RefPtr pageClient = page->pageClient();
     if (!pageClient)
         return nullptr;
     RetainPtr window = pageClient->platformWindow();
@@ -877,6 +910,12 @@ void WebPageProxy::updatePDFHUDLocation(PDFPluginIdentifier identifier, const We
 {
     if (RefPtr pageClient = this->pageClient())
         pageClient->updatePDFHUDLocation(identifier, rect);
+}
+
+void WebPageProxy::showPDFHUD(PDFPluginIdentifier identifier)
+{
+    if (RefPtr pageClient = this->pageClient())
+        pageClient->showPDFHUD(identifier);
 }
 
 void WebPageProxy::pdfZoomIn(PDFPluginIdentifier identifier, WebCore::FrameIdentifier frameID)
@@ -1047,16 +1086,12 @@ bool WebPageProxy::shouldEnableWritingToolsRequestedTool(WebCore::WritingTools::
 {
     WTRequestedTool requestedTool = convertToPlatformRequestedTool(tool);
 
-    if (requestedTool == WTRequestedToolIndex)
+    if (requestedTool == WTRequestedToolIndex || requestedTool == WTRequestedToolCompose)
         return true;
 
     auto& editorState = this->editorState();
-    bool editorStateIsContentEditable = editorState.isContentEditable;
 
-    if (requestedTool == WTRequestedToolCompose)
-        return editorStateIsContentEditable;
-
-    if (editorStateIsContentEditable)
+    if (editorState.isContentEditable)
         return editorState.hasPostLayoutData() && !editorState.postLayoutData->paragraphContextForCandidateRequest.isEmpty();
 
     return true;
@@ -1104,7 +1139,7 @@ void WebPageProxy::handleContextMenuWritingTools(WebCore::WritingTools::Requeste
 
 WebCore::FloatRect WebPageProxy::selectionBoundingRectInRootViewCoordinates() const
 {
-    if (editorState().selectionIsNone)
+    if (editorState().selectionType == WebCore::SelectionType::None)
         return { };
 
     if (!editorState().hasPostLayoutData())
@@ -1145,7 +1180,7 @@ void WebPageProxy::setScrollbarAvoidanceCornerRadii(CornerRadii&& cornerRadii)
     if (!hasRunningProcess())
         return;
 
-    protectedLegacyMainFrameProcess()->send(Messages::WebPage::SetScrollbarAvoidanceCornerRadii(cornerRadii), webPageIDInMainFrameProcess());
+    protect(legacyMainFrameProcess())->send(Messages::WebPage::SetScrollbarAvoidanceCornerRadii(cornerRadii), webPageIDInMainFrameProcess());
 }
 #endif
 
@@ -1165,6 +1200,30 @@ void WebPageProxy::platformUnlockPointer()
 
 #endif
 
+void WebPageProxy::interruptSyntheticMomentumScrolling()
+{
+    auto timestamp = MonotonicTime::now();
+    WebWheelEvent cancelEvent {
+        { WebEventType::Wheel, { }, timestamp, WTF::UUID::createVersion4() },
+        WebCore::IntPoint { },
+        WebCore::IntPoint { },
+        WebCore::FloatSize { },
+        WebCore::FloatSize { },
+        WebWheelEvent::Granularity::ScrollByPixelWheelEvent,
+        false,
+        WebWheelEvent::Phase::Cancelled,
+        WebWheelEvent::Phase::None,
+        true,
+        1,
+        WebCore::FloatSize { },
+        timestamp,
+        std::nullopt,
+        WebWheelEvent::MomentumEndType::Interrupted,
+        WebEventInputSource::Automation
+    };
+    handleNativeWheelEvent(NativeWebWheelEvent { cancelEvent });
+}
+
 } // namespace WebKit
 
 #endif // PLATFORM(MAC)
@@ -1172,3 +1231,4 @@ void WebPageProxy::platformUnlockPointer()
 #undef MESSAGE_CHECK_URL
 #undef MESSAGE_CHECK_COMPLETION
 #undef MESSAGE_CHECK
+#undef WEBPAGEPROXY_RELEASE_LOG_ERROR

@@ -58,13 +58,13 @@
 
 namespace WebKit {
 
-static Vector<String>& overrideLanguagesFromBootstrap()
+static Vector<String>& NODELETE overrideLanguagesFromBootstrap()
 {
     static NeverDestroyed<Vector<String>> languages;
     return languages;
 }
 
-static void stageOverrideLanguagesForMainThread(Vector<String>&& languages)
+static void NODELETE stageOverrideLanguagesForMainThread(Vector<String>&& languages)
 {
     RELEASE_ASSERT(overrideLanguagesFromBootstrap().isEmpty());
     overrideLanguagesFromBootstrap().swap(languages);
@@ -128,10 +128,10 @@ static void checkFrameworkVersion(xpc_object_t message)
 
 static bool s_isWebProcess = false;
 
-static void setUserDirSuffix(ASCIILiteral suffix)
+static void setUserDirSuffix(String&& suffix)
 {
 #if PLATFORM(IOS_FAMILY)
-    if (_set_user_dir_suffix(suffix)) {
+    if (_set_user_dir_suffix(suffix.utf8().data())) {
         RELEASE_LOG(IPC, "Successfully set temp dir");
         confstr(_CS_DARWIN_USER_TEMP_DIR, nullptr, 0);
         return;
@@ -144,7 +144,7 @@ static void setUserDirSuffix(ASCIILiteral suffix)
 
 void XPCServiceEventHandler(xpc_connection_t peer)
 {
-    XPCObjectPtr<xpc_connection_t> retainedPeerConnection(peer);
+    OSObjectPtr<xpc_connection_t> retainedPeerConnection(peer);
 
     xpc_connection_set_target_queue(peer, globalDispatchQueueSingleton(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0));
     xpc_connection_set_event_handler(peer, ^(xpc_object_t event) {
@@ -167,10 +167,6 @@ void XPCServiceEventHandler(xpc_connection_t peer)
             return;
         }
 
-#if USE(EXIT_XPC_MESSAGE_WORKAROUND)
-        handleXPCExitMessage(event);
-#endif
-
         String messageName = xpcDictionaryGetString(event, "message-name"_s);
         if (!messageName) {
             RELEASE_LOG_ERROR(IPC, "XPCServiceEventHandler: 'message-name' is not present in the XPC dictionary");
@@ -182,7 +178,7 @@ void XPCServiceEventHandler(xpc_connection_t peer)
             bool disableLogging = xpc_dictionary_get_bool(event, "disable-logging");
             initializeLogd(disableLogging, retainedPeerConnection.get());
 
-            if (XPCObjectPtr<xpc_object_t> languages = xpc_dictionary_get_value(event, "OverrideLanguages")) {
+            if (OSObjectPtr<xpc_object_t> languages = xpc_dictionary_get_value(event, "OverrideLanguages")) {
                 Vector<String> newLanguages;
                 @autoreleasepool {
                     xpc_array_apply(languages.get(), makeBlockPtr([&newLanguages](size_t index, xpc_object_t value) {
@@ -200,8 +196,8 @@ void XPCServiceEventHandler(xpc_connection_t peer)
 #endif
 
 #if PLATFORM(IOS_FAMILY)
-            if (auto containerEnvironmentVariables = xpc_dictionary_get_value(event, "ContainerEnvironmentVariables")) {
-                xpc_dictionary_apply(containerEnvironmentVariables, ^(const char *key, xpc_object_t value) {
+            if (RetainPtr containerEnvironmentVariables = xpc_dictionary_get_value(event, "ContainerEnvironmentVariables")) {
+                xpc_dictionary_apply(containerEnvironmentVariables.get(), ^(const char *key, xpc_object_t value) {
                     setenv(key, xpc_string_get_string_ptr(value), 1);  // NOLINT
                     return true;
                 });
@@ -213,10 +209,14 @@ void XPCServiceEventHandler(xpc_connection_t peer)
                 return;
             }
 
+            String uiProcessName = xpcDictionaryGetString(event, "ui-process-name"_s);
+
             CFStringRef entryPointFunctionName = nullptr;
             if (serviceName.startsWith(webContentServiceName)) {
                 s_isWebProcess = true;
-#if !USE(EXTENSIONKIT)
+#if USE(EXTENSIONKIT)
+                setUserDirSuffix(WTF::move(uiProcessName));
+#else
                 setUserDirSuffix(webContentServiceName);
 #endif
                 entryPointFunctionName = CFSTR(STRINGIZE_VALUE_OF(WEBCONTENT_SERVICE_INITIALIZER));
@@ -224,7 +224,11 @@ void XPCServiceEventHandler(xpc_connection_t peer)
                 setUserDirSuffix(networkingServiceName);
                 entryPointFunctionName = CFSTR(STRINGIZE_VALUE_OF(NETWORK_SERVICE_INITIALIZER));
             } else if (serviceName == gpuServiceName) {
+#if USE(EXTENSIONKIT)
+                setUserDirSuffix(WTF::move(uiProcessName));
+#else
                 setUserDirSuffix(gpuServiceName);
+#endif
                 entryPointFunctionName = CFSTR(STRINGIZE_VALUE_OF(GPU_SERVICE_INITIALIZER));
             } else if (serviceName == modelServiceName)
                 entryPointFunctionName = CFSTR(STRINGIZE_VALUE_OF(MODEL_SERVICE_INITIALIZER));
@@ -234,6 +238,10 @@ void XPCServiceEventHandler(xpc_connection_t peer)
             }
 
             RetainPtr webKitBundle = CFBundleGetBundleWithIdentifier(CFSTR("com.apple.WebKit"));
+            if (!webKitBundle) {
+                RetainPtr webKitFrameworkURL = adoptCF(CFURLCreateWithFileSystemPath(nullptr, CFSTR("/System/Library/Frameworks/WebKit.framework"), kCFURLPOSIXPathStyle, true));
+                webKitBundle = adoptCF(CFBundleCreate(nullptr, webKitFrameworkURL.get()));
+            }
             typedef void (*InitializerFunction)(xpc_connection_t, xpc_object_t);
             InitializerFunction initializerFunctionPtr = reinterpret_cast<InitializerFunction>(CFBundleGetFunctionPointerForName(webKitBundle.get(), entryPointFunctionName));
             if (!initializerFunctionPtr) {
@@ -245,9 +253,9 @@ void XPCServiceEventHandler(xpc_connection_t peer)
             }
 
             // FIXME: This is a false positive. <rdar://164843889>
-            SUPPRESS_RETAINPTR_CTOR_ADOPT auto reply = adoptXPCObject(xpc_dictionary_create_reply(event));
+            SUPPRESS_RETAINPTR_CTOR_ADOPT auto reply = adoptOSObject(xpc_dictionary_create_reply(event));
             xpc_dictionary_set_string(reply.get(), "message-name", "process-finished-launching");
-            xpc_connection_send_message(XPCObjectPtr<xpc_connection_t> { xpc_dictionary_get_remote_connection(event) }.get(), reply.get());
+            xpc_connection_send_message(OSObjectPtr<xpc_connection_t> { xpc_dictionary_get_remote_connection(event) }.get(), reply.get());
 
             int fd = xpc_dictionary_dup_fd(event, "stdout");
             if (fd != -1)
@@ -257,7 +265,7 @@ void XPCServiceEventHandler(xpc_connection_t peer)
             if (fd != -1)
                 dup2(fd, STDERR_FILENO);
 
-            WorkQueue::mainSingleton().dispatchSync([initializerFunctionPtr, event = XPCObjectPtr<xpc_object_t>(event), retainedPeerConnection] {
+            WorkQueue::mainSingleton().dispatchSync([initializerFunctionPtr, event = OSObjectPtr<xpc_object_t>(event), retainedPeerConnection] {
                 WTF::initializeMainThread();
 
                 initializeCFPrefs();
@@ -281,7 +289,7 @@ void XPCServiceEventHandler(xpc_connection_t peer)
 int XPCServiceMain(int, const char**)
 {
     // FIXME: This is a false positive. <rdar://164843889>
-    SUPPRESS_RETAINPTR_CTOR_ADOPT auto bootstrap = adoptXPCObject(xpc_copy_bootstrap());
+    SUPPRESS_RETAINPTR_CTOR_ADOPT auto bootstrap = adoptOSObject(xpc_copy_bootstrap());
 
     if (bootstrap) {
 #if PLATFORM(MAC) || PLATFORM(MACCATALYST)

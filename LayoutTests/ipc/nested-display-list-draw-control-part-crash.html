@@ -129,16 +129,18 @@ async function main() {
         // Mix part types so the singleton ControlFactoryMac would touch several
         // distinct lazy NSCell members and the shared WebControlView on every replay.
         // StyleAppearance integer values match Source/WebCore/platform/StyleAppearance.h
-        // on this branch: None=0, Auto=1, Base=2, Checkbox=3, Radio=4, PushButton=5,
-        // SquareButton=6, Button=7, DefaultButton=8. If the enum reorders the test
-        // throws a SerializationError (visible text-diff failure) rather than silently
-        // passing.
+        // on main: None=0, Auto=1, Base=2, BaseSelect=3, Checkbox=4, Radio=5,
+        // PushButton=6, SquareButton=7, Button=8, DefaultButton=9. Each value must be
+        // valid for its ControlPart subclass (ButtonPart accepts Button/DefaultButton/
+        // PushButton/SquareButton; ToggleButtonPart accepts Checkbox/Radio) or CoreIPC's
+        // serializer throws a SerializationError (visible text-diff failure) rather than
+        // silently passing.
         const items = [
-            ['WebCore::ButtonPart', 7],          // Button         -> m_buttonCell
-            ['WebCore::ButtonPart', 8],          // DefaultButton  -> m_defaultButtonCell
-            ['WebCore::ButtonPart', 5],          // PushButton     -> m_buttonCell
-            ['WebCore::ToggleButtonPart', 3],    // Checkbox       -> m_checkboxCell
-            ['WebCore::ToggleButtonPart', 4],    // Radio          -> m_radioCell
+            ['WebCore::ButtonPart', 8],          // Button         -> m_buttonCell
+            ['WebCore::ButtonPart', 9],          // DefaultButton  -> m_defaultButtonCell
+            ['WebCore::ButtonPart', 6],          // PushButton     -> m_buttonCell
+            ['WebCore::ToggleButtonPart', 4],    // Checkbox       -> m_checkboxCell
+            ['WebCore::ToggleButtonPart', 5],    // Radio          -> m_radioCell
             ['WebCore::MenuListPart', undefined],
             ['WebCore::SearchFieldPart', undefined],
         ];
@@ -182,7 +184,10 @@ async function main() {
         D.ib.remoteGraphicsContext.DrawDisplayList({ identifier: D.outerDL });
     }
 
-    await new Promise(r => setTimeout(r, 2000));
+    const deadline = performance.now() + 2000;
+    while (performance.now() < deadline) { }
+    for (const backend of [A, B, C, D])
+        backend.rb.streamConnection.connection.invalidate();
 }
 
 setTimeout(() => {

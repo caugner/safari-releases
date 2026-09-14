@@ -1,3 +1,4 @@
+//@ memoryHog!
 function startScan() {
     for (let i = 0; i < 5; i++) {
         new WebAssembly.Memory({

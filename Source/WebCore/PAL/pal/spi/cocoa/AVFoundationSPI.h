@@ -25,6 +25,9 @@
 
 #pragma once
 
+// FIXME: Remove the `__has_feature(modules)` condition when possible.
+#if !__has_feature(modules)
+
 DECLARE_SYSTEM_HEADER
 
 #import <objc/runtime.h>
@@ -131,10 +134,15 @@ typedef NS_OPTIONS(NSUInteger, AVOutputDeviceFeatures) {
     AVOutputDeviceFeatureVideo = (1UL << 2),
 };
 
+typedef NS_ENUM(NSInteger, AVOutputDeviceType) {
+    AVOutputDeviceTypeCustomProtocol = 5,
+};
+
 @interface AVOutputDevice : NSObject
 @property (nonatomic, readonly) NSString *name;
 @property (nonatomic, readonly) NSString *deviceName;
 @property (nonatomic, readonly) AVOutputDeviceFeatures deviceFeatures;
+@property (nonatomic, readonly) AVOutputDeviceType deviceType;
 @end
 
 #if !PLATFORM(IOS_FAMILY)
@@ -181,8 +189,7 @@ NS_ASSUME_NONNULL_END
 #pragma mark -
 #pragma mark AVStreamDataParser
 
-@protocol AVStreamDataParserOutputHandling <NSObject>
-@end
+@protocol AVStreamDataParserOutputHandling;
 
 typedef int32_t CMPersistentTrackID;
 
@@ -407,7 +414,7 @@ NS_ASSUME_NONNULL_END
 @end
 #endif // HAVE(BROWSER_ENGINE_SUPPORTING_API)
 
-#if !USE(APPLE_INTERNAL_SDK) && HAVE(AVAUDIOSESSION) && !PLATFORM(MACCATALYST)
+#if !USE(APPLE_INTERNAL_SDK) && !PLATFORM(MACCATALYST)
 #import <AVFoundation/AVAudioSession.h>
 
 NS_ASSUME_NONNULL_BEGIN
@@ -492,3 +499,5 @@ NS_ASSUME_NONNULL_BEGIN
 - (instancetype)_initWithWebKitPropertyListData:(NSDictionary *)plist;
 @end
 NS_ASSUME_NONNULL_END
+
+#endif // !__has_feature(modules)

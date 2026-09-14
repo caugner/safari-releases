@@ -166,10 +166,9 @@ public:
 
     LayerType layerType() const { return m_layerType; }
     
-    bool canHaveBackingStore() const;
+    bool NODELETE canHaveBackingStore() const;
 
     virtual PlatformCALayer* superlayer() const = 0;
-    RefPtr<PlatformCALayer> protectedSuperlayer() const { return superlayer(); }
     virtual void removeFromSuperlayer() = 0;
     virtual void setSublayers(const PlatformCALayerList&) = 0;
     virtual PlatformCALayerList sublayersForLogging() const = 0;
@@ -195,7 +194,7 @@ public:
 #endif
 
     virtual void setMaskLayer(RefPtr<PlatformCALayer>&&);
-    PlatformCALayer* maskLayer() const;
+    PlatformCALayer* NODELETE maskLayer() const;
 
     virtual bool isOpaque() const = 0;
     virtual void setOpaque(bool) = 0;
@@ -313,7 +312,7 @@ public:
 
     virtual const EventRegion* eventRegion() const { return nullptr; }
     virtual void setEventRegion(const EventRegion&) { }
-    
+
 #if ENABLE(SCROLLING_THREAD)
     virtual std::optional<ScrollingNodeID> scrollingNodeID() const { return std::nullopt; }
     virtual void setScrollingNodeID(std::optional<ScrollingNodeID>) { }

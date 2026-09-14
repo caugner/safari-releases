@@ -41,8 +41,8 @@ public:
         : m_initiatorType(initiatorType)
         , m_resourceURL(resourceURL)
         , m_baseURL(baseURL.isolatedCopy())
-        , m_resourceType(resourceType)
         , m_mediaAttribute(mediaAttribute)
+        , m_resourceType(resourceType)
         , m_scriptType(scriptType)
         , m_referrerPolicy(referrerPolicy)
         , m_fetchPriority(fetchPriority)
@@ -51,11 +51,12 @@ public:
 
     CachedResourceRequest resourceRequest(Document&);
 
-    const String& charset() const { return m_charset; }
-    const String& media() const { return m_mediaAttribute; }
+    const String& charset() const LIFETIME_BOUND { return m_charset; }
+    const String& media() const LIFETIME_BOUND { return m_mediaAttribute; }
     void setCharset(const String& charset) { m_charset = charset.isolatedCopy(); }
     void setCrossOriginMode(const String& mode) { m_crossOriginMode = mode; }
     void setNonce(const String& nonce) { m_nonceAttribute = nonce; }
+    void setIntegrity(const String& integrity) { m_integrityAttribute = integrity; }
     void setScriptIsAsync(bool value) { m_scriptIsAsync = value; }
     CachedResource::Type resourceType() const { return m_resourceType; }
 
@@ -66,11 +67,12 @@ private:
     String m_resourceURL;
     URL m_baseURL;
     String m_charset;
-    CachedResource::Type m_resourceType;
     String m_mediaAttribute;
     String m_crossOriginMode;
     String m_nonceAttribute;
+    String m_integrityAttribute;
     bool m_scriptIsAsync { false };
+    CachedResource::Type m_resourceType;
     ScriptType m_scriptType;
     ReferrerPolicy m_referrerPolicy;
     RequestPriority m_fetchPriority;

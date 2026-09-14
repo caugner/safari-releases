@@ -49,7 +49,7 @@ private:
     void addRulesFromSheetContents(const StyleSheetContents&);
     void addChildRules(const Vector<Ref<StyleRuleBase>>&);
     void addChildRule(Ref<StyleRuleBase>);
-    void disallowDynamicMediaQueryEvaluationIfNeeded();
+    void NODELETE disallowDynamicMediaQueryEvaluationIfNeeded();
     void addStyleRuleWithSelectorList(const CSSSelectorList&, const StyleRule&);
 
     void registerLayers(const Vector<CascadeLayerName>&);
@@ -96,9 +96,13 @@ private:
     RuleSet::ContainerQueryIdentifier m_currentContainerQueryIdentifier { 0 };
     RuleSet::ScopeRuleIdentifier m_currentScopeIdentifier { 0 };
 
-    OptionSet<UsedRuleType> m_usedRuleTypes { };
+    IsStartingStyle m_isStartingStyle { IsStartingStyle::No };
 
-    using FunctionDeclarationsList = Vector<Ref<const StyleRuleFunctionDeclarations>>;
+    struct FunctionDeclarationsBlock {
+        Ref<const StyleRuleFunctionDeclarations> declarations;
+        RuleSet::ContainerQueryIdentifier containerQueryIdentifier { 0 };
+    };
+    using FunctionDeclarationsList = Vector<FunctionDeclarationsBlock>;
     FunctionDeclarationsList m_currentFunctionDeclarationsList;
     HashMap<Ref<StyleRuleFunction>, FunctionDeclarationsList> m_functionDeclarationsMap;
 

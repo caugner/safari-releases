@@ -56,17 +56,17 @@ WebCoreOpaqueRoot root(CSSStyleDeclaration* style)
         return root(parentRule);
     if (auto* styleSheet = style->parentStyleSheet())
         return root(styleSheet);
-    if (auto* parentElement = style->parentElement())
+    if (SUPPRESS_UNCHECKED_LOCAL auto* parentElement = style->parentElement())
         return root(parentElement);
     return WebCoreOpaqueRoot { style };
 }
 
 template<typename Visitor>
-void JSCSSStyleDeclaration::visitAdditionalChildren(Visitor& visitor)
+void JSCSSStyleDeclaration::visitAdditionalChildrenInGCThread(Visitor& visitor)
 {
     addWebCoreOpaqueRoot(visitor, wrapped());
 }
 
-DEFINE_VISIT_ADDITIONAL_CHILDREN(JSCSSStyleDeclaration);
+DEFINE_VISIT_ADDITIONAL_CHILDREN_IN_GC_THREAD(JSCSSStyleDeclaration);
 
 } // namespace WebCore

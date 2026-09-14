@@ -14,9 +14,7 @@ PACKAGES+=(
     libicu-dev
     libxml2-dev
     pkg-config
-    qtbase5-dev
-    qtbase5-private-dev
-    qtdeclarative5-dev
+    qt6-declarative-private-dev
     unifdef
     wayland-protocols
     zlib1g-dev
@@ -38,6 +36,7 @@ PACKAGES+=(
     libxcb-xkb-dev
     libxkbcommon-dev
     libxrandr-dev
+    libunwind-dev
 
     # These are dependencies necessary for building Cog.
     libxcb-cursor-dev

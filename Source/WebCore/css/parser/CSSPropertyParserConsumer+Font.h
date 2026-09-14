@@ -51,6 +51,7 @@ enum class FontTechnology : uint8_t;
 struct CSSParserContext;
 
 namespace CSS {
+struct FontStyleRange;
 struct PropertyParserState;
 }
 
@@ -113,8 +114,8 @@ RefPtr<CSSValue> consumeFontFamily(CSSParserTokenRange&, CSS::PropertyParserStat
 RefPtr<CSSValue> consumeFamilyName(CSSParserTokenRange&, CSS::PropertyParserState&);
 // Sub-production of 'font-family': <generic-family>
 // https://drafts.csswg.org/css-fonts-4/#generic-family-name-syntax
-const AtomString& genericFontFamily(CSSValueID);
-WebKitFontFamilyNames::FamilyNamesIndex genericFontFamilyIndex(CSSValueID);
+const AtomString& NODELETE genericFontFamily(CSSValueID);
+WebKitFontFamilyNames::FamilyNamesIndex NODELETE genericFontFamilyIndex(CSSValueID);
 
 // MARK: 'font-size-adjust'
 // https://drafts.csswg.org/css-fonts-4/#font-size-adjust-prop
@@ -149,6 +150,7 @@ RefPtr<CSSValue> parseFontFaceDisplay(const String&, ScriptExecutionContext&);
 // https://drafts.csswg.org/css-fonts-4/#descdef-font-face-font-style
 RefPtr<CSSValue> parseFontFaceFontStyle(const String&, ScriptExecutionContext&);
 RefPtr<CSSValue> consumeFontFaceFontStyle(CSSParserTokenRange&, CSS::PropertyParserState&);
+std::optional<CSS::FontStyleRange> consumeUnresolvedFontFaceFontStyle(CSSParserTokenRange&, CSS::PropertyParserState&);
 
 // MARK: @font-face 'font-feature-settings'
 // https://drafts.csswg.org/css-fonts-4/#descdef-font-face-font-feature-settings

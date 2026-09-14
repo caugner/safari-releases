@@ -98,7 +98,7 @@ private:
 
     State parseModuleHeader(Vector<uint8_t>&&);
     State parseSectionID(Vector<uint8_t>&&);
-    State parseSectionSize(uint32_t);
+    State NODELETE parseSectionSize(uint32_t);
     State parseSectionPayload(Vector<uint8_t>&&);
 
     State parseCodeSectionSize(uint32_t);
@@ -109,7 +109,7 @@ private:
     Expected<uint32_t, State> consumeVarUInt32(std::span<const uint8_t> bytes, size_t&, IsEndOfStream);
 
     void moveToStateIfNotFailed(State);
-    template <typename ...Args> WARN_UNUSED_RETURN NEVER_INLINE State fail(Args...);
+    template <typename ...Args> [[nodiscard]] NEVER_INLINE State fail(Args...);
 
     State failOnState(State);
 

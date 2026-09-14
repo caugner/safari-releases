@@ -44,6 +44,7 @@
 #include <wtf/RefCounted.h>
 #include <wtf/RefPtr.h>
 #include <wtf/TZoneMalloc.h>
+#include <wtf/UniqueRef.h>
 #include <wtf/WeakHashSet.h>
 
 namespace IPC {
@@ -61,6 +62,7 @@ namespace WebKit {
 
 class WebPage;
 class PlaybackSessionManager;
+class TextRecognitionRequest;
 
 class PlaybackSessionInterfaceContext final
     : public RefCounted<PlaybackSessionInterfaceContext>
@@ -139,8 +141,12 @@ public:
     void mediaEngineChanged(WebCore::HTMLMediaElement&);
     WebCore::HTMLMediaElementIdentifier contextIdForMediaElement(WebCore::HTMLMediaElement&);
 
-    WebCore::HTMLMediaElement* mediaElementWithContextId(WebCore::HTMLMediaElementIdentifier) const;
-    WebCore::HTMLMediaElement* currentPlaybackControlsElement() const;
+    WebCore::HTMLMediaElement* NODELETE mediaElementWithContextId(WebCore::HTMLMediaElementIdentifier) const;
+    WebCore::HTMLMediaElement* NODELETE currentPlaybackControlsElement() const;
+
+#if ENABLE(IMAGE_ANALYSIS)
+    void cancelTextRecognition();
+#endif
 
 #if HAVE(PIP_SKIP_PREROLL)
     void actionHandlersChanged() final;
@@ -229,11 +235,15 @@ private:
 
     void forEachModel(Function<void(WebCore::PlaybackSessionModel&)>&&);
 
+#if ENABLE(IMAGE_ANALYSIS)
+    TextRecognitionRequest& textRecognitionRequest() { return m_textRecognitionRequest.get(); }
+#endif
+
 #if !RELEASE_LOG_DISABLED
     const Logger& logger() const { return m_logger; }
     uint64_t logIdentifier() const { return m_logIdentifier; }
     ASCIILiteral logClassName() const { return "VideoPresentationManager"_s; }
-    WTFLogChannel& logChannel() const;
+    WTFLogChannel& NODELETE logChannel() const;
 #endif
 
     WeakPtr<WebPage> m_page;
@@ -243,12 +253,15 @@ private:
     HashCountedSet<WebCore::MediaPlayerClientIdentifier> m_clientCounts;
 #if HAVE(PIP_SKIP_PREROLL)
     WeakPtr<WebCore::MediaSession> m_mediaSession;
-    bool m_canSkipAd { false };
 #endif
 
 #if !RELEASE_LOG_DISABLED
     const Ref<const Logger> m_logger;
     const uint64_t m_logIdentifier;
+#endif
+
+#if ENABLE(IMAGE_ANALYSIS)
+    const UniqueRef<TextRecognitionRequest> m_textRecognitionRequest;
 #endif
 };
 

@@ -33,6 +33,7 @@
 namespace WebCore {
 class CoordinatedPlatformLayer;
 class CoordinatedTileBuffer;
+class Damage;
 class GraphicsLayer;
 
 class CoordinatedBackingStoreProxy final : public ThreadSafeRefCounted<CoordinatedBackingStoreProxy> {
@@ -43,7 +44,7 @@ public:
 
     static constexpr int s_defaultCPUTileSize = 256;
 
-    const IntRect& coverRect() const { return m_coverRect; }
+    const IntRect& coverRect() const LIFETIME_BOUND { return m_coverRect; }
 
     class Update {
         WTF_MAKE_NONCOPYABLE(Update);
@@ -60,12 +61,14 @@ public:
             Ref<CoordinatedTileBuffer> buffer;
         };
 
-        const Vector<uint32_t>& tilesToCreate() const { return m_tilesToCreate; }
-        const Vector<TileUpdate>& tilesToUpdate() const { return m_tilesToUpdate; }
-        const Vector<uint32_t>& tilesToRemove() const { return m_tilesToRemove; }
+        const Vector<uint32_t>& tilesToCreate() const LIFETIME_BOUND { return m_tilesToCreate; }
+        const Vector<TileUpdate>& tilesToUpdate() const LIFETIME_BOUND { return m_tilesToUpdate; }
+        const Vector<uint32_t>& tilesToRemove() const LIFETIME_BOUND { return m_tilesToRemove; }
 
         void appendUpdate(Vector<uint32_t>&&, Vector<TileUpdate>&&, Vector<uint32_t>&&);
         void waitUntilPaintingComplete();
+
+        bool isEmpty() const { return m_tilesToCreate.isEmpty() && m_tilesToUpdate.isEmpty() && m_tilesToRemove.isEmpty(); }
 
     private:
         Vector<uint32_t> m_tilesToCreate;
@@ -78,7 +81,7 @@ public:
         TilesPending = 1 << 1,
         TilesChanged = 1 << 2
     };
-    OptionSet<UpdateResult> updateIfNeeded(const IntRect& unscaledVisibleRect, const IntRect& unscaledContentsRect, float contentsScale, bool shouldCreateAndDestroyTiles, const Vector<IntRect, 1>&, CoordinatedPlatformLayer&);
+    OptionSet<UpdateResult> updateIfNeeded(const IntRect& unscaledVisibleRect, const IntRect& unscaledContentsRect, float contentsScale, bool shouldCreateAndDestroyTiles, const Vector<IntRect, 1>&, Damage&, CoordinatedPlatformLayer&);
     Update takePendingUpdate();
 
     void waitUntilPaintingComplete();
@@ -130,7 +133,7 @@ private:
     CoordinatedBackingStoreProxy() = default;
 
     void invalidateRegion(const Vector<IntRect, 1>&);
-    void createOrDestroyTiles(const IntRect& unscaledVisibleRect, const IntRect& unscaledContentsRect, const IntSize& unscaledViewportSize, float contentsScale, int maxTextureSize, Vector<uint32_t>& tilesToCreate, Vector<uint32_t>& tilesToRemove);
+    void createOrDestroyTiles(const IntRect& unscaledVisibleRect, const IntRect& unscaledContentsRect, const IntSize& unscaledViewportSize, float contentsScale, int maxTextureSize, Damage&, Vector<uint32_t>& tilesToCreate, Vector<uint32_t>& tilesToRemove);
     IntSize computeTileSize(const IntSize& viewportSize, int maxTextureSize) const;
     std::pair<IntRect, IntRect> computeCoverAndKeepRect() const;
     void adjustForContentsRect(IntRect&) const;

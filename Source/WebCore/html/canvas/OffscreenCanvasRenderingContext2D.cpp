@@ -39,10 +39,11 @@
 #include "CSSParserContext.h"
 #include "CSSPropertyParserConsumer+Font.h"
 #include "InspectorInstrumentation.h"
-#include "RenderStyle.h"
 #include "ScriptExecutionContext.h"
+#include "StyleComputedStyle.h"
 #include "StyleResolveForFont.h"
 #include "TextMetrics.h"
+#include "TextRun.h"
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
@@ -119,7 +120,7 @@ void OffscreenCanvasRenderingContext2D::setFont(const String& newFont)
 
     if (auto fontCascade = Style::resolveForUnresolvedFont(*unresolvedFont, WTF::move(fontDescription), context)) {
         ASSERT(context->cssFontSelector());
-        modifiableState().font.initialize(*context->cssFontSelector(), *fontCascade);
+        modifiableState().font.initialize(protect(*context->cssFontSelector()), *fontCascade);
 
         String letterSpacing;
         setLetterSpacing(std::exchange(modifiableState().letterSpacing, letterSpacing));
@@ -130,9 +131,9 @@ void OffscreenCanvasRenderingContext2D::setFont(const String& newFont)
 
 RefPtr<ImageBuffer> OffscreenCanvasRenderingContext2D::transferToImageBuffer()
 {
-    if (!canvasBase().hasCreatedImageBuffer())
-        return canvasBase().allocateImageBuffer();
-    auto* buffer = canvasBase().buffer();
+    if (!hasCreatedImageBuffer())
+        return allocateImageBuffer();
+    RefPtr buffer = this->buffer();
     if (!buffer)
         return nullptr;
     // As the canvas context state is stored in GraphicsContext, which is owned

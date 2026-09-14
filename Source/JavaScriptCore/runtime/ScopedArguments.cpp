@@ -27,6 +27,7 @@
 #include "ScopedArguments.h"
 
 #include "GenericArgumentsImplInlines.h"
+#include "JSArray.h"
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
@@ -35,6 +36,18 @@ namespace JSC {
 STATIC_ASSERT_IS_TRIVIALLY_DESTRUCTIBLE(ScopedArguments);
 
 const ClassInfo ScopedArguments::s_info = { "Arguments"_s, &Base::s_info, nullptr, nullptr, CREATE_METHOD_TABLE(ScopedArguments) };
+
+uint32_t ScopedArguments::length(JSGlobalObject* globalObject) const
+{
+    VM& vm = getVM(globalObject);
+    auto scope = DECLARE_THROW_SCOPE(vm);
+    if (m_overrodeThings) [[unlikely]] {
+        auto value = get(globalObject, vm.propertyNames->length);
+        RETURN_IF_EXCEPTION(scope, 0);
+        RELEASE_AND_RETURN(scope, value.toUInt32(globalObject));
+    }
+    return internalLength();
+}
 
 ScopedArguments::ScopedArguments(VM& vm, Structure* structure, WriteBarrier<Unknown>* storage, unsigned totalLength, JSFunction* callee, ScopedArgumentsTable* table, JSLexicalEnvironment* scope)
     : GenericArgumentsImpl(vm, structure)
@@ -79,7 +92,7 @@ ScopedArguments* ScopedArguments::createByCopying(JSGlobalObject* globalObject, 
     return createByCopyingFrom(
         globalObject->vm(), globalObject->scopedArgumentsStructure(),
         callFrame->registers() + CallFrame::argumentOffset(0), callFrame->argumentCount(),
-        jsCast<JSFunction*>(callFrame->jsCallee()), table, scope);
+        uncheckedDowncast<JSFunction>(callFrame->jsCallee()), table, scope);
 }
 
 ScopedArguments* ScopedArguments::createByCopyingFrom(VM& vm, Structure* structure, Register* argumentsStart, unsigned totalLength, JSFunction* callee, ScopedArgumentsTable* table, JSLexicalEnvironment* scope)
@@ -165,7 +178,7 @@ void ScopedArguments::copyToArguments(JSGlobalObject* globalObject, JSValue* fir
 bool ScopedArguments::isIteratorProtocolFastAndNonObservable()
 {
     Structure* structure = this->structure();
-    JSGlobalObject* globalObject = structure->globalObject();
+    JSGlobalObject* globalObject = structure->realm();
     if (!globalObject->isArgumentsPrototypeIteratorProtocolFastAndNonObservable())
         return false;
 
@@ -179,6 +192,72 @@ bool ScopedArguments::isIteratorProtocolFastAndNonObservable()
         return false;
 
     return true;
+}
+
+JSArray* ScopedArguments::fastSlice(JSGlobalObject* globalObject, ScopedArguments* arguments, uint64_t startIndex, uint64_t count)
+{
+    VM& vm = globalObject->vm();
+
+    if (count >= MIN_SPARSE_ARRAY_INDEX)
+        return nullptr;
+
+    if (arguments->m_overrodeThings) [[unlikely]]
+        return nullptr;
+
+    if (arguments->m_hasUnmappedArgument) [[unlikely]]
+        return nullptr;
+
+    if (startIndex + count > arguments->m_totalLength)
+        return nullptr;
+
+    uint32_t resultLength = static_cast<uint32_t>(count);
+
+    if (!resultLength)
+        return constructEmptyArray(globalObject, nullptr);
+
+    // Determine the optimal indexing type based on the values being sliced
+    IndexingType indexingType = IsArray;
+    for (uint32_t i = 0; i < resultLength; ++i) {
+        JSValue value = arguments->getIndexQuickly(startIndex + i);
+        indexingType = leastUpperBoundOfIndexingTypeAndValue(indexingType, value);
+    }
+
+    Structure* resultStructure = globalObject->arrayStructureForIndexingTypeDuringAllocation(indexingType);
+    IndexingType resultIndexingType = resultStructure->indexingType();
+
+    if (hasAnyArrayStorage(resultIndexingType)) [[unlikely]]
+        return nullptr;
+
+    ASSERT(!globalObject->isHavingABadTime());
+
+    unsigned vectorLength = Butterfly::optimalContiguousVectorLength(resultStructure, resultLength);
+    void* memory = vm.auxiliarySpace().allocate(
+        vm,
+        Butterfly::totalSize(0, 0, true, vectorLength * sizeof(EncodedJSValue)),
+        nullptr, AllocationFailureMode::ReturnNull);
+    if (!memory) [[unlikely]]
+        return nullptr;
+
+    auto* resultButterfly = Butterfly::fromBase(memory, 0, 0);
+    resultButterfly->setVectorLength(vectorLength);
+    resultButterfly->setPublicLength(resultLength);
+
+    if (hasDouble(resultIndexingType)) {
+        for (uint32_t i = 0; i < resultLength; ++i) {
+            JSValue value = arguments->getIndexQuickly(startIndex + i);
+            ASSERT(value.isNumber());
+            resultButterfly->contiguousDouble().atUnsafe(i) = value.asNumber();
+        }
+    } else if (hasInt32(resultIndexingType) || hasContiguous(resultIndexingType)) {
+        for (uint32_t i = 0; i < resultLength; ++i) {
+            JSValue value = arguments->getIndexQuickly(startIndex + i);
+            resultButterfly->contiguous().atUnsafe(i).setWithoutWriteBarrier(value);
+        }
+    } else
+        RELEASE_ASSERT_NOT_REACHED();
+
+    Butterfly::clearRange(resultIndexingType, resultButterfly, resultLength, vectorLength);
+    return JSArray::createWithButterfly(vm, nullptr, resultStructure, resultButterfly);
 }
 
 } // namespace JSC

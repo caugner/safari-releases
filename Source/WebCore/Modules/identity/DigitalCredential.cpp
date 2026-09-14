@@ -28,20 +28,26 @@
 
 #if ENABLE(WEB_AUTHN)
 
+#include "AbortSignal.h"
 #include "Chrome.h"
 #include "CredentialRequestCoordinator.h"
 #include "CredentialRequestOptions.h"
+#include "DigitalCredentialPresentationProtocol.h"
 #include "DocumentPage.h"
+#include "DocumentSecurityOrigin.h"
 #include "ExceptionOr.h"
 #include "FrameDestructionObserverInlines.h"
 #include "IDLTypes.h"
-#include "IdentityCredentialProtocol.h"
+#include "JSDOMConvertDictionary.h"
+#include "JSDOMConvertJSON.h"
+#include "JSDOMPromiseDeferred.h"
 #include "LocalDOMWindow.h"
 #include "LocalFrame.h"
 #include "MediationRequirement.h"
 #include "PermissionsPolicy.h"
 #include "VisibilityState.h"
 #include <JavaScriptCore/ConsoleTypes.h>
+#include <JavaScriptCore/JSONObject.h>
 #include <Logging.h>
 #include <wtf/JSONValues.h>
 #include <wtf/UUID.h>
@@ -50,28 +56,28 @@
 
 namespace WebCore {
 
-Ref<DigitalCredential> DigitalCredential::create(JSC::Strong<JSC::JSObject>&& data, IdentityCredentialProtocol protocol)
+Ref<DigitalCredential> DigitalCredential::create(JSC::Strong<JSC::JSObject>&& data, DigitalCredentialPresentationProtocol protocol)
 {
     return adoptRef(*new DigitalCredential(WTF::move(data), protocol));
 }
 
 DigitalCredential::~DigitalCredential() = default;
 
-DigitalCredential::DigitalCredential(JSC::Strong<JSC::JSObject>&& data, IdentityCredentialProtocol protocol)
+DigitalCredential::DigitalCredential(JSC::Strong<JSC::JSObject>&& data, DigitalCredentialPresentationProtocol protocol)
     : BasicCredential(createVersion4UUIDString(), Type::DigitalCredential, Discovery::CredentialStore)
     , m_protocol(protocol)
     , m_data(WTF::move(data))
 {
 }
 
-static std::optional<IdentityCredentialProtocol> convertProtocolString(const String& protocolString)
+static std::optional<DigitalCredentialPresentationProtocol> convertProtocolString(const String& protocolString)
 {
     if (protocolString == "org-iso-mdoc"_s)
-        return IdentityCredentialProtocol::OrgIsoMdoc;
+        return DigitalCredentialPresentationProtocol::OrgIsoMdoc;
     return std::nullopt;
 }
 
-static ExceptionOr<std::optional<UnvalidatedDigitalCredentialRequest>> jsToCredentialRequest(const Document& document, const DigitalCredentialRequest& request)
+static ExceptionOr<std::optional<UnvalidatedDigitalCredentialRequest>> jsToCredentialRequest(const Document& document, const DigitalCredentialGetRequest& request)
 {
     auto scope = DECLARE_THROW_SCOPE(document.globalObject()->vm());
     auto* globalObject = document.globalObject();
@@ -86,7 +92,7 @@ static ExceptionOr<std::optional<UnvalidatedDigitalCredentialRequest>> jsToCrede
         return std::optional<UnvalidatedDigitalCredentialRequest> { std::nullopt }; // Return empty optional for unknown protocols
 
     switch (*protocol) {
-    case IdentityCredentialProtocol::OrgIsoMdoc: {
+    case DigitalCredentialPresentationProtocol::OrgIsoMdoc: {
         auto result = convertDictionary<MobileDocumentRequest>(*globalObject, request.data.get());
         if (result.hasException(scope)) [[unlikely]]
             return Exception { ExceptionCode::ExistingExceptionError };
@@ -98,7 +104,7 @@ static ExceptionOr<std::optional<UnvalidatedDigitalCredentialRequest>> jsToCrede
     }
 }
 
-ExceptionOr<Vector<UnvalidatedDigitalCredentialRequest>> DigitalCredential::convertObjectsToDigitalPresentationRequests(const Document& document, const Vector<DigitalCredentialRequest>& requests)
+ExceptionOr<Vector<UnvalidatedDigitalCredentialRequest>> DigitalCredential::convertObjectsToDigitalPresentationRequests(const Document& document, const Vector<DigitalCredentialGetRequest>& requests)
 {
     Vector<UnvalidatedDigitalCredentialRequest> results;
     for (auto& request : requests) {
@@ -112,13 +118,13 @@ ExceptionOr<Vector<UnvalidatedDigitalCredentialRequest>> DigitalCredential::conv
         }
 
         if (RefPtr context = document.scriptExecutionContext()) {
-            String warning = makeString("Ignoring DigitalCredentialRequest with unsupported protocol: \""_s, request.protocol, "\""_s);
+            String warning = makeString("Ignoring DigitalCredentialGetRequest with unsupported protocol: \""_s, request.protocol, "\""_s);
             context->addConsoleMessage(MessageSource::Other, MessageLevel::Warning, warning);
         }
     }
 
     if (results.isEmpty())
-        return Exception { ExceptionCode::TypeError, "At least one supported DigitalCredentialRequest must present"_s };
+        return Exception { ExceptionCode::TypeError, "At least one supported DigitalCredentialGetRequest must present"_s };
 
     return results;
 }
@@ -173,12 +179,8 @@ void DigitalCredential::discoverFromExternalSource(const Document& document, Cre
         return;
     }
 
-#if HAVE(DIGITAL_CREDENTIALS_UI)
     Ref coordinator = page->credentialRequestCoordinator();
-    coordinator->presentPicker(document, WTF::move(promise), presentationRequestsOrException.releaseReturnValue(), options.signal);
-#else
-    promise.reject(Exception { ExceptionCode::NotSupportedError, "Digital credentials are not supported."_s });
-#endif
+    coordinator->prepareCredentialRequests(document, WTF::move(promise), presentationRequestsOrException.releaseReturnValue(), options.signal);
 }
 
 } // namespace WebCore

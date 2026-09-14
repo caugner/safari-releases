@@ -45,8 +45,8 @@ namespace WebCore {
 
 class Page;
 class PlatformMediaSessionInterface;
-struct MediaConfiguration;
 struct NowPlayingMetadata;
+struct PlatformMediaConfiguration;
 
 class WEBCORE_EXPORT MediaSessionManagerInterface
     : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<MediaSessionManagerInterface>
@@ -77,8 +77,9 @@ public:
     virtual bool shouldDeactivateAudioSession() { return m_shouldDeactivateAudioSession; };
 
     virtual void updateNowPlayingInfoIfNecessary();
-    virtual void updateNowPlayingInfo() { updateNowPlayingInfoIfNecessary(); }
-    virtual void setNowPlayingUpdateInterval(double) { };
+    virtual void updateNowPlayingInfo();
+    virtual void setNowPlayingUpdateInterval(double);
+    virtual double nowPlayingUpdateInterval();
     virtual void updateAudioSessionCategoryIfNecessary();
 
     virtual std::optional<NowPlayingInfo> nowPlayingInfo() const { return { }; }
@@ -128,6 +129,9 @@ public:
     virtual void clientCharacteristicsChanged(PlatformMediaSessionInterface&, bool) { }
 
     virtual void configureWirelessTargetMonitoring() { }
+#if ENABLE(WIRELESS_PLAYBACK_MEDIA_PLAYER)
+    virtual void ensureMediaDeviceRouteControllerMonitoring() { }
+#endif
     virtual bool hasWirelessTargetsAvailable() { return false; }
     virtual bool isMonitoringWirelessTargets() const { return false; }
     virtual void sessionIsPlayingToWirelessPlaybackTargetChanged(PlatformMediaSessionInterface&);
@@ -137,7 +141,8 @@ public:
 
     virtual void addAudioCaptureSource(AudioCaptureSource&);
     virtual void removeAudioCaptureSource(AudioCaptureSource&);
-    virtual void audioCaptureSourceStateChanged() { updateSessionState(); }
+    enum class IsCaptureStarting : bool { No, Yes };
+    virtual void audioCaptureSourceStateChanged(IsCaptureStarting);
     virtual size_t audioCaptureSourceCount() const { return m_audioCaptureSources.computeSize(); }
 
     virtual void processDidReceiveRemoteControlCommand(PlatformMediaSessionRemoteControlCommandType, const PlatformMediaSessionRemoteCommandArgument&);
@@ -154,6 +159,8 @@ public:
 
     virtual void scheduleSessionStatusUpdate() { }
     virtual void resetSessionState() { };
+
+    virtual bool isMediaSessionManagerGLib() const;
 
 #if !RELEASE_LOG_DISABLED
     const Logger& logger() const final;
@@ -200,7 +207,7 @@ protected:
 private:
     bool has(PlatformMediaSessionMediaType) const;
 
-    std::array<MediaSessionRestrictions, static_cast<unsigned>(PlatformMediaSessionMediaType::WebAudio) + 1> m_restrictions;
+    std::array<MediaSessionRestrictions, static_cast<unsigned>(PlatformMediaSessionMediaType::DOMMediaSession) + 1> m_restrictions;
 
     std::optional<PlatformMediaSessionInterruptionType> m_currentInterruption;
 

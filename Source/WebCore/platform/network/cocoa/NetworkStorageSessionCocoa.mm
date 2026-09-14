@@ -134,15 +134,21 @@ Vector<Cookie> NetworkStorageSession::getCookies(const URL& url)
 void NetworkStorageSession::hasCookies(const RegistrableDomain& domain, CompletionHandler<void(bool)>&& completionHandler) const
 {
     ASSERT(hasProcessPrivilege(ProcessPrivilege::CanAccessRawCookies));
+
+    bool hasCookieForDomain = false;
     
     for (NSHTTPCookie *nsCookie in [nsCookieStorage() cookies]) {
         if (RegistrableDomain::uncheckedCreateFromHost(nsCookie.domain) == domain) {
-            completionHandler(true);
-            return;
+            hasCookieForDomain = true;
+            break;
         }
     }
 
-    completionHandler(false);
+    // FIXME: rdar://168454473 (Remove workaround in CookieStorageObserver once CFNetwork bug is resolved)
+    if (m_cookieStorageObserver && cookieStorage().get())
+        protect(cookieStorageObserver())->registerInternalsForNotifications(true);
+
+    completionHandler(hasCookieForDomain);
 }
 
 void NetworkStorageSession::setAllCookiesToSameSiteStrict(const RegistrableDomain& domain, CompletionHandler<void()>&& completionHandler)
@@ -193,11 +199,6 @@ CookieStorageObserver& NetworkStorageSession::cookieStorageObserver() const
         m_cookieStorageObserver = makeUnique<CookieStorageObserver>(nsCookieStorage().get());
 
     return *m_cookieStorageObserver;
-}
-
-CheckedRef<CookieStorageObserver> NetworkStorageSession::checkedCookieStorageObserver() const
-{
-    return cookieStorageObserver();
 }
 
 RetainPtr<CFURLStorageSessionRef> createPrivateStorageSession(CFStringRef identifier, std::optional<HTTPCookieAcceptPolicy> cookieAcceptPolicy, NetworkStorageSession::ShouldDisableCFURLCache shouldDisableCFURLCache)
@@ -279,7 +280,7 @@ static RetainPtr<NSDictionary> policyProperties(const SameSiteInfo& sameSiteInfo
 #if ENABLE(OPT_IN_PARTITIONED_COOKIES) && defined(CFN_COOKIE_ACCEPTS_POLICY_PARTITION) && CFN_COOKIE_ACCEPTS_POLICY_PARTITION
     BOOL shouldAllowOnlyPartitioned = thirdPartyCookieBlockingDecision == ThirdPartyCookieBlockingDecision::AllExceptPartitioned;
     RetainPtr policyProperties = adoptNS([[NSMutableDictionary alloc] init]);
-    policyProperties.get()[@"_kCFHTTPCookiePolicyPropertySiteForCookies"] = sameSiteInfo.isSameSite ? url : URL::emptyNSURL();
+    policyProperties.get()[@"_kCFHTTPCookiePolicyPropertySiteForCookies"] = RetainPtr { sameSiteInfo.isSameSite ? url : URL::emptyNSURL() };
     policyProperties.get()[@"_kCFHTTPCookiePolicyPropertyIsTopLevelNavigation"] = [NSNumber numberWithBool:sameSiteInfo.isTopSite];
     policyProperties.get()[@"_kCFHTTPCookiePolicyPropertyAllowOnlyPartitionedCookies"] = @(shouldAllowOnlyPartitioned);
     if (partition)
@@ -716,7 +717,7 @@ void NetworkStorageSession::deleteCookies(const ClientOrigin& origin, Completion
     }, WTF::move(completionHandler));
 }
 
-void NetworkStorageSession::deleteCookiesForHostnames(const Vector<String>& hostnames, IncludeHttpOnlyCookies includeHttpOnlyCookies, ScriptWrittenCookiesOnly scriptWrittenCookiesOnly, CompletionHandler<void()>&& completionHandler)
+void NetworkStorageSession::deleteCookiesForHostnames(std::span<const String> hostnames, IncludeHttpOnlyCookies includeHttpOnlyCookies, ScriptWrittenCookiesOnly scriptWrittenCookiesOnly, CompletionHandler<void()>&& completionHandler)
 {
     HashSet<String> hostnamesSet;
     for (auto& hostname : hostnames)

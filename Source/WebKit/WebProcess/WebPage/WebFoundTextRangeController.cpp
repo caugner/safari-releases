@@ -34,6 +34,7 @@
 #include <WebCore/Document.h>
 #include <WebCore/DocumentMarkerController.h>
 #include <WebCore/DocumentMarkers.h>
+#include <WebCore/DocumentPage.h>
 #include <WebCore/DocumentQuirks.h>
 #include <WebCore/DocumentView.h>
 #include <WebCore/Editor.h>
@@ -52,6 +53,8 @@
 #include <WebCore/PageOverlayController.h>
 #include <WebCore/PathUtilities.h>
 #include <WebCore/PlatformMouseEvent.h>
+#include <WebCore/RenderLayer.h>
+#include <WebCore/RenderObject.h>
 #include <WebCore/SimpleRange.h>
 #include <WebCore/TextIterator.h>
 #include <ranges>
@@ -59,6 +62,7 @@
 #include <wtf/StdLibExtras.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/TypeCasts.h>
+#include <wtf/ZippedRange.h>
 
 namespace WebKit {
 using namespace WebCore;
@@ -87,15 +91,15 @@ static inline WebFoundTextRange createWebFoundTextRange(SimpleRange& simpleRange
     };
 }
 
-static inline bool canConvertToWebFoundTextRange(SimpleRange& range)
+static inline bool NODELETE canConvertToWebFoundTextRange(SimpleRange& range)
 {
-    Ref document = range.startContainer().document();
+    auto& document = range.startContainer().document();
 
-    RefPtr element = document->documentElement();
+    auto* element = document.documentElement();
     if (!element)
         return false;
 
-    RefPtr frame = document->frame();
+    auto* frame = document.frame();
     if (!frame)
         return false;
 
@@ -119,7 +123,7 @@ static inline Vector<WebFoundTextRange::PDFData> findPDFMatchesInFrame(Frame* fr
 
 void WebFoundTextRangeController::findTextRangesForStringMatches(const String& string, OptionSet<FindOptions> options, uint32_t maxMatchCount, CompletionHandler<void(HashMap<WebCore::FrameIdentifier, Vector<WebFoundTextRange>>&&)>&& completionHandler)
 {
-    auto matchingRanges = protectedWebPage()->protectedCorePage()->findTextMatches(string, core(options), maxMatchCount, false);
+    auto matchingRanges = protect(protect(m_webPage.get())->corePage())->findTextMatches(string, core(options), maxMatchCount, false);
     Vector<WebCore::SimpleRange> findMatches = WTF::move(matchingRanges.ranges);
 
     if (findMatches.size() > 0)
@@ -133,9 +137,9 @@ void WebFoundTextRangeController::findTextRangesForStringMatches(const String& s
     };
 
     HashMap<WebCore::FrameIdentifier, Vector<WebFoundTextRange>> frameMatches;
-    for (const auto& [foundTextRange, simpleRange] : std::views::zip(webFoundTextRanges, validSimpleRanges)) {
+    for (const auto& [foundTextRange, simpleRange] : WTF::zippedRange(webFoundTextRanges, validSimpleRanges)) {
         m_cachedFoundRanges.add(foundTextRange, simpleRange.makeWeakSimpleRange());
-        const auto frameID = simpleRange.startContainer().protectedDocument()->frame()->frameID();
+        const auto frameID = simpleRange.startContainer().document().frame()->frameID();
         auto& matches = frameMatches.ensure(frameID, createEmptyVector).iterator->value;
         matches.append(foundTextRange);
     }
@@ -172,7 +176,7 @@ void WebFoundTextRangeController::replaceFoundTextRangeWithString(const WebFound
     OptionSet temporarySelectionOptions { WebCore::TemporarySelectionOption::DoNotSetFocus, WebCore::TemporarySelectionOption::IgnoreSelectionChanges };
     WebCore::TemporarySelectionChange selectionChange(*document, visibleSelection, temporarySelectionOptions);
 
-    frame->protectedEditor()->replaceSelectionWithText(string, WebCore::Editor::SelectReplacement::Yes, WebCore::Editor::SmartReplace::No, WebCore::EditAction::InsertReplacement);
+    protect(frame->editor())->replaceSelectionWithText(string, WebCore::Editor::SelectReplacement::Yes, WebCore::Editor::SmartReplace::No, WebCore::EditAction::InsertReplacement);
 }
 
 void WebFoundTextRangeController::decorateTextRangeWithStyle(const WebFoundTextRange& range, FindDecorationStyle style)
@@ -186,15 +190,17 @@ void WebFoundTextRangeController::decorateTextRangeWithStyle(const WebFoundTextR
     if (currentStyleForRange == FindDecorationStyle::Highlighted && range == m_highlightedRange) {
         m_textIndicator = nullptr;
         m_highlightedRange = { };
+
+        protect(protect(m_webPage.get())->corePage())->removeAllActiveTextMatches();
     }
 
     if (auto simpleRange = simpleRangeFromFoundTextRange(range)) {
         switch (style) {
         case FindDecorationStyle::Normal:
-            simpleRange->start.protectedDocument()->checkedMarkers()->removeMarkers(*simpleRange, WebCore::DocumentMarkerType::TextMatch);
+            protect(protect(simpleRange->start.document())->markers())->removeMarkers(*simpleRange, WebCore::DocumentMarkerType::TextMatch);
             break;
         case FindDecorationStyle::Found: {
-            auto addedMarker = simpleRange->start.protectedDocument()->checkedMarkers()->addMarker(*simpleRange, WebCore::DocumentMarkerType::TextMatch);
+            auto addedMarker = protect(protect(simpleRange->start.document())->markers())->addMarker(*simpleRange, WebCore::DocumentMarkerType::TextMatch);
             if (!addedMarker)
                 m_unhighlightedFoundRanges.add(range);
             break;
@@ -202,7 +208,9 @@ void WebFoundTextRangeController::decorateTextRangeWithStyle(const WebFoundTextR
         case FindDecorationStyle::Highlighted: {
             m_highlightedRange = range;
 
-            auto ancestorsRevealed = revealClosedDetailsAndHiddenUntilFoundAncestors(simpleRange->protectedStartContainer());
+            protect(protect(simpleRange->start.document())->markers())->addMarker(*simpleRange, WebCore::DocumentMarkerType::ActiveTextMatch);
+
+            auto ancestorsRevealed = revealClosedDetailsAndHiddenUntilFoundAncestors(protect(simpleRange->startContainer()));
 
             if (m_findPageOverlay)
                 setTextIndicatorWithRange(*simpleRange);
@@ -213,7 +221,7 @@ void WebFoundTextRangeController::decorateTextRangeWithStyle(const WebFoundTextR
                 HashSet<WebFoundTextRange> rangesToRemove;
                 for (auto unhighlightedRange : m_unhighlightedFoundRanges) {
                     if (auto unhighlightedSimpleRange = simpleRangeFromFoundTextRange(unhighlightedRange)) {
-                        auto addedMarker = unhighlightedSimpleRange->start.protectedDocument()->checkedMarkers()->addMarker(*unhighlightedSimpleRange, WebCore::DocumentMarkerType::TextMatch);
+                        auto addedMarker = protect(protect(unhighlightedSimpleRange->start.document())->markers())->addMarker(*unhighlightedSimpleRange, WebCore::DocumentMarkerType::TextMatch);
                         if (addedMarker)
                             rangesToRemove.add(unhighlightedRange);
                     }
@@ -248,17 +256,20 @@ void WebFoundTextRangeController::scrollTextRangeToVisible(const WebFoundTextRan
             if (!simpleRange)
                 return;
 
-            RefPtr document = documentForFoundTextRange(range);
-            if (!document)
+            auto rects = WebCore::RenderObject::absoluteTextRects(*simpleRange);
+            if (rects.isEmpty())
                 return;
 
-            WebCore::VisibleSelection visibleSelection(*simpleRange);
-            OptionSet temporarySelectionOptions { WebCore::TemporarySelectionOption::DelegateMainFrameScroll, WebCore::TemporarySelectionOption::RevealSelectionBounds, WebCore::TemporarySelectionOption::DoNotSetFocus, WebCore::TemporarySelectionOption::UserTriggered };
+            CheckedPtr renderer = simpleRange->startContainer().renderer();
+            if (!renderer)
+                return;
 
-            if (document->isTopDocument())
-                temporarySelectionOptions.add(WebCore::TemporarySelectionOption::SmoothScroll);
+            WebCore::ScrollRectToVisibleOptions options;
+            RefPtr document = documentForFoundTextRange(range);
+            if (document && document->isTopDocument())
+                options.behavior = WebCore::ScrollBehavior::Smooth;
 
-            WebCore::TemporarySelectionChange selectionChange(*document, visibleSelection, temporarySelectionOptions);
+            WebCore::LocalFrameView::scrollRectToVisible(WebCore::LayoutRect(unionRect(rects)), *renderer, false, options);
         },
         [&] (const WebKit::WebFoundTextRange::PDFData& pdfData) {
 #if ENABLE(PDF_PLUGIN)
@@ -283,7 +294,9 @@ void WebFoundTextRangeController::clearAllDecoratedFoundText()
     clearCachedRanges();
     m_decoratedRanges.clear();
     m_unhighlightedFoundRanges.clear();
-    protectedWebPage()->protectedCorePage()->unmarkAllTextMatches();
+    RefPtr corePage = protect(m_webPage.get())->corePage();
+    corePage->unmarkAllTextMatches();
+    corePage->removeAllActiveTextMatches();
 
     m_highlightedRange = { };
     m_textIndicator = nullptr;
@@ -302,7 +315,7 @@ void WebFoundTextRangeController::didBeginTextSearchOperation()
         m_findPageOverlay = WTF::move(findPageOverlay);
     }
 
-    protectedFindPageOverlay()->setNeedsDisplay();
+    protect(m_findPageOverlay)->setNeedsDisplay();
 }
 
 void WebFoundTextRangeController::addLayerForFindOverlay(CompletionHandler<void(std::optional<WebCore::PlatformLayerIdentifier>)>&& completionHandler)
@@ -310,13 +323,13 @@ void WebFoundTextRangeController::addLayerForFindOverlay(CompletionHandler<void(
     if (!m_findPageOverlay) {
         Ref findPageOverlay = WebCore::PageOverlay::create(*this, WebCore::PageOverlay::OverlayType::Document, WebCore::PageOverlay::AlwaysTileOverlayLayer::Yes);
         m_webPage->corePage()->pageOverlayController().installPageOverlay(findPageOverlay, WebCore::PageOverlay::FadeMode::DoNotFade);
-        findPageOverlay->protectedLayer()->setOpacity(0);
+        protect(findPageOverlay->layer())->setOpacity(0);
         m_findPageOverlay = WTF::move(findPageOverlay);
     }
 
     RefPtr findPageOverlay = m_findPageOverlay;
 
-    completionHandler(findPageOverlay->protectedLayer()->primaryLayerID());
+    completionHandler(protect(findPageOverlay->layer())->primaryLayerID());
 
     findPageOverlay->setNeedsDisplay();
 }
@@ -344,7 +357,7 @@ void WebFoundTextRangeController::redraw()
     if (!m_findPageOverlay)
         return;
 
-    auto setNeedsDisplay = makeScopeExit([findPageOverlay = protectedFindPageOverlay()] {
+    auto setNeedsDisplay = makeScopeExit([findPageOverlay = protect(m_findPageOverlay)] {
         findPageOverlay->setNeedsDisplay();
     });
 
@@ -456,7 +469,7 @@ RefPtr<WebCore::TextIndicator> WebFoundTextRangeController::createTextIndicatorF
 #if PLATFORM(IOS_FAMILY)
     if (RefPtr frame = m_webPage->corePage()->focusController().focusedOrMainFrame()) {
         frame->selection().setUpdateAppearanceEnabled(true);
-        frame->selection().updateAppearance();
+        protect(frame->selection())->updateAppearance();
         frame->selection().setUpdateAppearanceEnabled(false);
     }
 #endif
@@ -475,7 +488,7 @@ void WebFoundTextRangeController::flashTextIndicatorAndUpdateSelectionWithRange(
     document->selection().setSelection(WebCore::VisibleSelection(range), WebCore::FrameSelection::defaultSetSelectionOptions(WebCore::UserTriggered::Yes));
 
     if (auto textIndicator = createTextIndicatorForRange(range, WebCore::TextIndicatorPresentationTransition::Bounce))
-        protectedWebPage()->setTextIndicator(WTF::move(textIndicator));
+        protect(m_webPage.get())->setTextIndicator(WTF::move(textIndicator));
 }
 
 RefPtr<WebCore::TextIndicator> WebFoundTextRangeController::createTextIndicatorForPDFRange(const WebFoundTextRange& range, WebCore::TextIndicatorPresentationTransition transition)
@@ -504,7 +517,7 @@ void WebFoundTextRangeController::setTextIndicatorWithPDFRange(const WebFoundTex
 void WebFoundTextRangeController::flashTextIndicatorAndUpdateSelectionWithPDFRange(const WebFoundTextRange& range)
 {
     if (RefPtr textIndicator = createTextIndicatorForPDFRange(range, WebCore::TextIndicatorPresentationTransition::Bounce))
-        protectedWebPage()->setTextIndicator(WTF::move(textIndicator));
+        protect(m_webPage.get())->setTextIndicator(WTF::move(textIndicator));
 }
 
 Vector<WebCore::FloatRect> WebFoundTextRangeController::rectsForTextMatchesInRect(WebCore::IntRect clipRect)
@@ -542,9 +555,9 @@ Vector<WebCore::FloatRect> WebFoundTextRangeController::rectsForTextMatchesInRec
         if (!document)
             continue;
 
-        for (auto rect : document->checkedMarkers()->renderedRectsForMarkers(WebCore::DocumentMarkerType::TextMatch)) {
+        for (auto rect : protect(document->markers())->renderedRectsForMarkers(WebCore::DocumentMarkerType::TextMatch)) {
             if (!localFrame->isMainFrame())
-                rect = mainFrameView->windowToContents(localFrame->protectedView()->contentsToWindow(enclosingIntRect(rect)));
+                rect = mainFrameView->windowToContents(protect(localFrame->view())->contentsToWindow(enclosingIntRect(rect)));
 
             if (rect.isEmpty() || !rect.intersects(clipRect))
                 continue;
@@ -558,13 +571,13 @@ Vector<WebCore::FloatRect> WebFoundTextRangeController::rectsForTextMatchesInRec
 
 WebCore::LocalFrame* WebFoundTextRangeController::frameForFoundTextRange(const WebFoundTextRange& range) const
 {
-    Ref mainFrame = protectedWebPage()->protectedCorePage()->mainFrame();
+    Ref mainFrame = m_webPage.get()->corePage()->mainFrame();
 
     if (range.pathToFrame.isEmpty())
-        return dynamicDowncast<WebCore::LocalFrame>(mainFrame.ptr());
+        return dynamicDowncast<WebCore::LocalFrame>(mainFrame.unsafePtr());
 
-    RefPtr foundFrame = mainFrame->protectedPage()->findFrameByPath(range.pathToFrame);
-    return dynamicDowncast<WebCore::LocalFrame>(foundFrame.get());
+    RefPtr foundFrame = protect(mainFrame->page())->findFrameByPath(range.pathToFrame);
+    return dynamicDowncast<WebCore::LocalFrame>(foundFrame.unsafeGet());
 }
 
 WebCore::Document* WebFoundTextRangeController::documentForFoundTextRange(const WebFoundTextRange& range) const

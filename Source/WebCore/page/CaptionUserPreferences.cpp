@@ -114,8 +114,8 @@ void CaptionUserPreferences::setCaptionDisplayMode(CaptionUserPreferences::Capti
 
 RefPtr<Page> CaptionUserPreferences::currentPage() const
 {
-    for (Ref page : m_pageGroup->pages())
-        return page;
+    for (auto& page : m_pageGroup->pages())
+        return &page;
     return nullptr;
 }
 
@@ -179,7 +179,7 @@ void CaptionUserPreferences::setUserPrefersTextDescriptions(bool preference)
 
 void CaptionUserPreferences::captionPreferencesChanged()
 {
-    CheckedRef { m_pageGroup.get() }->captionPreferencesChanged();
+    CheckedRef { m_pageGroup }->captionPreferencesChanged();
 }
 
 Vector<String> CaptionUserPreferences::preferredLanguages() const
@@ -205,6 +205,9 @@ void CaptionUserPreferences::setPreferredAudioCharacteristic(const String& chara
 
 Vector<String> CaptionUserPreferences::preferredAudioCharacteristics() const
 {
+    if (testingMode() && !m_preferredAudioCharacteristicsForTesting.isEmpty())
+        return m_preferredAudioCharacteristicsForTesting;
+
     Vector<String> characteristics;
     if (!m_userPreferredAudioCharacteristic.isEmpty())
         characteristics.append(m_userPreferredAudioCharacteristic);
@@ -220,7 +223,7 @@ static String trackDisplayName(const TextTrack& track)
     if (&track == &TextTrack::captionMenuAutomaticItemSingleton())
         return textTrackAutomaticMenuItemText();
 
-    if (auto label = track.label().string().trim(isASCIIWhitespace); !label.isEmpty())
+    if (!track.label().string().containsOnly<isASCIIWhitespace>())
         return track.label();
     if (auto languageIdentifier = track.validBCP47Language(); !languageIdentifier.isEmpty())
         return languageIdentifier;
@@ -291,7 +294,7 @@ Vector<Ref<TextTrack>> CaptionUserPreferences::sortedTrackListForMenu(TextTrackL
 
 static String trackDisplayName(const AudioTrack& track)
 {
-    if (auto label = track.label().string().trim(isASCIIWhitespace); !label.isEmpty())
+    if (!track.label().string().containsOnly<isASCIIWhitespace>())
         return track.label();
     if (auto languageIdentifier = track.validBCP47Language(); !languageIdentifier.isEmpty())
         return languageIdentifier;

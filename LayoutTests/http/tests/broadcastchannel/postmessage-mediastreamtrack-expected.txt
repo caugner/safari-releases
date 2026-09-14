@@ -1,2 +1,0 @@
-PASS: All 10 workers received "MediaStreamTrack:video"
-

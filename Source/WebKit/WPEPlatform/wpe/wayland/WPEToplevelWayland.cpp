@@ -221,6 +221,11 @@ struct DMABufFeedback {
 /**
  * WPEToplevelWayland:
  *
+ * A [class@WPEPlatform.Toplevel] implementation for Wayland.
+ *
+ * [class@ToplevelWayland] is the [class@WPEPlatform.Toplevel] implementation
+ * used by [class@DisplayWayland]. It is backed by an `xdg_toplevel` and its
+ * Wayland surface can be accessed with [method@ToplevelWayland.get_wl_surface].
  */
 struct _WPEToplevelWaylandPrivate {
     struct wl_surface* wlSurface;
@@ -328,10 +333,7 @@ const struct xdg_toplevel_listener xdgToplevelListener = {
         }
 
         uint32_t pendingState = 0;
-        const auto* stateData = static_cast<uint32_t*>(states->data);
-        for (size_t i = 0; i < states->size; i++) {
-            uint32_t state = stateData[i];
-
+        for (auto state : unsafeMakeSpan(static_cast<uint32_t*>(states->data), states->size / sizeof(uint32_t))) {
             switch (state) {
             case XDG_TOPLEVEL_STATE_FULLSCREEN:
                 pendingState |= WPE_TOPLEVEL_STATE_FULLSCREEN;
@@ -920,20 +922,6 @@ void wpeToplevelWaylandViewVisibilityChanged(WPEToplevelWayland* toplevel, WPEVi
 struct zwp_linux_surface_synchronization_v1* wpeToplevelWaylandGetSurfaceSync(WPEToplevelWayland* toplevel)
 {
     return toplevel->priv->surfaceSync;
-}
-
-/**
- * wpe_toplevel_wayland_new:
- * @display: a #WPEDisplayWayland
- * @max_views: the maximum number of views allowed, or 0 for no limit
- *
- * Create a new #WPEToplevel on @display with @max_views allowed
- *
- * Returns: (transfer full): a #WPEToplevel
- */
-WPEToplevel* wpe_toplevel_wayland_new(WPEDisplayWayland* display, guint maxViews)
-{
-    return WPE_TOPLEVEL(g_object_new(WPE_TYPE_TOPLEVEL_WAYLAND, "display", display, "max-views", maxViews, nullptr));
 }
 
 /**

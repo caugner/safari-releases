@@ -29,6 +29,7 @@
 #include "DataFunctions.h"
 #include "DictionaryFunctions.h"
 #include "EventSenderProxy.h"
+#include "ExternalURLBlockingHelpers.h"
 #include "Options.h"
 #include "PlatformWebView.h"
 #include "StringFunctions.h"
@@ -73,12 +74,10 @@
 #include <WebKit/WKRetainPtr.h>
 #include <WebKit/WKScriptMessageRef.h>
 #include <WebKit/WKSecurityOriginRef.h>
-#include <WebKit/WKSpeechRecognitionPermissionCallback.h>
 #include <WebKit/WKTextChecker.h>
 #include <WebKit/WKURL.h>
 #include <WebKit/WKUserContentControllerRef.h>
 #include <WebKit/WKUserContentExtensionStoreRef.h>
-#include <WebKit/WKUserMediaPermissionCheck.h>
 #include <WebKit/WKUserScriptInjectionTime.h>
 #include <WebKit/WKUserScriptRef.h>
 #include <WebKit/WKWebsiteDataStoreConfigurationRef.h>
@@ -116,6 +115,12 @@
 #if PLATFORM(COCOA)
 #include <WebKit/WKContextPrivateMac.h>
 #include <WebKit/WKPagePrivateMac.h>
+#endif
+
+#if PLATFORM(MAC)
+#import <ApplicationServices/ApplicationServices.h>
+#import <wtf/RetainPtr.h>
+#import <wtf/RuntimeApplicationChecks.h>
 #endif
 
 #if PLATFORM(GTK) || PLATFORM(WPE)
@@ -527,6 +532,20 @@ void TestController::tooltipDidChange(WKStringRef tooltip)
     m_tooltipCallbacks.notifyListeners(tooltip);
 }
 
+static void cursorDidChangeForTesting(WKStringRef cursorInfo, const void*)
+{
+    TestController::singleton().cursorDidChange(cursorInfo);
+}
+
+void TestController::cursorDidChange(WKStringRef cursorInfo)
+{
+    m_cursorCallbacks.notifyListeners(cursorInfo);
+#if PLATFORM(MAC)
+    if (m_mainWebView)
+        m_mainWebView->updateCursorOverlayImage();
+#endif
+}
+
 void TestController::Callbacks::append(WKJSHandleRef handle)
 {
     if (!handle)
@@ -567,6 +586,24 @@ void TestController::closeOtherPage(WKPageRef page, PlatformWebView* view)
     auto index = m_auxiliaryWebViews.findIf([view](auto& auxiliaryWebView) { return auxiliaryWebView.ptr() == view; });
     if (index != notFound)
         m_auxiliaryWebViews.removeAt(index);
+}
+
+PlatformWebView* TestController::viewForPage(WKPageRef page)
+{
+    if (mainWebView() && mainWebView()->page() == page)
+        return mainWebView();
+    for (auto& auxiliaryWebView : m_auxiliaryWebViews) {
+        if (auxiliaryWebView->page() == page)
+            return auxiliaryWebView.ptr();
+    }
+    return mainWebView();
+}
+
+void TestController::setTargetViewFromMessage(WKScriptMessageRef message)
+{
+    auto* frameInfo = WKScriptMessageGetFrameInfo(message);
+    auto* sourcePage = frameInfo ? WKFrameInfoGetPage(frameInfo) : nullptr;
+    setTargetView(sourcePage ? viewForPage(sourcePage) : mainWebView());
 }
 
 WKPageRef TestController::createOtherPage(WKPageRef, WKPageConfigurationRef configuration, WKNavigationActionRef navigationAction, WKWindowFeaturesRef windowFeatures, const void *clientInfo)
@@ -886,6 +923,8 @@ void TestController::initialize(int argc, const char* argv[])
     m_allowAnyHTTPSCertificateForAllowedHosts = options.allowAnyHTTPSCertificateForAllowedHosts;
     m_enableAllExperimentalFeatures = options.enableAllExperimentalFeatures;
     m_globalFeatures = std::move(options.features);
+    if (options.siteIsolationEnabledByDefault)
+        m_globalFeatures.boolWebPreferenceFeatures.insert_or_assign("SiteIsolationEnabled", true);
 #if ENABLE(WPE_PLATFORM)
     m_useWPELegacyAPI = options.useWPELegacyAPI;
 #endif
@@ -907,7 +946,6 @@ void TestController::initialize(int argc, const char* argv[])
     WebCoreTestSupport::installMockGamepadProvider();
 #endif
 
-    m_preferences = adoptWK(WKPreferencesCreate());
     m_eventSenderProxy = makeUnique<EventSenderProxy>(this);
 }
 
@@ -986,7 +1024,7 @@ WKRetainPtr<WKPageConfigurationRef> TestController::generatePageConfiguration(co
 {
     if (!m_context || !m_mainWebView || !m_mainWebView->viewSupportsOptions(options)) {
         auto contextConfiguration = generateContextConfiguration(options);
-        if (options.siteIsolationEnabled() && options.runInCrossOriginFrame())
+        if (options.siteIsolationEnabled())
             WKContextConfigurationSetPrewarmsProcessesAutomatically(contextConfiguration.get(), false);
         m_preferences = adoptWK(WKPreferencesCreate());
         m_context = adoptWK(WKContextCreateWithConfiguration(contextConfiguration.get()));
@@ -1416,6 +1454,8 @@ bool TestController::resetStateToConsistentValues(const TestOptions& options, Re
     SetForScope changeState(m_state, Resetting);
     m_beforeUnloadReturnValue = true;
 
+    m_globalPrivacyControlEnabled = std::nullopt;
+
     for (auto& auxiliaryWebView : std::exchange(m_auxiliaryWebViews, { }))
         WKPageClose(auxiliaryWebView->page());
 
@@ -1443,6 +1483,7 @@ bool TestController::resetStateToConsistentValues(const TestOptions& options, Re
     WKContextSetCacheModel(TestController::singleton().context(), kWKCacheModelDocumentBrowser);
 
     WKWebsiteDataStoreResetServiceWorkerFetchTimeoutForTesting(websiteDataStore());
+    WKWebsiteDataStoreClearCrossOriginPreflightResultCacheForTesting(websiteDataStore());
 
     WKWebsiteDataStoreSetResourceLoadStatisticsEnabled(websiteDataStore(), true);
     WKWebsiteDataStoreClearAllDeviceOrientationPermissions(websiteDataStore());
@@ -1572,6 +1613,7 @@ bool TestController::resetStateToConsistentValues(const TestOptions& options, Re
     WKPageDispatchActivityStateUpdateForTesting(m_mainWebView->page());
 
     m_didReceiveServerRedirectForProvisionalNavigation = false;
+    m_lastProvisionalNavigationFailureURL = nullptr;
     m_serverTrustEvaluationCallbackCallsCount = 0;
     m_shouldDismissJavaScriptAlertsAsynchronously = false;
 
@@ -1596,6 +1638,14 @@ bool TestController::resetStateToConsistentValues(const TestOptions& options, Re
 
     WKPageResetStateBetweenTests(m_mainWebView->page());
 
+    {
+        bool done { false };
+        WKWebsiteDataStoreRemoveNetworkCache(websiteDataStore(), &done, [] (void* context) {
+            *(bool*)context = true;
+        });
+        runUntil(done, noTimeout);
+    }
+
     WKPageClearBackForwardListForTesting(m_mainWebView->page(), nullptr, [](void*) { });
     WKPageClearBackForwardCache(m_mainWebView->page());
 
@@ -1612,13 +1662,25 @@ bool TestController::resetStateToConsistentValues(const TestOptions& options, Re
     m_downloadIndex = 0;
     m_shouldDownloadContentDispositionAttachments = true;
     m_dumpPolicyDelegateCallbacks = false;
+    m_resourceResponseMIMETypesToDump = String();
     m_dumpFullScreenCallbacks = false;
+
+    WKPageSetResourceLoadClient(m_mainWebView->page(), nullptr);
+    m_dumpAllHTTPRedirectedResponseHeaders = false;
+    m_hasResourceLoadClient = false;
+    m_dumpResourceLoadCallbacks = false;
+
     m_waitBeforeFinishingFullscreenExit = false;
     m_scrollDuringEnterFullscreen = false;
     if (m_finishExitFullscreenHandler)
         m_finishExitFullscreenHandler();
 
     m_tooltipCallbacks.clear();
+    m_cursorCallbacks.clear();
+    if (m_mainWebView && m_mainWebView->options().shouldShowCursor())
+        WKPageSetCursorDidChangeCallbackForTesting(mainWebView()->page(), cursorDidChangeForTesting, nullptr);
+    else
+        WKPageSetCursorDidChangeCallbackForTesting(mainWebView()->page(), nullptr, nullptr);
     m_beginSwipeCallbacks.clear();
     m_willEndSwipeCallbacks.clear();
     m_didEndSwipeCallbacks.clear();
@@ -1626,6 +1688,192 @@ bool TestController::resetStateToConsistentValues(const TestOptions& options, Re
     m_uiScriptCallbacks.clear();
 
     return m_doneResetting;
+}
+
+#if !PLATFORM(COCOA)
+uint64_t TestController::responseHeaderCount(WKURLResponseRef)
+{
+    return 0;
+}
+#endif
+
+static inline bool isLocalFileScheme(WKStringRef scheme)
+{
+    return WKStringIsEqualToUTF8CStringIgnoringCase(scheme, "file");
+}
+
+static WTF::String pathSuitableForTestResult(WKURLRef fileURL, WKPageRef page)
+{
+    if (!fileURL)
+        return "(null)"_s;
+
+    auto schemeString = adoptWK(WKURLCopyScheme(fileURL));
+    if (!isLocalFileScheme(schemeString.get()))
+        return toWTFString(adoptWK(WKURLCopyString(fileURL)));
+
+    WKFrameRef mainFrame = WKPageGetMainFrame(page);
+    auto mainFrameURL = adoptWK(WKFrameCopyURL(mainFrame));
+    if (!mainFrameURL)
+        mainFrameURL = adoptWK(WKFrameCopyProvisionalURL(mainFrame));
+
+    String pathString = toWTFString(adoptWK(WKURLCopyPath(fileURL)));
+    String mainFrameURLPathString = mainFrameURL ? toWTFString(adoptWK(WKURLCopyPath(mainFrameURL.get()))) : ""_s;
+    auto basePath = StringView(mainFrameURLPathString).left(mainFrameURLPathString.reverseFind('/') + 1);
+
+    if (!basePath.isEmpty() && pathString.startsWith(basePath))
+        return pathString.substring(basePath.length());
+    return toWTFString(adoptWK(WKURLCopyLastPathComponent(fileURL))); // We lose some information here, but it's better than exposing a full path, which is always machine specific.
+}
+
+static String string(WKURLRequestRef request, WKPageRef page)
+{
+    auto url = adoptWK(WKURLRequestCopyURL(request));
+    auto firstParty = adoptWK(WKURLRequestCopyFirstPartyForCookies(request));
+    auto httpMethod = adoptWK(WKURLRequestCopyHTTPMethod(request));
+    return makeString("<NSURLRequest URL "_s, pathSuitableForTestResult(url.get(), page),
+        ", main document URL "_s, pathSuitableForTestResult(firstParty.get(), page),
+        ", http method "_s, WKStringIsEmpty(httpMethod.get()) ? "(none)"_s : ""_s, toWTFString(httpMethod.get()), '>');
+}
+
+static String string(WKURLResponseRef response, WKPageRef page, bool shouldDumpResponseHeaders = false)
+{
+    auto url = adoptWK(WKURLResponseCopyURL(response));
+    if (!url)
+        return "(null)"_s;
+    if (!shouldDumpResponseHeaders) {
+        return makeString("<NSURLResponse "_s, pathSuitableForTestResult(url.get(), page),
+            ", http status code "_s, WKURLResponseHTTPStatusCode(response), '>');
+    }
+    return makeString("<NSURLResponse "_s, pathSuitableForTestResult(url.get(), page),
+        ", http status code "_s, WKURLResponseHTTPStatusCode(response),
+        ", "_s, TestController::responseHeaderCount(response), " headers>"_s);
+}
+
+static inline void dumpErrorDescriptionSuitableForTestResult(WKErrorRef error, StringBuilder& stringBuilder)
+{
+    auto errorDomain = toWTFString(adoptWK(WKErrorCopyDomain(error)));
+    auto errorCode = WKErrorGetErrorCode(error);
+
+    // We need to do some error mapping here to match the test expectations (Mac error names are expected).
+    if (errorDomain == "WebKitNetworkError"_s) {
+        errorDomain = "NSURLErrorDomain"_s;
+        errorCode = -999;
+    }
+    if (errorDomain == "WebKitPolicyError"_s)
+        errorDomain = "WebKitErrorDomain"_s;
+
+    stringBuilder.append("<NSError domain "_s, errorDomain, ", code "_s, errorCode);
+    if (auto url = adoptWK(WKErrorCopyFailingURL(error)))
+        stringBuilder.append(", failing URL \""_s, adoptWK(WKURLCopyString(url.get())).get(), '"');
+    stringBuilder.append('>');
+}
+
+void TestController::dumpResourceResponseMIMETypes(String&& types)
+{
+    m_resourceResponseMIMETypesToDump = WTF::move(types);
+    installResourceLoadClient();
+}
+
+void TestController::dumpResourceLoadCallbacks()
+{
+    m_dumpResourceLoadCallbacks = true;
+    installResourceLoadClient();
+}
+
+void TestController::didSendRequest(WKPageRef page, WKURLRequestRef request)
+{
+    if (m_state != RunningTest)
+        return;
+
+    if (m_dumpResourceLoadCallbacks) {
+        WKRetainPtr url = adoptWK(WKURLRequestCopyURL(request));
+        StringBuilder stringBuilder;
+        stringBuilder.append(pathSuitableForTestResult(url.get(), page));
+        stringBuilder.append(" - willSendRequest "_s, string(request, page), " redirectResponse (null)\n"_s);
+        currentInvocation()->outputResourceLoadCallback(stringBuilder.toString());
+    }
+}
+
+#if !PLATFORM(COCOA)
+String TestController::platformResponseMIMEType(WKURLResponseRef response)
+{
+    return { };
+}
+#endif
+
+void TestController::didPerformRedirect(WKPageRef page, WKURLResponseRef response, WKURLRequestRef request)
+{
+    if (m_dumpResourceLoadCallbacks) {
+        WKRetainPtr url = adoptWK(WKURLRequestCopyURL(request));
+        StringBuilder stringBuilder;
+        stringBuilder.append(pathSuitableForTestResult(url.get(), page));
+        stringBuilder.append(" - willSendRequest "_s, string(request, page), " redirectResponse "_s, string(response, page, m_dumpAllHTTPRedirectedResponseHeaders), "\n"_s);
+        currentInvocation()->outputResourceLoadCallback(stringBuilder.toString());
+    }
+}
+
+void TestController::didReceiveResponse(WKPageRef page, WKURLRef originalURL, WKURLResponseRef response)
+{
+    if (m_dumpResourceLoadCallbacks) {
+        StringBuilder stringBuilder;
+        stringBuilder.append(pathSuitableForTestResult(originalURL, page));
+        stringBuilder.append(" - didReceiveResponse "_s, string(response, page), '\n');
+        currentInvocation()->outputResourceLoadCallback(stringBuilder.toString());
+    }
+
+    if (!m_resourceResponseMIMETypesToDump.isEmpty()) {
+        WKRetainPtr url = adoptWK(WKURLResponseCopyURL(response));
+        WKRetainPtr urlString = adoptWK(WKURLCopyLastPathComponent(url.get()));
+        WKRetainPtr mimeTypeString = adoptWK(WKURLResponseCopyMIMEType(response));
+        if (m_resourceResponseMIMETypesToDump == "*" || m_resourceResponseMIMETypesToDump.contains(toWTFString(urlString))) {
+            StringBuilder stringBuilder;
+            stringBuilder.append(urlString.get(), " has MIME type "_s, mimeTypeString.get());
+
+            String platformMIMEType = platformResponseMIMEType(response);
+            if (!platformMIMEType.isEmpty() && platformMIMEType != toWTFString(mimeTypeString))
+                stringBuilder.append(" but platform response has "_s, platformMIMEType);
+
+            stringBuilder.append('\n');
+            currentInvocation()->outputResourceLoadCallback(stringBuilder.toString());
+        }
+    }
+}
+
+void TestController::didCompleteWithError(WKPageRef page, WKURLRef originalURL, WKURLResponseRef response, WKErrorRef error)
+{
+    if (m_dumpResourceLoadCallbacks) {
+        StringBuilder stringBuilder;
+        stringBuilder.append(pathSuitableForTestResult(originalURL, page));
+        if (error) {
+            stringBuilder.append(" - didFailLoadingWithError: "_s);
+            dumpErrorDescriptionSuitableForTestResult(error, stringBuilder);
+            stringBuilder.append('\n');
+        } else
+            stringBuilder.append(" - didFinishLoading\n"_s);
+        currentInvocation()->outputResourceLoadCallback(stringBuilder.toString());
+    }
+}
+
+void TestController::installResourceLoadClient()
+{
+    if (m_hasResourceLoadClient)
+        return;
+
+    WKPageResourceLoadClientV0 client {
+        { 0, nullptr },
+        [] (const void*, WKPageRef page, WKURLRequestRef request) {
+            TestController::singleton().didSendRequest(page, request);
+        }, [] (const void*, WKPageRef page, WKURLResponseRef response, WKURLRequestRef request) {
+            TestController::singleton().didPerformRedirect(page, response, request);
+        }, [] (const void*, WKPageRef page, WKURLRef originalURL, WKURLResponseRef response) {
+            TestController::singleton().didReceiveResponse(page, originalURL, response);
+        }, [] (const void*, WKPageRef page, WKURLRef originalURL, WKURLResponseRef response, WKErrorRef error) {
+            TestController::singleton().didCompleteWithError(page, originalURL, response, error);
+        }
+    };
+
+    WKPageSetResourceLoadClient(m_mainWebView->page(), &client.base);
+    m_hasResourceLoadClient = true;
 }
 
 void TestController::updateLiveDocumentsAfterTest()
@@ -1767,8 +2015,21 @@ ASCIILiteral TestController::gpuProcessName()
     return "com.apple.WebKit.GPU"_s;
 #elif PLATFORM(COCOA)
     return "com.apple.WebKit.GPU.Development"_s;
+#elif PLATFORM(GTK)
+    return "WebKitGPUProcess"_s;
+#elif PLATFORM(WPE)
+    return "WPEGPUProcess"_s;
 #else
     return "GPUProcess"_s;
+#endif
+}
+
+ASCIILiteral TestController::serviceWorkerProcessName()
+{
+#if PLATFORM(GTK) || PLATFORM(WPE)
+    return webProcessName();
+#else
+    return "ServiceWorkerProcess"_s;
 #endif
 }
 
@@ -1846,7 +2107,6 @@ TestOptions TestController::testOptionsForTest(const TestCommand& command) const
     merge(features, featureDefaultsFromTestHeaderForTest(command, TestOptions::keyTypeMapping()));
     merge(features, featureFromAdditionalHeaderOption(command, TestOptions::keyTypeMapping()));
     merge(features, platformSpecificFeatureOverridesDefaultsForTest(command));
-
     return TestOptions { features };
 }
 
@@ -1931,17 +2191,17 @@ constexpr auto eventSenderJS = R"eventSenderJS(
 if (window.eventSender) {
     let post = window.webkit.messageHandlers.webkitTestRunner.postMessage.bind(window.webkit.messageHandlers.webkitTestRunner);
 
-    eventSender.asyncMouseDown = async (button, modifierArray, pointerType, callback) => { // NOLINT
+    eventSender.asyncMouseDown = async (button, modifierArray, pointerType) => { // NOLINT
         await post(['AsyncMouseDown', button, modifierArray, pointerType]);
-        callback?.();
     };
-    eventSender.asyncMouseUp = async (button, modifierArray, pointerType, callback) => { // NOLINT
+    eventSender.asyncMouseUp = async (button, modifierArray, pointerType) => { // NOLINT
         await post(['AsyncMouseUp', button, modifierArray, pointerType]);
-        callback?.();
     };
-    eventSender.asyncMouseMoveTo = async (x, y, pointerType, callback) => { // NOLINT
+    eventSender.asyncMouseMoveTo = async (x, y, pointerType) => { // NOLINT
         await post(['AsyncMouseMoveTo', x, y, pointerType]);
-        callback?.();
+    };
+    eventSender.asyncKeyDown = async (key, modifiers) => { // NOLINT
+        await post(['AsyncKeyDown', key, modifiers]);
     };
 }
 )eventSenderJS";
@@ -1952,6 +2212,7 @@ if (window.testRunner) {
     let createHandle = (object) => object ? window.webkit.createJSHandle(object) : undefined;
 
     testRunner.installTooltipDidChangeCallback = callback => post(['InstallTooltipCallback', createHandle(callback)]);
+    testRunner.installCursorDidChangeCallback = callback => post(['InstallCursorCallback', createHandle(callback)]);
     testRunner.installDidBeginSwipeCallback = callback => post(['InstallBeginSwipeCallback', createHandle(callback)]);
     testRunner.installWillEndSwipeCallback = callback => post(['InstallWillEndSwipeCallback', createHandle(callback)]);
     testRunner.installDidEndSwipeCallback = callback => post(['InstallDidEndSwipeCallback', createHandle(callback)]);
@@ -1959,7 +2220,7 @@ if (window.testRunner) {
     testRunner.findString = (target, options) => post(['FindString', target, options]);
     testRunner.runUIScript = (script, callback) => post(['RunUIScript', script, createHandle(callback)]);
     testRunner.runUIScriptImmediately = (script, callback) => post(['RunUIScriptImmediately', script, createHandle(callback)]);
-    testRunner.getApplicationManifestThen = async (callback) => { await post(['GetApplicationManifest']); callback() }; // NOLINT
+    testRunner.getApplicationManifest = () => post(['GetApplicationManifest']);
     testRunner.scrollDuringEnterFullscreen = () => post(['ScrollDuringEnterFullscreen']);
     testRunner.waitBeforeFinishingFullscreenExit = () => post(['WaitBeforeFinishingFullscreenExit']);
     testRunner.finishFullscreenExit = () => post(['FinishFullscreenExit']);
@@ -1977,6 +2238,7 @@ if (window.testRunner) {
     testRunner.setUseDarkAppearanceForTesting = value => post(['SetUseDarkAppearanceForTesting', value]);
     testRunner.setShouldDownloadUndisplayableMIMETypes = value => post(['SetShouldDownloadUndisplayableMIMETypes', value]);
     testRunner.setShouldAllowDeviceOrientationAndMotionAccess = value => post(['SetShouldAllowDeviceOrientationAndMotionAccess', value]);
+    testRunner.dumpAllHTTPRedirectedResponseHeaders = () => post(['DumpAllHTTPRedirectedResponseHeaders']);
     testRunner.setRejectsProtectionSpaceAndContinueForAuthenticationChallenges = value => post(['SetRejectsProtectionSpaceAndContinueForAuthenticationChallenges', value]);
     testRunner.setHandlesAuthenticationChallenges = value => post(['SetHandlesAuthenticationChallenges', value]);
     testRunner.setShouldLogCanAuthenticateAgainstProtectionSpace = value => post(['SetShouldLogCanAuthenticateAgainstProtectionSpace', value]);
@@ -2116,6 +2378,7 @@ if (window.testRunner) {
         await post(['SetStorageAccess', blocked]);
         callback?.();
     };
+    testRunner.setStorageAccessAPIPerPageScopeEnabled = (enabled) => post(['SetStorageAccessAPIPerPageScopeEnabled', enabled]);
     testRunner.loadedSubresourceDomains = async (callback) => { // NOLINT
         const arrays = await post(['LoadedSubresourceDomains']);
         callback?.(arrays);
@@ -2131,10 +2394,6 @@ if (window.testRunner) {
     testRunner.flushConsoleLogs = () => post(['FlushConsoleLogs']);
     testRunner.updatePresentation = () => post(['UpdatePresentation']);
     testRunner.setPageScaleFactor = (scaleFactor, x, y) => post(['SetPageScaleFactor', { scaleFactor: scaleFactor, x: x, y: y }]);
-    testRunner.getAndClearReportedWindowProxyAccessDomains = async (callback) => { // NOLINT
-        const domains = await post(['GetAndClearReportedWindowProxyAccessDomains']);
-        callback?.(domains);
-    };
     testRunner.setObscuredContentInsets = (top, right, bottom, left) => post(['SetObscuredContentInsets', [top, right, bottom, left]]);
     testRunner.setResourceMonitorList = (rulesText) => post(['SetResourceMonitorList', rulesText]);
     testRunner.findStringMatchesInPage = (target, options) => post(['FindStringMatches', { String: target, FindOptions: options }]);
@@ -2329,9 +2588,6 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
     if (WKStringIsEqualToUTF8CString(command, "FlushConsoleLogs"))
         return completionHandler(nullptr);
 
-    if (WKStringIsEqualToUTF8CString(command, "GetAndClearReportedWindowProxyAccessDomains"))
-        return completionHandler(getAndClearReportedWindowProxyAccessDomains().get());
-
     if (WKStringIsEqualToUTF8CString(command, "TakeViewPortSnapshot"))
         return completionHandler(takeViewPortSnapshot().get());
 
@@ -2376,7 +2632,10 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
     if (WKStringIsEqualToUTF8CString(command, "SetStorageAccess"))
         return WKWebsiteDataStoreSetStorageAccessForTesting(websiteDataStore(), booleanValue(argument), completionHandler.leak(), adoptAndCallCompletionHandler);
 
-
+    if (WKStringIsEqualToUTF8CString(command, "SetStorageAccessAPIPerPageScopeEnabled")) {
+        setStorageAccessAPIPerPageScopeEnabled(booleanValue(argument));
+        return completionHandler(nullptr);
+    }
 
     if (WKStringIsEqualToUTF8CString(command, "GetAllStorageAccessEntries"))
         return getAllStorageAccessEntries(WTF::move(completionHandler));
@@ -2484,6 +2743,12 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
         return completionHandler(nullptr);
     }
 
+    if (WKStringIsEqualToUTF8CString(command, "InstallCursorCallback")) {
+        m_cursorCallbacks.append(dynamic_wk_cast<WKJSHandleRef>(argument));
+        WKPageSetCursorDidChangeCallbackForTesting(mainWebView()->page(), cursorDidChangeForTesting, nullptr);
+        return completionHandler(nullptr);
+    }
+
     if (WKStringIsEqualToUTF8CString(command, "InstallBeginSwipeCallback")) {
         m_beginSwipeCallbacks.append(dynamic_wk_cast<WKJSHandleRef>(argument));
         return completionHandler(nullptr);
@@ -2522,8 +2787,12 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
         return completionHandler(nullptr);
     }
 
-    if (WKStringIsEqualToUTF8CString(command, "GetApplicationManifest"))
-        return WKPageGetApplicationManifest(mainWebView()->page(), completionHandler.leak(), adoptAndCallCompletionHandler);
+    if (WKStringIsEqualToUTF8CString(command, "GetApplicationManifest")) {
+        return WKPageGetApplicationManifest(mainWebView()->page(), completionHandler.leak(), [] (void* context, bool success) {
+            auto completionHandler = WTF::adopt(static_cast<CompletionHandler<void(WKTypeRef)>::Impl*>(context));
+            completionHandler(adoptWK(WKBooleanCreate(success)).get());
+        });
+    }
 
     if (WKStringIsEqualToUTF8CString(command, "IndicateFindMatch")) {
         auto index = static_cast<uint32_t>(WKDoubleGetValue(static_cast<WKDoubleRef>(argument)));
@@ -2543,6 +2812,11 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
 
     if (WKStringIsEqualToUTF8CString(command, "FinishFullscreenExit")) {
         finishFullscreenExit();
+        return completionHandler(nullptr);
+    }
+
+    if (WKStringIsEqualToUTF8CString(command, "DumpAllHTTPRedirectedResponseHeaders")) {
+        m_dumpAllHTTPRedirectedResponseHeaders = true;
         return completionHandler(nullptr);
     }
 
@@ -2721,9 +2995,9 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
         const auto length = WKArrayGetSize(keys);
         Vector<unsigned char> bytes;
         for (size_t i = 0; i < length; i++) {
-            const auto key = WKArrayGetItemAtIndex(keys, i);
-            const auto keyStr = toWTFString(stringValue(key)).utf8().data();
-            const auto intValue = doubleValue(dictionary, keyStr);
+            auto key = WKArrayGetItemAtIndex(keys, i);
+            auto keyStr = toWTFString(stringValue(key)).utf8();
+            auto intValue = doubleValue(dictionary, keyStr.data());
             bytes.append(static_cast<unsigned char>(intValue));
         }
         WKDataRef data = WKDataCreate(bytes.begin(), bytes.size());
@@ -2738,14 +3012,19 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
         const auto y = doubleValue(argument2);
         const auto pointerType = stringValue(argument3);
 
+        // Route event to the view that sent this message (e.g. a popup window).
+        setTargetViewFromMessage(message);
+
         auto array = adoptWK(WKMutableArrayCreate());
         WKArrayAppendItem(array.get(), argument);
         WKArrayAppendItem(array.get(), argument2);
-        WKPagePostMessageToInjectedBundle(mainWebView()->page(), toWK("SetMousePosition").get(), array.get());
+        WKPagePostMessageToInjectedBundle(targetView()->page(), toWK("SetMousePosition").get(), array.get());
 
-        m_eventSenderProxy->mouseMoveTo(x, y, pointerType);
-        m_eventSenderProxy->waitForPendingMouseEvents();
-        completionHandler(nullptr);
+        m_eventSenderProxy->mouseMoveTo(x, y, pointerType,
+            [this, completionHandler = WTF::move(completionHandler)] mutable {
+                setTargetView(nullptr);
+                completionHandler(nullptr);
+            });
         return;
     }
 
@@ -2754,9 +3033,13 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
         const auto array = arrayValue(argument2);
         const auto pointerType = stringValue(argument3);
 
-        m_eventSenderProxy->mouseDown(button, parseModifierArray(array), pointerType);
-        m_eventSenderProxy->waitForPendingMouseEvents();
-        completionHandler(nullptr);
+        setTargetViewFromMessage(message);
+
+        m_eventSenderProxy->mouseDown(button, parseModifierArray(array), pointerType,
+            [this, completionHandler = WTF::move(completionHandler)] mutable {
+                setTargetView(nullptr);
+                completionHandler(nullptr);
+            });
         return;
     }
 
@@ -2765,9 +3048,21 @@ void TestController::didReceiveScriptMessage(WKScriptMessageRef message, Complet
         const auto array = arrayValue(argument2);
         const auto pointerType = stringValue(argument3);
 
-        m_eventSenderProxy->mouseUp(button, parseModifierArray(array), pointerType);
-        m_eventSenderProxy->waitForPendingMouseEvents();
-        completionHandler(nullptr);
+        setTargetViewFromMessage(message);
+
+        m_eventSenderProxy->mouseUp(button, parseModifierArray(array), pointerType,
+            [this, completionHandler = WTF::move(completionHandler)] mutable {
+                setTargetView(nullptr);
+                completionHandler(nullptr);
+            });
+        return;
+    }
+
+    if (WKStringIsEqualToUTF8CString(command, "AsyncKeyDown")) {
+        const auto key = stringValue(argument);
+        const auto array = arrayValue(argument2);
+        m_eventSenderProxy->keyDown(key, parseModifierArray(array), 0,
+            [completionHandler = WTF::move(completionHandler)] mutable { completionHandler(nullptr); });
         return;
     }
 
@@ -3406,6 +3701,51 @@ void TestController::didReceiveSynchronousMessageFromInjectedBundle(WKStringRef 
         return setHTTPCookieAcceptPolicy(policy, WTF::move(completionHandler));
     }
 
+#if PLATFORM(MAC)
+    if (WKStringIsEqualToUTF8CString(messageName, "AXGetRoot"))
+        return completionHandler(handleAXGetRoot().get());
+
+    if (WKStringIsEqualToUTF8CString(messageName, "AXCopyAttributeValueAsString"))
+        return completionHandler(handleAXCopyAttributeValueAsString(dictionaryValue(messageBody)).get());
+
+    if (WKStringIsEqualToUTF8CString(messageName, "AXCopyAttributeValueAsElement"))
+        return completionHandler(handleAXCopyAttributeValueAsElement(dictionaryValue(messageBody)).get());
+
+    if (WKStringIsEqualToUTF8CString(messageName, "AXCopyAttributeValueAsElementArray"))
+        return completionHandler(handleAXCopyAttributeValueAsElementArray(dictionaryValue(messageBody)).get());
+
+    if (WKStringIsEqualToUTF8CString(messageName, "AXCopyAttributeValueAsNumber"))
+        return completionHandler(handleAXCopyAttributeValueAsNumber(dictionaryValue(messageBody)).get());
+
+    if (WKStringIsEqualToUTF8CString(messageName, "AXCopyAttributeValueAsBoolean"))
+        return completionHandler(handleAXCopyAttributeValueAsBoolean(dictionaryValue(messageBody)).get());
+
+    if (WKStringIsEqualToUTF8CString(messageName, "AXCopyAttributeValueAsPoint"))
+        return completionHandler(handleAXCopyAttributeValueAsPoint(dictionaryValue(messageBody)).get());
+
+    if (WKStringIsEqualToUTF8CString(messageName, "AXCopyAttributeValueAsSize"))
+        return completionHandler(handleAXCopyAttributeValueAsSize(dictionaryValue(messageBody)).get());
+
+    if (WKStringIsEqualToUTF8CString(messageName, "AXSearchPredicate"))
+        return completionHandler(handleAXSearchPredicate(dictionaryValue(messageBody)).get());
+
+    if (WKStringIsEqualToUTF8CString(messageName, "AXPerformAction")) {
+        handleAXPerformAction(dictionaryValue(messageBody));
+        return completionHandler(nullptr);
+    }
+#endif
+
+    if (WKStringIsEqualToUTF8CString(messageName, "GetStorageAreaMapCount")) {
+        CompletionHandler<void(WKTypeRef)> replyHandler = [listener = retainWK(listener)](WKTypeRef reply) {
+            WKMessageListenerSendReply(listener.get(), reply);
+        };
+        WKPageGetStorageAreaMapCountForTesting(TestController::singleton().mainWebView()->page(), replyHandler.leak(), [](uint64_t count, void* context) {
+            auto replyHandler = WTF::adopt(static_cast<CompletionHandler<void(WKTypeRef)>::Impl*>(context));
+            replyHandler(adoptWK(WKUInt64Create(count)).get());
+        });
+        return;
+    }
+
     completionHandler(protectedCurrentInvocation()->didReceiveSynchronousMessageFromInjectedBundle(messageName, messageBody).get());
 }
 
@@ -3446,7 +3786,7 @@ void TestController::networkProcessDidCrash(WKProcessID processID, WKProcessTerm
 void TestController::serviceWorkerProcessDidCrash(WKProcessID processID, WKProcessTerminationReason reason)
 {
     fprintf(stderr, "%s terminated (pid %ld) for reason: %s\n", "ServiceWorkerProcess", static_cast<long>(processID), terminationReasonToString(reason));
-    fprintf(stderr, "#CRASHED - ServiceWorkerProcess (pid %ld)\n", static_cast<long>(processID));
+    fprintf(stderr, "#CRASHED - %s (pid %ld)\n", serviceWorkerProcessName().characters(), static_cast<long>(processID));
     if (m_shouldExitWhenAuxiliaryProcessCrashes)
         exitProcess(1);
 }
@@ -3651,10 +3991,12 @@ void TestController::didFinishNavigation(WKPageRef page, WKNavigationRef navigat
 
 void TestController::didFailProvisionalNavigation(WKPageRef page, WKErrorRef error)
 {
+    auto failingURL = adoptWK(WKErrorCopyFailingURL(error));
+    m_lastProvisionalNavigationFailureURL = failingURL;
+
     if (m_usingServerMode)
         return;
 
-    auto failingURL = adoptWK(WKErrorCopyFailingURL(error));
     if (!m_mainResourceURL || !failingURL || !WKURLIsEqual(failingURL.get(), m_mainResourceURL.get()))
         return;
 
@@ -3664,6 +4006,13 @@ void TestController::didFailProvisionalNavigation(WKPageRef page, WKErrorRef err
     int errorCode = WKErrorGetErrorCode(error);
     auto errorMessage = makeString("Failed: "_s, errorDescription, " (errorDomain="_s, errorDomain, ", code="_s, errorCode, ") for URL "_s, failingURLString);
     printf("%s\n", errorMessage.utf8().data());
+}
+
+WKRetainPtr<WKStringRef> TestController::lastProvisionalNavigationFailureURL() const
+{
+    if (!m_lastProvisionalNavigationFailureURL)
+        return adoptWK(WKStringCreateWithUTF8CString(""));
+    return adoptWK(WKURLCopyString(m_lastProvisionalNavigationFailureURL.get()));
 }
 
 void TestController::didReceiveAuthenticationChallenge(WKPageRef page, WKAuthenticationChallengeRef authenticationChallenge)
@@ -4103,44 +4452,6 @@ void TestController::decidePolicyForNavigationAction(WKPageRef page, WKNavigatio
     static_cast<TestController*>(const_cast<void*>(clientInfo))->decidePolicyForNavigationAction(page, navigationAction, listener);
 }
 
-static inline bool isLocalFileScheme(WKStringRef scheme)
-{
-    return WKStringIsEqualToUTF8CStringIgnoringCase(scheme, "file");
-}
-
-WTF::String pathSuitableForTestResult(WKURLRef fileURL, WKPageRef page)
-{
-    if (!fileURL)
-        return "(null)"_s;
-
-    auto schemeString = adoptWK(WKURLCopyScheme(fileURL));
-    if (!isLocalFileScheme(schemeString.get()))
-        return toWTFString(adoptWK(WKURLCopyString(fileURL)));
-
-    WKFrameRef mainFrame = WKPageGetMainFrame(page);
-    auto mainFrameURL = adoptWK(WKFrameCopyURL(mainFrame));
-    if (!mainFrameURL)
-        mainFrameURL = adoptWK(WKFrameCopyProvisionalURL(mainFrame));
-
-    String pathString = toWTFString(adoptWK(WKURLCopyPath(fileURL)));
-    String mainFrameURLPathString = mainFrameURL ? toWTFString(adoptWK(WKURLCopyPath(mainFrameURL.get()))) : ""_s;
-    auto basePath = StringView(mainFrameURLPathString).left(mainFrameURLPathString.reverseFind('/') + 1);
-
-    if (!basePath.isEmpty() && pathString.startsWith(basePath))
-        return pathString.substring(basePath.length());
-    return toWTFString(adoptWK(WKURLCopyLastPathComponent(fileURL))); // We lose some information here, but it's better than exposing a full path, which is always machine specific.
-}
-
-static String string(WKURLRequestRef request, WKPageRef page)
-{
-    auto url = adoptWK(WKURLRequestCopyURL(request));
-    auto firstParty = adoptWK(WKURLRequestCopyFirstPartyForCookies(request));
-    auto httpMethod = adoptWK(WKURLRequestCopyHTTPMethod(request));
-    return makeString("<NSURLRequest URL "_s, pathSuitableForTestResult(url.get(), page),
-        ", main document URL "_s, pathSuitableForTestResult(firstParty.get(), page),
-        ", http method "_s, WKStringIsEmpty(httpMethod.get()) ? "(none)"_s : ""_s, toWTFString(httpMethod.get()), '>');
-}
-
 static ASCIILiteral navigationTypeToString(WKFrameNavigationType type)
 {
     switch (type) {
@@ -4165,12 +4476,18 @@ void TestController::decidePolicyForNavigationAction(WKPageRef page, WKNavigatio
     WKRetainPtr<WKFramePolicyListenerRef> retainedListener { listener };
     WKRetainPtr<WKNavigationActionRef> retainedNavigationAction { navigationAction };
     const bool shouldIgnore { m_policyDelegateEnabled && !m_policyDelegatePermissive };
+
+    auto globalPrivacyControlEnabled = m_globalPrivacyControlEnabled;
+    if (!globalPrivacyControlEnabled && m_currentInvocation && protectedCurrentInvocation()->options().globalPrivacyControl())
+        globalPrivacyControlEnabled = false;
+
     auto decisionFunction = [
         shouldIgnore,
         retainedListener,
         retainedNavigationAction,
         shouldSwapToEphemeralSessionOnNextNavigation = m_shouldSwapToEphemeralSessionOnNextNavigation,
         shouldSwapToDefaultSessionOnNextNavigation = m_shouldSwapToDefaultSessionOnNextNavigation,
+        globalPrivacyControlEnabled,
         page = WKRetainPtr { page }
     ] {
         if (shouldIgnore)
@@ -4182,6 +4499,8 @@ void TestController::decidePolicyForNavigationAction(WKPageRef page, WKNavigatio
                 ASSERT(shouldSwapToEphemeralSessionOnNextNavigation != shouldSwapToDefaultSessionOnNextNavigation);
                 WKRetainPtr policies = adoptWK(WKWebsitePoliciesCreate());
                 WKWebsitePoliciesSetAllowsJSHandleCreationInPageWorld(policies.get(), true);
+                if (globalPrivacyControlEnabled)
+                    WKWebsitePoliciesSetGlobalPrivacyControlEnabled(policies.get(), *globalPrivacyControlEnabled);
                 WKRetainPtr<WKWebsiteDataStoreRef> newSession = TestController::defaultWebsiteDataStore();
                 if (shouldSwapToEphemeralSessionOnNextNavigation)
                     newSession = adoptWK(WKWebsiteDataStoreCreateNonPersistentDataStore());
@@ -4190,6 +4509,8 @@ void TestController::decidePolicyForNavigationAction(WKPageRef page, WKNavigatio
             } else {
                 WKRetainPtr policies = WKPageConfigurationGetDefaultWebsitePolicies(adoptWK(WKPageCopyPageConfiguration(page.get())).get());
                 WKWebsitePoliciesSetAllowsJSHandleCreationInPageWorld(policies.get(), true);
+                if (globalPrivacyControlEnabled)
+                    WKWebsitePoliciesSetGlobalPrivacyControlEnabled(policies.get(), *globalPrivacyControlEnabled);
                 WKFramePolicyListenerUseWithPolicies(retainedListener.get(), policies.get());
             }
         }
@@ -4198,7 +4519,44 @@ void TestController::decidePolicyForNavigationAction(WKPageRef page, WKNavigatio
     m_shouldSwapToDefaultSessionOnNextNavigation = false;
 
     auto request = adoptWK(WKNavigationActionCopyRequest(navigationAction));
-    if (auto targetFrame = adoptWK(WKNavigationActionCopyTargetFrameInfo(navigationAction)); targetFrame && m_dumpPolicyDelegateCallbacks) {
+    auto targetFrame = adoptWK(WKNavigationActionCopyTargetFrameInfo(navigationAction));
+
+    // Block access to external URLs in subframe navigations when site isolation is enabled.
+    // With site isolation, the injected bundle's willSendRequestForFrame callback cannot emit
+    // the console message because WKBundleFrameGetJavaScriptContext returns null for provisional
+    // frames in the new process. Without site isolation, the injected bundle handles this.
+    if (targetFrame && !WKFrameInfoGetIsMainFrame(targetFrame.get()) && protectedCurrentInvocation()->options().siteIsolationEnabled()) {
+        if (auto url = adoptWK(WKURLRequestCopyURL(request.get()))) {
+            auto host = adoptWK(WKURLCopyHostName(url.get()));
+            auto scheme = adoptWK(WKURLCopyScheme(url.get()));
+            if (isExternalURLBlockable(host.get(), scheme.get())) {
+                bool mainFrameIsExternal = false;
+                WKFrameRef mainFrame = WKPageGetMainFrame(page);
+                if (mainFrame) {
+                    auto mainFrameURL = adoptWK(WKFrameCopyURL(mainFrame));
+                    if (!mainFrameURL || WKStringIsEqualToUTF8CString(adoptWK(WKURLCopyString(mainFrameURL.get())).get(), "about:blank"))
+                        mainFrameURL = adoptWK(WKFrameCopyProvisionalURL(mainFrame));
+                    mainFrameIsExternal = isMainFrameURLExternal(mainFrameURL.get());
+                }
+                if (!mainFrameIsExternal && !m_allowedHosts.count(toSTD(host))) {
+                    auto urlString = adoptWK(WKURLCopyString(url.get()));
+                    auto blockedURL = sanitizeExternalURL(urlString.get());
+                    auto message = makeString("CONSOLE MESSAGE: Blocked access to external URL "_s, blockedURL, '\n');
+                    if (protectedCurrentInvocation()->shouldDumpJSConsoleLogInStdErr()) {
+                        if (auto string = message.tryGetUTF8())
+                            SAFE_FPRINTF(stderr, "%s", *string);
+                        else
+                            SAFE_FPRINTF(stderr, "Out of memory\n");
+                    } else
+                        protectedCurrentInvocation()->outputText(WTF::move(message));
+                    WKFramePolicyListenerIgnore(listener);
+                    return;
+                }
+            }
+        }
+    }
+
+    if (targetFrame && m_dumpPolicyDelegateCallbacks) {
         protectedCurrentInvocation()->outputText(makeString(" - decidePolicyForNavigationAction\n"_s, string(request.get(), page),
             " is main frame - "_s, targetFrame && WKFrameInfoGetIsMainFrame(targetFrame.get()) ? "yes"_s : "no"_s,
             " should open URLs externally - "_s, WKNavigationActionGetShouldOpenExternalSchemes(navigationAction) ? "yes"_s : "no"_s, '\n'));
@@ -4206,6 +4564,10 @@ void TestController::decidePolicyForNavigationAction(WKPageRef page, WKNavigatio
 
     if (m_policyDelegateEnabled) {
         auto url = adoptWK(WKURLRequestCopyURL(request.get()));
+        if (!url) {
+            WKFramePolicyListenerUse(listener);
+            return;
+        }
         auto urlScheme = adoptWK(WKURLCopyScheme(url.get()));
 
         StringBuilder stringBuilder;
@@ -4477,14 +4839,6 @@ static void genericVoidCallback(void* userData)
     context->testController.notifyDone();
 }
 
-void TestController::clearServiceWorkerRegistrations()
-{
-    GenericVoidContext context(*this);
-
-    WKWebsiteDataStoreRemoveAllServiceWorkerRegistrations(websiteDataStore(), &context, genericVoidCallback);
-    runUntil(context.done, noTimeout);
-}
-
 struct ClearDOMCacheCallbackContext {
     explicit ClearDOMCacheCallbackContext(TestController& controller)
         : testController(controller)
@@ -4542,20 +4896,6 @@ static void StorageVoidCallback(void* userData)
     auto* context = static_cast<StorageVoidCallbackContext*>(userData);
     context->done = true;
     context->testController.notifyDone();
-}
-
-void TestController::clearIndexedDatabases()
-{
-    StorageVoidCallbackContext context(*this);
-    WKWebsiteDataStoreRemoveAllIndexedDatabases(websiteDataStore(), &context, StorageVoidCallback);
-    runUntil(context.done, noTimeout);
-}
-
-void TestController::clearLocalStorage()
-{
-    StorageVoidCallbackContext context(*this);
-    WKWebsiteDataStoreRemoveLocalStorage(websiteDataStore(), &context, StorageVoidCallback);
-    runUntil(context.done, noTimeout);
 }
 
 void TestController::syncLocalStorage()
@@ -5213,13 +5553,6 @@ WKRetainPtr<WKStringRef> TestController::takeViewPortSnapshot()
 }
 #endif
 
-#if !PLATFORM(COCOA)
-WKRetainPtr<WKArrayRef> TestController::getAndClearReportedWindowProxyAccessDomains()
-{
-    return nullptr;
-}
-#endif
-
 void TestController::setServiceWorkerFetchTimeoutForTesting(double seconds)
 {
     WKWebsiteDataStoreSetServiceWorkerFetchTimeoutForTesting(websiteDataStore(), seconds);
@@ -5378,6 +5711,13 @@ void TestController::setRequestStorageAccessThrowsExceptionUntilReload(bool enab
     WKPreferencesSetBoolValueForKeyForTesting(preferences, enabled, toWK("RequestStorageAccessThrowsExceptionUntilReload").get());
 }
 
+void TestController::setStorageAccessAPIPerPageScopeEnabled(bool enabled)
+{
+    auto configuration = adoptWK(WKPageCopyPageConfiguration(m_mainWebView->page()));
+    auto preferences = WKPageConfigurationGetPreferences(configuration.get());
+    WKPreferencesSetBoolValueForKeyForTesting(preferences, enabled, toWK("StorageAccessAPIPerPageScopeEnabled").get());
+}
+
 void TestController::setResourceMonitorList(WKStringRef rulesText, CompletionHandler<void(WKTypeRef)>&& completionHandler)
 {
     WKContextSetResourceMonitorURLsForTesting(m_context.get(), rulesText, completionHandler.leak(), adoptAndCallCompletionHandler);
@@ -5386,6 +5726,327 @@ void TestController::setResourceMonitorList(WKStringRef rulesText, CompletionHan
 #if !PLATFORM(IOS_FAMILY)
 void TestController::setHasMouseDeviceForTesting(bool)
 {
+}
+#endif
+
+#if PLATFORM(MAC)
+// Client accessibility IPC implementation
+
+// Private API for creating an AXUIElement from a remote token
+extern "C" AXUIElementRef _AXUIElementCreateWithRemoteToken(CFDataRef remoteToken);
+
+uint64_t TestController::storeAXElement(CFTypeRef element)
+{
+    if (!element)
+        return 0;
+
+    uint64_t token = m_nextAXElementToken++;
+    m_axElementTokens.set(token, element);
+    return token;
+}
+
+CFTypeRef TestController::getAXElement(uint64_t token)
+{
+    if (!token)
+        return nullptr;
+
+    auto tokenIterator = m_axElementTokens.find(token);
+    if (tokenIterator == m_axElementTokens.end())
+        return nullptr;
+
+    return tokenIterator->value.get();
+}
+
+WKRetainPtr<WKTypeRef> TestController::handleAXGetRoot()
+{
+    CFDataRef remoteToken = getRemoteAccessibilityToken();
+    if (!remoteToken)
+        return nullptr;
+
+    AXUIElementRef webContentElement = _AXUIElementCreateWithRemoteToken(remoteToken);
+    if (!webContentElement)
+        return nullptr;
+
+    // Try to get children
+    CFTypeRef childrenValue = nullptr;
+    AXError error = AXUIElementCopyAttributeValue(webContentElement, kAXChildrenAttribute, &childrenValue);
+    RetainPtr adoptedChildren = adoptCF(childrenValue);
+
+    if (error != kAXErrorSuccess || !childrenValue)
+        return nullptr;
+
+    CFArrayRef children = static_cast<CFArrayRef>(childrenValue);
+    CFIndex childCount = CFArrayGetCount(children);
+    if (!childCount)
+        return nullptr;
+
+    AXUIElementRef child = static_cast<AXUIElementRef>(const_cast<void*>(CFArrayGetValueAtIndex(children, 0)));
+
+    uint64_t token = storeAXElement(child);
+    return adoptWK(WKUInt64Create(token));
+}
+
+RetainPtr<CFTypeRef> TestController::axCopyAttributeValue(WKDictionaryRef messageBody)
+{
+    uint64_t elementToken = uint64Value(messageBody, "elementToken");
+    WKStringRef attributeName = stringValue(messageBody, "attributeName");
+
+    AXUIElementRef element = static_cast<AXUIElementRef>(getAXElement(elementToken));
+    if (!element)
+        return nullptr;
+
+    RetainPtr attributeNameCF = adoptCF(CFStringCreateWithCString(kCFAllocatorDefault, toSTD(attributeName).c_str(), kCFStringEncodingUTF8));
+    CFTypeRef value = nullptr;
+    AXError error = AXUIElementCopyAttributeValue(element, attributeNameCF.get(), &value);
+
+    if (error != kAXErrorSuccess || !value)
+        return nullptr;
+
+    return adoptCF(value);
+}
+
+WKRetainPtr<WKTypeRef> TestController::handleAXCopyAttributeValueAsString(WKDictionaryRef messageBody)
+{
+    RetainPtr value = axCopyAttributeValue(messageBody);
+    if (!value)
+        return nullptr;
+
+    if (CFGetTypeID(value.get()) != CFStringGetTypeID())
+        return nullptr;
+
+    return toWK(String(static_cast<CFStringRef>(value.get())));
+}
+
+WKRetainPtr<WKTypeRef> TestController::handleAXCopyAttributeValueAsElement(WKDictionaryRef messageBody)
+{
+    RetainPtr value = axCopyAttributeValue(messageBody);
+    if (!value)
+        return nullptr;
+
+    if (CFGetTypeID(value.get()) != AXUIElementGetTypeID())
+        return nullptr;
+
+    uint64_t token = storeAXElement(value.get());
+    return adoptWK(WKUInt64Create(token));
+}
+
+WKRetainPtr<WKTypeRef> TestController::handleAXCopyAttributeValueAsElementArray(WKDictionaryRef messageBody)
+{
+    RetainPtr value = axCopyAttributeValue(messageBody);
+    if (!value)
+        return nullptr;
+
+    if (CFGetTypeID(value.get()) != CFArrayGetTypeID())
+        return nullptr;
+
+    CFArrayRef elementArray = static_cast<CFArrayRef>(value.get());
+    CFIndex count = CFArrayGetCount(elementArray);
+
+    Vector<WKTypeRef> tokens;
+    tokens.reserveInitialCapacity(count);
+
+    for (CFIndex i = 0; i < count; i++) {
+        CFTypeRef childElement = CFArrayGetValueAtIndex(elementArray, i);
+        if (CFGetTypeID(childElement) == AXUIElementGetTypeID()) {
+            uint64_t token = storeAXElement(childElement);
+            tokens.append(WKUInt64Create(token));
+        }
+    }
+
+    // Build array from individual elements since Vector::data() is private
+    WKRetainPtr result = adoptWK(WKMutableArrayCreate());
+    for (WKTypeRef token : tokens) {
+        WKArrayAppendItem(result.get(), token);
+        WKRelease(token);
+    }
+
+    return result;
+}
+
+WKRetainPtr<WKTypeRef> TestController::handleAXCopyAttributeValueAsNumber(WKDictionaryRef messageBody)
+{
+    RetainPtr value = axCopyAttributeValue(messageBody);
+    if (!value)
+        return nullptr;
+
+    if (CFGetTypeID(value.get()) != CFNumberGetTypeID())
+        return nullptr;
+
+    double doubleValue;
+    CFNumberGetValue(static_cast<CFNumberRef>(value.get()), kCFNumberDoubleType, &doubleValue);
+
+    return adoptWK(WKDoubleCreate(doubleValue));
+}
+
+WKRetainPtr<WKTypeRef> TestController::handleAXCopyAttributeValueAsBoolean(WKDictionaryRef messageBody)
+{
+    RetainPtr value = axCopyAttributeValue(messageBody);
+    if (!value)
+        return nullptr;
+
+    if (CFGetTypeID(value.get()) != CFBooleanGetTypeID())
+        return nullptr;
+
+    bool boolValue = CFBooleanGetValue(static_cast<CFBooleanRef>(value.get()));
+
+    return adoptWK(WKBooleanCreate(boolValue));
+}
+
+WKRetainPtr<WKTypeRef> TestController::handleAXCopyAttributeValueAsPoint(WKDictionaryRef messageBody)
+{
+    RetainPtr value = axCopyAttributeValue(messageBody);
+    if (!value)
+        return nullptr;
+
+    if (CFGetTypeID(value.get()) != AXValueGetTypeID())
+        return nullptr;
+
+    CGPoint point;
+    if (!AXValueGetValue(static_cast<AXValueRef>(value.get()), static_cast<AXValueType>(kAXValueCGPointType), &point))
+        return nullptr;
+
+    WKRetainPtr dictionary = adoptWK(WKMutableDictionaryCreate());
+    setValue(dictionary, "x", point.x);
+    setValue(dictionary, "y", point.y);
+    return dictionary;
+}
+
+WKRetainPtr<WKTypeRef> TestController::handleAXCopyAttributeValueAsSize(WKDictionaryRef messageBody)
+{
+    RetainPtr value = axCopyAttributeValue(messageBody);
+    if (!value)
+        return nullptr;
+
+    if (CFGetTypeID(value.get()) != AXValueGetTypeID())
+        return nullptr;
+
+    CGSize size;
+    if (!AXValueGetValue(static_cast<AXValueRef>(value.get()), static_cast<AXValueType>(kAXValueCGSizeType), &size))
+        return nullptr;
+
+    WKRetainPtr dictionary = adoptWK(WKMutableDictionaryCreate());
+    setValue(dictionary, "width", size.width);
+    setValue(dictionary, "height", size.height);
+    return dictionary;
+}
+
+WKRetainPtr<WKTypeRef> TestController::handleAXSearchPredicate(WKDictionaryRef messageBody)
+{
+    uint64_t elementToken = uint64Value(messageBody, "elementToken");
+    uint64_t startElementToken = uint64Value(messageBody, "startElementToken");
+    bool isDirectionNext = booleanValue(messageBody, "isDirectionNext");
+    uint64_t resultsLimit = uint64Value(messageBody, "resultsLimit");
+    bool visibleOnly = booleanValue(messageBody, "visibleOnly");
+    bool immediateDescendantsOnly = booleanValue(messageBody, "immediateDescendantsOnly");
+    WKStringRef searchKey = stringValue(messageBody, "searchKey");
+    WKStringRef searchText = stringValue(messageBody, "searchText");
+
+    AXUIElementRef element = static_cast<AXUIElementRef>(getAXElement(elementToken));
+    if (!element)
+        return nullptr;
+
+    // Build the search predicate parameter dictionary using CF APIs.
+    RetainPtr paramDictionary = adoptCF(CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks));
+
+    if (startElementToken) {
+        if (AXUIElementRef startElement = static_cast<AXUIElementRef>(getAXElement(startElementToken)))
+            CFDictionarySetValue(paramDictionary.get(), CFSTR("AXStartElement"), startElement);
+    }
+
+    CFDictionarySetValue(paramDictionary.get(), CFSTR("AXDirection"),
+        isDirectionNext ? CFSTR("AXDirectionNext") : CFSTR("AXDirectionPrevious"));
+
+    int resultsLimitInt = static_cast<int>(resultsLimit);
+    RetainPtr resultsLimitNum = adoptCF(CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &resultsLimitInt));
+    CFDictionarySetValue(paramDictionary.get(), CFSTR("AXResultsLimit"), resultsLimitNum.get());
+
+    if (searchKey) {
+        RetainPtr searchKeyCF = adoptCF(CFStringCreateWithCString(kCFAllocatorDefault, toSTD(searchKey).c_str(), kCFStringEncodingUTF8));
+        CFDictionarySetValue(paramDictionary.get(), CFSTR("AXSearchKey"), searchKeyCF.get());
+    }
+
+    if (searchText) {
+        auto searchTextStd = toSTD(searchText);
+        if (!searchTextStd.empty()) {
+            RetainPtr searchTextCF = adoptCF(CFStringCreateWithCString(kCFAllocatorDefault, searchTextStd.c_str(), kCFStringEncodingUTF8));
+            CFDictionarySetValue(paramDictionary.get(), CFSTR("AXSearchText"), searchTextCF.get());
+        }
+    }
+
+    CFDictionarySetValue(paramDictionary.get(), CFSTR("AXVisibleOnly"), visibleOnly ? kCFBooleanTrue : kCFBooleanFalse);
+    CFDictionarySetValue(paramDictionary.get(), CFSTR("AXImmediateDescendantsOnly"), immediateDescendantsOnly ? kCFBooleanTrue : kCFBooleanFalse);
+
+    CFTypeRef resultValue = nullptr;
+    AXError error = AXUIElementCopyParameterizedAttributeValue(element, CFSTR("AXUIElementsForSearchPredicate"), paramDictionary.get(), &resultValue);
+
+    if (error != kAXErrorSuccess || !resultValue)
+        return nullptr;
+
+    RetainPtr result = adoptCF(resultValue);
+
+    if (CFGetTypeID(result.get()) != CFArrayGetTypeID())
+        return nullptr;
+
+    CFArrayRef resultArray = static_cast<CFArrayRef>(result.get());
+    CFIndex count = CFArrayGetCount(resultArray);
+
+    WKRetainPtr tokenArray = adoptWK(WKMutableArrayCreate());
+    for (CFIndex i = 0; i < count; i++) {
+        CFTypeRef item = CFArrayGetValueAtIndex(resultArray, i);
+
+        AXUIElementRef resultElement = nullptr;
+        if (CFGetTypeID(item) == AXUIElementGetTypeID())
+            resultElement = static_cast<AXUIElementRef>(const_cast<void*>(item));
+        else if (CFGetTypeID(item) == CFDictionaryGetTypeID()) {
+            CFTypeRef searchResultElement = CFDictionaryGetValue(static_cast<CFDictionaryRef>(item), CFSTR("AXSearchResultElement"));
+            if (searchResultElement && CFGetTypeID(searchResultElement) == AXUIElementGetTypeID())
+                resultElement = static_cast<AXUIElementRef>(const_cast<void*>(searchResultElement));
+        }
+
+        if (resultElement) {
+            uint64_t token = storeAXElement(resultElement);
+            WKRetainPtr tokenRef = adoptWK(WKUInt64Create(token));
+            WKArrayAppendItem(tokenArray.get(), tokenRef.get());
+        }
+    }
+
+    return tokenArray;
+}
+
+void TestController::handleAXPerformAction(WKDictionaryRef messageBody)
+{
+    uint64_t elementToken = uint64Value(messageBody, "elementToken");
+    WKStringRef actionName = stringValue(messageBody, "actionName");
+
+    AXUIElementRef element = static_cast<AXUIElementRef>(getAXElement(elementToken));
+    if (!element)
+        return;
+
+    RetainPtr actionNameCF = adoptCF(CFStringCreateWithCString(kCFAllocatorDefault, toSTD(actionName).c_str(), kCFStringEncodingUTF8));
+    AXUIElementPerformAction(element, actionNameCF.get());
+}
+
+#endif // PLATFORM(MAC)
+
+#if !PLATFORM(COCOA)
+void TestController::doAfterProcessingAllPendingMouseEvents(CompletionHandler<void()>&& handler)
+{
+    auto* completionHandler = new CompletionHandler<void()>(WTF::move(handler));
+    WKPageDoAfterProcessingAllPendingMouseEvents(targetView()->page(), completionHandler, [](void* userData) {
+        auto* completionHandler = static_cast<CompletionHandler<void()>*>(userData);
+        (*completionHandler)();
+        delete completionHandler;
+    });
+}
+
+void TestController::doAfterProcessingAllPendingKeyEvents(CompletionHandler<void()>&& handler)
+{
+    auto* completionHandler = new CompletionHandler<void()>(WTF::move(handler));
+    WKPageDoAfterProcessingAllPendingKeyEvents(mainWebView()->page(), completionHandler, [](void* userData) {
+        auto* completionHandler = static_cast<CompletionHandler<void()>*>(userData);
+        (*completionHandler)();
+        delete completionHandler;
+    });
 }
 #endif
 

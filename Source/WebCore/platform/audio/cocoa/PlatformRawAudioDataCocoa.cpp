@@ -52,7 +52,7 @@ Ref<PlatformRawAudioData> PlatformRawAudioData::create(Ref<MediaSample>&& sample
     return PlatformRawAudioDataCocoa::create(downcast<MediaSampleAVFObjC>(WTF::move(sample)));
 }
 
-static AudioStreamDescription::PCMFormat audioSampleFormatToPCMFormat(AudioSampleFormat format)
+static AudioStreamDescription::PCMFormat NODELETE audioSampleFormatToPCMFormat(AudioSampleFormat format)
 {
     switch (format) {
     case AudioSampleFormat::U8:
@@ -74,7 +74,7 @@ static AudioStreamDescription::PCMFormat audioSampleFormatToPCMFormat(AudioSampl
     }
 }
 
-static CAAudioStreamDescription::IsInterleaved interleavedFormat(AudioSampleFormat format)
+static CAAudioStreamDescription::IsInterleaved NODELETE interleavedFormat(AudioSampleFormat format)
 {
     return isAudioSampleFormatInterleaved(format) ? CAAudioStreamDescription::IsInterleaved::Yes : CAAudioStreamDescription::IsInterleaved::No;
 }
@@ -95,15 +95,6 @@ static RetainPtr<CMSampleBufferRef> createSampleBuffer(const CAAudioStreamDescri
         RELEASE_LOG_ERROR(MediaStream, "PlatformRawAudioData::create createSampleBuffer couldn't allocate memory with error %d", error);
         return nullptr;
     }
-    return sampleBuffer;
-
-    auto result = WebAudioBufferList::createWebAudioBufferListWithBlockBuffer(description, numberOfFrames);
-    if (!result)
-        return nullptr;
-
-    auto [newList, blockBuffer] = WTF::move(*result);
-    if (PAL::CMSampleBufferSetDataBuffer(rawSampleBuffer, blockBuffer.get()))
-        return nullptr;
     return sampleBuffer;
 }
 
@@ -151,9 +142,9 @@ PlatformRawAudioDataCocoa::PlatformRawAudioDataCocoa(Ref<MediaSampleAVFObjC>&& s
 
 const AudioStreamBasicDescription& PlatformRawAudioDataCocoa::asbd() const
 {
-    auto description = PAL::CMSampleBufferGetFormatDescription(m_sample->sampleBuffer());
+    RetainPtr description = PAL::CMSampleBufferGetFormatDescription(RetainPtr { m_sample->sampleBuffer() }.get());
     ASSERT(description);
-    const AudioStreamBasicDescription* const asbd = PAL::CMAudioFormatDescriptionGetStreamBasicDescription(description);
+    const AudioStreamBasicDescription* const asbd = PAL::CMAudioFormatDescriptionGetStreamBasicDescription(description.get());
     ASSERT(asbd);
     return *asbd;
 }
@@ -187,7 +178,7 @@ size_t PlatformRawAudioDataCocoa::numberOfChannels() const
 
 size_t PlatformRawAudioDataCocoa::numberOfFrames() const
 {
-    return PAL::CMSampleBufferGetNumSamples(m_sample->sampleBuffer());
+    return PAL::CMSampleBufferGetNumSamples(RetainPtr { m_sample->sampleBuffer() }.get());
 }
 
 std::optional<uint64_t> PlatformRawAudioDataCocoa::duration() const
@@ -244,6 +235,9 @@ static Variant<Vector<std::span<uint8_t>>, Vector<std::span<int16_t>>, Vector<st
 
 void PlatformRawAudioData::copyTo(std::span<uint8_t> destination, AudioSampleFormat destinationFormat, size_t planeIndex, std::optional<size_t> frameOffset, std::optional<size_t>, unsigned long copyElementCount)
 {
+    if (!copyElementCount)
+        return;
+
     // WebCodecsAudioDataAlgorithms's computeCopyElementCount ensures that all parameters are correct.
     auto& audioData = downcast<PlatformRawAudioDataCocoa>(*this);
 

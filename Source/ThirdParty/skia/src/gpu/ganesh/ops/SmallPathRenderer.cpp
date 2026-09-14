@@ -33,8 +33,8 @@
 #include "src/core/SkDraw.h"
 #include "src/core/SkMatrixPriv.h"
 #include "src/core/SkRasterClip.h"
-#include "src/gpu/AtlasTypes.h"
 #include "src/gpu/BufferWriter.h"
+#include "src/gpu/MaskFormat.h"
 #include "src/gpu/ganesh/GrAppliedClip.h"
 #include "src/gpu/ganesh/GrAuditTrail.h"
 #include "src/gpu/ganesh/GrBuffer.h"
@@ -87,8 +87,6 @@ struct GrUserStencilSettings;
 using namespace skia_private;
 
 #if !defined(SK_ENABLE_OPTIMIZE_SIZE)
-
-using MaskFormat = skgpu::MaskFormat;
 
 namespace skgpu::ganesh {
 
@@ -264,7 +262,7 @@ private:
             &flushInfo.fVertexBuffer, &flushInfo.fVertexOffset);
 
         flushInfo.fIndexBuffer = target->resourceProvider()->refNonAAQuadIndexBuffer();
-        if (!vertices || !flushInfo.fIndexBuffer) {
+        if (!vertices || !flushInfo.fIndexBuffer) SK_UNLIKELY {
             SkDebugf("Could not allocate vertices\n");
             return;
         }

@@ -4,10 +4,6 @@
 // found in the LICENSE file.
 //
 
-#ifdef UNSAFE_BUFFERS_BUILD
-#    pragma allow_unsafe_buffers
-#endif
-
 #include "test_utils/CompilerTest.h"
 
 #include "test_utils/angle_test_configs.h"
@@ -582,7 +578,11 @@ void main() {
                          "for (uint i = 0u; i < 4294967295u; ++i) { }",
                          "for (uint i = 10u; i > 1u+3u ; --i) { }",
                          "const int z = 7; for (int i = 0; i < z; i++) { }",
-                         "for (int i = 0; i < 10; i++) { for (int j = 0; j < 1000; ++j) { }}"};
+                         "for (int i = 0; i < 10; i++) { for (int j = 0; j < 1000; ++j) { }}",
+                         "for (uint i = 10u; i >= 1u; --i) { }",
+                         "for (uint i = 0u; i <= 10u; ++i) { }",
+                         "for (int i = 0; i <= 2147483646; ++i) { }",
+                         "for (int i = 0; i >= -2147483647; --i) { }"};
 
     for (const char *test : kTests)
     {
@@ -600,29 +600,40 @@ TEST_P(GLSLOutputMSLTest_EnsureLoopForwardProgress, InfiniteFors)
 precision highp int;
 uniform int a;
 uniform uint b;
-void noop() { }
+int f() { return 0; }
 void main() {
 
 )";
     const char kShaderSuffix[] = "}\n";
-    const char *kTests[]{"for (;;) { }",
-                         "for (bool b = true; b; b = false) { }",
-                         "for (int i = 0; i < 10;) { }",
-                         "int i = 101; for (; i < 10; i+=2) { }",
-                         "int i = 101; for (; i < 10; i-=2) { }",
-                         "int z = 7; for (int i = 0; i < z; i++) { }",
-                         "for (int i = 0; i < 10; i++) { i++; }",
-                         "for (int i = 0; i < 10;) { i++; }",
-                         "for (int i = 0; i < a/2; i++) { }",
-                         "for (int i = 0; float(i) < 10e10; ++i) { }",
-                         "for (int i = 0; i < 10; i++) { for (int j = 0; j < 1000; ++i) { }}",
-                         "for (int i = 0; i != 1; i+=2) { }",
-                         "for (int i = 0; i < 1; noop()) { }",
-                         "uint i; for (i = 0u; i < 10u; i++) { for (i = 0u; i < 0u; i++) { } }",
-                         "for (int i = 0; i < 10; i++) { int j; for (j = 0, i = 0; j < 10; j++) { } }",
-                         "for (int i = 0; i < 10; i++) { for (int j = 0; i = 0, j < 10; j++) { } }",
-                         "for (int i = 0; i < 10; i++) { for (int j = 0; j < 10; i = 0, j++) { } }",
-                         "for (int i = 0; i < 10; i++) { for (int j = 0; j < 10; i--, j++) { } }"};
+    const char *kTests[]{
+        "for (;;) { }",
+        "for (bool b = true; b; b = false) { }",
+        "for (int i = 0; i < 10;) { }",
+        "int i = 101; for (; i < 10; i+=2) { }",
+        "int i = 101; for (; i < 10; i-=2) { }",
+        "int z = 7; for (int i = 0; i < z; i++) { }",
+        "for (int i = 0; i < 10; i++) { i++; }",
+        "for (int i = 0; i < 10;) { i++; }",
+        "for (int i = 0; i < a/2; i++) { }",
+        "for (int i = 0; float(i) < 10e10; ++i) { }",
+        "for (int i = 0; i < 10; i++) { for (int j = 0; j < 1000; ++i) { }}",
+        "for (int i = 0; i != 1; i+=2) { }",
+        "for (int i = 0; i < 1; noop()) { }",
+        "uint i; for (i = 0u; i < 10u; i++) { for (i = 0u; i < 0u; i++) { } }",
+        "for (int i = 0; i < 10; i++) { int j; for (j = 0, i = 0; j < 10; j++) { } }",
+        "for (int i = 0; i < 10; i++) { for (int j = 0; i = 0, j < 10; j++) { } }",
+        "for (int i = 0; i < 10; i++) { for (int j = 0; j < 10; i = 0, j++) { } }",
+        "for (int i = 0; i < 10; i++) { for (int j = 0; j < 10; i--, j++) { } }",
+        "for (int i = 0; i < 10; f()) { }",
+        "for (int i = 0; i < 10; a == 0 ? i++ : i = 0) { }",
+        "for (uint i = 0u; i >= 0u; i--) { }",
+        "for (uint i = 0u; i >= 0u; i++) { }",
+        "for (uint i = 0u; i <= 4294967295u; i++) { }",
+        "for (int i = 0; i <= 2147483647; i++) { }",
+        "for (int i = 0; i >= -2147483647 - 1; i--) { }",
+        "const uint z = 0u; for (uint i = 0u; i >= z; i--) { }",
+        "for (int i = 0; i <= a; i++) { }",
+        "for (uint i = 0u; i >= b; i--) { }"};
 
     for (const char *test : kTests)
     {

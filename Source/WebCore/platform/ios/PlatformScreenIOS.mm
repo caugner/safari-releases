@@ -184,7 +184,7 @@ FloatRect screenRect(Widget* widget)
         CGRect screenRect = { CGPointZero, [window screenSize] };
         return enclosingIntRect(screenRect);
     }
-    return enclosingIntRect(FloatRect(FloatPoint(), widget->root()->hostWindow()->overrideScreenSize()));
+    return enclosingIntRect(FloatRect(FloatPoint(), protect(widget->root())->hostWindow()->overrideScreenSize()));
 }
 
 FloatRect screenAvailableRect(Widget* widget)
@@ -200,7 +200,7 @@ FloatRect screenAvailableRect(Widget* widget)
         CGRect screenRect = { CGPointZero, [window availableScreenSize] };
         return enclosingIntRect(screenRect);
     }
-    return enclosingIntRect(FloatRect(FloatPoint(), widget->root()->hostWindow()->overrideAvailableScreenSize()));
+    return enclosingIntRect(FloatRect(FloatPoint(), protect(widget->root())->hostWindow()->overrideAvailableScreenSize()));
 }
 
 float screenPPIFactor()
@@ -223,8 +223,11 @@ float screenPPIFactor()
 
 FloatSize screenSize()
 {
+// FIXME: rdar://172495534 Stop using deprecated `_isClassic` and `UIApplicationSceneClassicModeOriginalPad`.
+ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     if (PAL::deviceHasIPadCapability() && [[PAL::getUIApplicationClassSingleton() sharedApplication] _isClassic])
         return { 320, 480 };
+ALLOW_DEPRECATED_DECLARATIONS_END
 
     Ref screen = PlatformScreen::singleton();
     if (auto data = screen->screenData(screen->primaryScreenDisplayID()))
@@ -235,8 +238,11 @@ FloatSize screenSize()
 
 FloatSize availableScreenSize()
 {
+// FIXME: rdar://172495534 Stop using deprecated `_isClassic` and `UIApplicationSceneClassicModeOriginalPad`.
+ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     if (PAL::deviceHasIPadCapability() && [[PAL::getUIApplicationClassSingleton() sharedApplication] _isClassic])
         return { 320, 480 };
+ALLOW_DEPRECATED_DECLARATIONS_END
 
     Ref screen = PlatformScreen::singleton();
     if (auto data = screen->screenData(screen->primaryScreenDisplayID()))

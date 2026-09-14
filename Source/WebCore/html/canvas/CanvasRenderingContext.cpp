@@ -36,6 +36,8 @@
 #include "HTMLVideoElement.h"
 #include "Image.h"
 #include "ImageBitmap.h"
+#include "InspectorInstrumentation.h"
+#include <JavaScriptCore/HeapInlines.h>
 #include "OriginAccessPatterns.h"
 #include "PixelFormat.h"
 #include "SVGImageElement.h"
@@ -71,6 +73,7 @@ Lock& CanvasRenderingContext::instancesLock()
 CanvasRenderingContext::CanvasRenderingContext(CanvasBase& canvas, Type type)
     : m_canvas(canvas)
     , m_type(type)
+    , m_owningThreadUID(currentThreadID())
 {
     Locker locker { instancesLock() };
     instances().add(this);
@@ -91,17 +94,6 @@ void CanvasRenderingContext::ref() const
 void CanvasRenderingContext::deref() const
 {
     m_canvas->deref();
-}
-
-RefPtr<ImageBuffer> CanvasRenderingContext::surfaceBufferToImageBuffer(SurfaceBuffer)
-{
-    // This will be removed once all contexts store their own buffers.
-    return canvasBase().buffer();
-}
-
-bool CanvasRenderingContext::isSurfaceBufferTransparentBlack(SurfaceBuffer) const
-{
-    return false;
 }
 
 bool CanvasRenderingContext::delegatesDisplay() const
@@ -185,18 +177,18 @@ bool CanvasRenderingContext::taintsOrigin(const CachedImage* cachedImage)
 
 bool CanvasRenderingContext::taintsOrigin(const HTMLImageElement* element)
 {
-    return element && taintsOrigin(element->cachedImage());
+    return element && taintsOrigin(protect(element->cachedImage()));
 }
 
 bool CanvasRenderingContext::taintsOrigin(const SVGImageElement* element)
 {
-    return element && taintsOrigin(element->cachedImage());
+    return element && taintsOrigin(protect(element->cachedImage()));
 }
 
 bool CanvasRenderingContext::taintsOrigin(const HTMLVideoElement* video)
 {
 #if ENABLE(VIDEO)
-    return video && video->taintsOrigin(*m_canvas->securityOrigin());
+    return video && protect(video)->taintsOrigin(*m_canvas->securityOrigin());
 #else
     UNUSED_PARAM(video);
     return false;
@@ -210,7 +202,7 @@ bool CanvasRenderingContext::taintsOrigin(const ImageBitmap* imageBitmap)
 
 bool CanvasRenderingContext::taintsOrigin(const URL& url)
 {
-    return !url.protocolIsData() && !m_canvas->securityOrigin()->canRequest(url, OriginAccessPatternsForWebProcess::singleton());
+    return !url.protocolIsData() && !protect(m_canvas)->securityOrigin()->canRequest(url, OriginAccessPatternsForWebProcess::singleton());
 }
 
 void CanvasRenderingContext::checkOrigin(const URL& url)
@@ -223,5 +215,35 @@ void CanvasRenderingContext::checkOrigin(const CSSStyleImageValue&)
 {
     m_canvas->setOriginTainted();
 }
+
+void CanvasRenderingContext::updateMemoryCost(size_t newMemoryCost) const
+{
+    size_t oldMemoryCost = m_memoryCost.load(std::memory_order_relaxed);
+    m_memoryCost.store(newMemoryCost, std::memory_order_relaxed);
+    if (newMemoryCost) {
+        if (RefPtr scriptExecutionContext = protect(canvasBase())->scriptExecutionContext()) {
+            JSC::JSLockHolder lock(scriptExecutionContext->vm());
+            scriptExecutionContext->vm().heap.reportExtraMemoryAllocated(static_cast<JSCell*>(nullptr), newMemoryCost);
+        }
+    }
+    if (oldMemoryCost != newMemoryCost)
+        InspectorInstrumentation::didChangeCanvasMemory(*this);
+}
+
+size_t CanvasRenderingContext::memoryCost() const
+{
+    // May be called from GC threads.
+    return m_memoryCost.load(std::memory_order_relaxed);
+}
+
+#if ENABLE(RESOURCE_USAGE)
+size_t CanvasRenderingContext::externalMemoryCost() const
+{
+    // For the purposes of Web Inspector, external memory means memory reported as 1) being traceable from JS objects, i.e. GC owned memory
+    // 2) not allocated from "Page" category, e.g. from bmalloc.
+    // Report the same value until we have implementations that differ.
+    return memoryCost();
+}
+#endif
 
 } // namespace WebCore

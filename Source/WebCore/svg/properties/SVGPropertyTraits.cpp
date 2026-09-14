@@ -32,8 +32,8 @@
 #include "ContainerNodeInlines.h"
 #include "RenderElement.h"
 #include "RenderObjectStyle.h"
-#include "RenderStyle+GettersInlines.h"
 #include "SVGElement.h"
+#include "StyleComputedStyle+GettersInlines.h"
 #include "StyleColor.h"
 #include <wtf/text/StringToIntegerConversion.h>
 
@@ -56,7 +56,7 @@ public:
 Color SVGStyleColorResolutionDelegate::currentColor() const
 {
     if (CheckedPtr renderer = m_element->renderer())
-        return renderer->checkedStyle()->visitedDependentColor();
+        return protect(renderer->style())->visitedDependentColor();
     return { };
 }
 

@@ -29,6 +29,7 @@
 
 #import "config.h"
 #import "WebExtensionAPICookies.h"
+#import "WebExtensionAPIKeys.h"
 
 #if ENABLE(WK_WEB_EXTENSIONS)
 
@@ -44,28 +45,6 @@
 #import <wtf/cocoa/VectorCocoa.h>
 
 namespace WebKit {
-
-static NSString * const domainKey = @"domain";
-static NSString * const expirationDateKey = @"expirationDate";
-static NSString * const hostOnlyKey = @"hostOnly";
-static NSString * const httpOnlyKey = @"httpOnly";
-static NSString * const idKey = @"id";
-static NSString * const incognitoKey = @"incognito";
-static NSString * const pathKey = @"path";
-static NSString * const sameSiteKey = @"sameSite";
-static NSString * const secureKey = @"secure";
-static NSString * const sessionKey = @"session";
-static NSString * const storeIdKey = @"storeId";
-static NSString * const tabIdsKey = @"tabIds";
-static NSString * const urlKey = @"url";
-static NSString * const valueKey = @"value";
-
-static NSString * const noRestrictionKey = @"no_restriction";
-static NSString * const laxKey = @"lax";
-static NSString * const strictKey = @"strict";
-
-static NSString * const ephemeralPrefix = @"ephemeral-";
-static NSString * const persistentPrefix = @"persistent-";
 
 static inline std::optional<PAL::SessionID> toImpl(NSString *storeID)
 {
@@ -99,7 +78,7 @@ static inline NSString *toWebAPI(PAL::SessionID sessionID)
     return [NSString stringWithFormat:@"%@%llu", prefix, maskedValue];
 }
 
-static inline NSString *toWebAPI(WebCore::Cookie::SameSitePolicy policy)
+static inline NSString *NODELETE toWebAPI(WebCore::Cookie::SameSitePolicy policy)
 {
     switch (policy) {
     case WebCore::Cookie::SameSitePolicy::None:
@@ -136,7 +115,7 @@ static inline NSDictionary *toWebAPI(const WebExtensionCookieParameters& cookieP
     return [result copy];
 }
 
-static inline NSArray *toWebAPI(const HashMap<PAL::SessionID, Vector<WebExtensionTabIdentifier>>& stores)
+static inline NSArray *toWebAPI(const HashMap<PAL::SessionID, Vector<WebExtensionTabIdentifier>>& stores, PAL::SessionID ownSessionID)
 {
     auto *result = [NSMutableArray arrayWithCapacity:stores.size()];
 
@@ -145,7 +124,8 @@ static inline NSArray *toWebAPI(const HashMap<PAL::SessionID, Vector<WebExtensio
             return @(toWebAPI(tabIdentifier));
         }).get();
 
-        [result addObject:@{ idKey: toWebAPI(entry.key), tabIdsKey: tabIdentifiers, incognitoKey: @(entry.key.isEphemeral()) }];
+        bool incognito = entry.key.isEphemeral() && entry.key != ownSessionID;
+        [result addObject:@{ idKey: toWebAPI(entry.key), tabIdsKey: tabIdentifiers, incognitoKey: @(incognito) }];
     }
 
     return [result copy];
@@ -309,7 +289,7 @@ void WebExtensionAPICookies::set(NSDictionary *details, Ref<WebExtensionCallback
 
     cookie.name = details[@"name"] ?: @"";
     cookie.value = details[valueKey] ?: @"";
-    cookie.secure = details[secureKey] ? objectForKey<NSNumber>(details, secureKey).boolValue : false;
+    cookie.secure = details[secureKey] && objectForKey<NSNumber>(details, secureKey).boolValue;
     auto *domain = dynamic_objc_cast<NSString>(details[domainKey]);
     cookie.domain = domain ? String(domain) : normalizeDomain(url.host().toString());
     auto *path = dynamic_objc_cast<NSString>(details[pathKey]);
@@ -375,7 +355,7 @@ void WebExtensionAPICookies::getAllCookieStores(Ref<WebExtensionCallbackHandler>
             return;
         }
 
-        callback->call(toJSValueRef(callback->globalContext(), toWebAPI(result.value())));
+        callback->call(toJSValueRef(callback->globalContext(), toWebAPI(result.value(), protectedThis->extensionContext().defaultSessionID())));
     }, extensionContext().identifier());
 }
 

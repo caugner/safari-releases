@@ -27,6 +27,7 @@
 
 #include "config.h"
 #include "RenderSVGEllipse.h"
+#include "RenderObjectNode.h"
 
 #include "RenderSVGShapeInlines.h"
 #include "SVGCircleElement.h"
@@ -38,7 +39,7 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderSVGEllipse);
 
-RenderSVGEllipse::RenderSVGEllipse(SVGGraphicsElement& element, RenderStyle&& style)
+RenderSVGEllipse::RenderSVGEllipse(SVGGraphicsElement& element, Style::ComputedStyle&& style)
     : RenderSVGShape(Type::SVGEllipse, element, WTF::move(style))
 {
 }
@@ -76,7 +77,7 @@ void RenderSVGEllipse::updateShapeFromElement()
 
     m_fillBoundingBox = FloatRect(m_center.x() - m_radii.width(), m_center.y() - m_radii.height(), 2 * m_radii.width(), 2 * m_radii.height());
     m_strokeBoundingBox = m_fillBoundingBox;
-    if (style().hasStroke())
+    if (!style().stroke().isNone())
         m_strokeBoundingBox->inflate(strokeWidth() / 2);
 }
 
@@ -117,7 +118,7 @@ void RenderSVGEllipse::fillShape(GraphicsContext& context) const
 
 void RenderSVGEllipse::strokeShape(GraphicsContext& context) const
 {
-    if (!style().hasStroke() || !style().strokeWidth().isPossiblyPositive())
+    if (style().stroke().isNone() || !style().strokeWidth().isPossiblyPositive())
         return;
     if (hasPath()) {
         RenderSVGShape::strokeShape(context);

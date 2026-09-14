@@ -42,10 +42,6 @@ public:
     {
         ASSERT(lineIndex <= lines().size());
     }
-    LineBoxIteratorModernPath(LineBoxIteratorModernPath&&) = default;
-    LineBoxIteratorModernPath(const LineBoxIteratorModernPath&) = default;
-    LineBoxIteratorModernPath& operator=(const LineBoxIteratorModernPath&) = default;
-    LineBoxIteratorModernPath& operator=(LineBoxIteratorModernPath&&) = default;
 
     float contentLogicalTop() const { return line().enclosingContentLogicalTop(); }
     float contentLogicalBottom() const { return line().enclosingContentLogicalBottom(); }
@@ -140,9 +136,15 @@ public:
 private:
     void setAtEnd() { m_lineIndex = lines().size(); }
 
-    const InlineDisplay::Lines& lines() const { return m_inlineContent->displayContent().lines; }
-    const InlineDisplay::Line& line() const { return lines()[m_lineIndex]; }
-    InlineDisplay::Line::Ellipsis lineEllipsis() const { return *m_inlineContent->displayContent().lineEllipsis(m_lineIndex); }
+    const InlineDisplay::Lines& lines() const LIFETIME_BOUND { return m_inlineContent->displayContent().lines; }
+    const InlineDisplay::Line& line() const LIFETIME_BOUND { return lines()[m_lineIndex]; }
+    InlineDisplay::Line::Ellipsis lineEllipsis() const
+    {
+        if (auto ellipsis = m_inlineContent->displayContent().lineEllipsis(m_lineIndex))
+            return *ellipsis;
+        ASSERT_NOT_REACHED();
+        return { };
+    }
 
     WeakPtr<const LayoutIntegration::InlineContent> m_inlineContent;
     size_t m_lineIndex { 0 };

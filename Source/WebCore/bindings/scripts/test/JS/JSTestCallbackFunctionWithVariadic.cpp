@@ -22,9 +22,12 @@
 #include "JSTestCallbackFunctionWithVariadic.h"
 
 #include "ContextDestructionObserverInlines.h"
+#include "JSDOMBindingFacade.h"
 #include "JSDOMConvertStrings.h"
 #include "JSDOMExceptionHandling.h"
+#include "JSDOMGlobalObject.h"
 #include "ScriptExecutionContext.h"
+#include <JavaScriptCore/MarkedVector.h>
 
 
 namespace WebCore {
@@ -74,7 +77,8 @@ CallbackResult<typename IDLDOMString::CallbackReturnType> JSTestCallbackFunction
     auto jsResult = m_data->invokeCallback(thisValue, args, JSCallbackData::CallbackType::Function, Identifier(), returnedException);
     if (returnedException) {
         UNUSED_PARAM(lexicalGlobalObject);
-        reportException(m_data->callback()->globalObject(), returnedException);
+        auto* callbackRealm = m_data->callback()->realmMayBeNull();
+        reportException(callbackRealm ? callbackRealm : m_data->globalObject(), returnedException);
         return CallbackResultType::ExceptionThrown;
      }
 
@@ -119,22 +123,22 @@ CallbackResult<typename IDLDOMString::CallbackReturnType> JSTestCallbackFunction
     return { returnValue.releaseReturnValue() };
 }
 
-void JSTestCallbackFunctionWithVariadic::visitJSFunction(JSC::AbstractSlotVisitor& visitor)
+void JSTestCallbackFunctionWithVariadic::visitJSFunctionInGCThread(JSC::AbstractSlotVisitor& visitor)
 {
-    m_data->visitJSFunction(visitor);
+    m_data->visitJSFunctionInGCThread(visitor);
 }
 
-void JSTestCallbackFunctionWithVariadic::visitJSFunction(JSC::SlotVisitor& visitor)
+void JSTestCallbackFunctionWithVariadic::visitJSFunctionInGCThread(JSC::SlotVisitor& visitor)
 {
-    m_data->visitJSFunction(visitor);
+    m_data->visitJSFunctionInGCThread(visitor);
 }
 
 JSC::JSValue toJS(TestCallbackFunctionWithVariadic& impl)
 {
-    if (!static_cast<JSTestCallbackFunctionWithVariadic&>(impl).callbackData())
-        return jsNull();
+    if (auto* callbackData = downcast<JSTestCallbackFunctionWithVariadic>(impl).callbackData())
+        return callbackData->callback();
+    return jsNull();
 
-    return static_cast<JSTestCallbackFunctionWithVariadic&>(impl).callbackData()->callback();
 }
 
 ScriptExecutionContext* JSTestCallbackFunctionWithVariadic::scriptExecutionContext() const

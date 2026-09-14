@@ -41,7 +41,6 @@
 #import <pal/spi/cocoa/QuartzCoreSPI.h>
 #endif
 
-using namespace WebCore;
 
 #if !PLATFORM(IOS_FAMILY)
 @interface WebNodeHighlight (FileInternal)
@@ -81,7 +80,7 @@ using namespace WebCore;
 
 @implementation WebNodeHighlight
 
-- (id)initWithTargetView:(NSView *)targetView inspectorController:(NakedPtr<PageInspectorController>)inspectorController
+- (id)initWithTargetView:(NSView *)targetView inspectorController:(NakedPtr<WebCore::PageInspectorController>)inspectorController
 {
     self = [super init];
     if (!self)
@@ -146,9 +145,9 @@ using namespace WebCore;
     // the entire superview hierarchy to handle scrolling, bars coming and going, etc. 
     // (without making concrete assumptions about the view hierarchy).
     NSNotificationCenter *notificationCenter = [NSNotificationCenter defaultCenter];
-    for (NSView *v = _targetView; v; v = [v superview]) {
-        [notificationCenter addObserver:self selector:@selector(_repositionHighlightWindow) name:NSViewFrameDidChangeNotification object:v];
-        [notificationCenter addObserver:self selector:@selector(_repositionHighlightWindow) name:NSViewBoundsDidChangeNotification object:v];
+    for (RetainPtr view = _targetView; view; view = [view.get() superview]) {
+        [notificationCenter addObserver:self selector:@selector(_repositionHighlightWindow) name:NSViewFrameDidChangeNotification object:view.get()];
+        [notificationCenter addObserver:self selector:@selector(_repositionHighlightWindow) name:NSViewBoundsDidChangeNotification object:view.get()];
     }
 #else
     ASSERT(_highlightLayer);
@@ -252,7 +251,7 @@ using namespace WebCore;
     return _targetView;
 }
 
-- (NakedPtr<PageInspectorController>)inspectorController
+- (NakedPtr<WebCore::PageInspectorController>)inspectorController
 {
     return _inspectorController;
 }

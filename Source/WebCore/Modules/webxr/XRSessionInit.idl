@@ -28,6 +28,6 @@
     Conditional=WEBXR,
     EnabledBySetting=WebXREnabled,
 ] dictionary XRSessionInit {
-    sequence<DOMString> requiredFeatures;
-    sequence<DOMString> optionalFeatures;
+    [ImplementationDefaultValue=[]] sequence<DOMString> requiredFeatures;
+    [ImplementationDefaultValue=[]] sequence<DOMString> optionalFeatures;
 };

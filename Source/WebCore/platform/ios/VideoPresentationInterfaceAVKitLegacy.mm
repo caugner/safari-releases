@@ -319,6 +319,7 @@ static void WebAVPictureInPictureContentViewController_viewWillLayoutSubviews(id
 static void WebAVPictureInPictureContentViewController_dealloc(id aSelf, SEL)
 {
     WebAVPictureInPictureContentViewController *pipController = aSelf;
+    [[pipController playerLayer] removeFromSuperlayer];
     [[pipController controller] release];
     [[pipController playerLayer] release];
     objc_super superClass { pipController, getAVPictureInPictureContentViewControllerClassSingleton() };
@@ -516,6 +517,7 @@ ALLOW_NEW_API_WITHOUT_GUARDS_END
             completionHandler(YES, nil);
     }];
 #else
+    [_avPlayerViewController setShowsPlaybackControls:YES];
     [_avPlayerViewController enterFullScreenAnimated:animated completionHandler:completionHandler];
 #endif
 }
@@ -901,7 +903,7 @@ void VideoPresentationInterfaceAVKitLegacy::stopPictureInPicture()
     [m_playerViewController stopPictureInPicture];
 }
 
-bool VideoPresentationInterfaceAVKitLegacy::isPlayingVideoInEnhancedFullscreen() const
+bool VideoPresentationInterfaceAVKitLegacy::isPlayingVideoInPictureInPicture() const
 {
     return hasMode(WebCore::HTMLMediaElementEnums::VideoFullscreenModePictureInPicture) && [playerController() isPlaying];
 }

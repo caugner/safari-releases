@@ -52,8 +52,9 @@ namespace WebKit {
 struct NetworkResourceLoadParameters {
     void createSandboxExtensionHandlesIfNecessary();
 
-    RefPtr<WebCore::SecurityOrigin> parentOrigin() const;
+    RefPtr<WebCore::SecurityOrigin> NODELETE parentOrigin() const;
     NetworkLoadParameters networkLoadParameters() const;
+    WebCore::SecurityOriginData topOriginForServiceWorkers(const URL& requestURL) const;
 
     WebPageProxyIdentifier webPageProxyID;
     WebCore::PageIdentifier webPageID;
@@ -75,12 +76,11 @@ struct NetworkResourceLoadParameters {
     bool hadMainFrameMainResourcePrivateRelayed { false };
     bool allowPrivacyProxy { true };
     OptionSet<WebCore::AdvancedPrivacyProtections> advancedPrivacyProtections { };
+    bool mayBlockNetworkRequest { false };
 
-    RefPtr<WebCore::SecurityOrigin> protectedSourceOrigin() const { return sourceOrigin; }
     uint64_t requiredCookiesVersion { 0 };
 
     Markable<WebCore::ResourceLoaderIdentifier> identifier { };
-    Vector<SandboxExtensionHandle> requestBodySandboxExtensions { };
     std::optional<SandboxExtensionHandle> resourceSandboxExtension { };
     Seconds maximumBufferingTime { };
     WebCore::FetchOptions options { };
@@ -114,8 +114,10 @@ struct NetworkResourceLoadParameters {
     std::optional<WebCore::FetchIdentifier> navigationPreloadIdentifier { };
     WebCore::FetchingWorkerIdentifier workerIdentifier { };
 
-#if ENABLE(CONTENT_EXTENSIONS)
+#if ENABLE(CONTENT_EXTENSIONS) || (ENABLE(CONTENT_FILTERING) && HAVE(WEBCONTENTRESTRICTIONS))
     URL mainDocumentURL { };
+#endif
+#if ENABLE(CONTENT_EXTENSIONS)
     std::optional<UserContentControllerIdentifier> userContentControllerIdentifier { };
 #endif
 
@@ -128,6 +130,8 @@ struct NetworkResourceLoadParameters {
 
     bool isInitiatorPrefetch { false };
     bool isInitiatedByDedicatedWorker { false };
+    bool globalPrivacyControlEnabled { false };
+    bool shouldConsiderEnhancedSecurityForInsecureResponse { false };
 };
 
 } // namespace WebKit

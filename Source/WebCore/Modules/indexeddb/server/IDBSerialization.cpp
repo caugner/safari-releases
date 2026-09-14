@@ -100,7 +100,7 @@ bool deserializeIDBKeyPath(std::span<const uint8_t> data, std::optional<IDBKeyPa
     return true;
 }
 
-static bool isLegacySerializedIDBKeyData(std::span<const uint8_t> data)
+static bool NODELETE isLegacySerializedIDBKeyData(std::span<const uint8_t> data)
 {
 #if USE(CF)
     // This is the magic character that begins serialized PropertyLists, and tells us whether
@@ -211,7 +211,7 @@ template <typename T> static void writeLittleEndian(Vector<uint8_t>& buffer, T v
     buffer.append(asByteSpan(value));
 }
 
-template <typename T> static bool readLittleEndian(std::span<const uint8_t>& data, T& value)
+template <typename T> static bool NODELETE readLittleEndian(std::span<const uint8_t>& data, T& value)
 {
     if (data.size() < sizeof(value))
         return false;
@@ -226,7 +226,7 @@ static void writeDouble(Vector<uint8_t>& data, double d)
     writeLittleEndian(data, *reinterpret_cast<uint64_t*>(&d));
 }
 
-static bool readDouble(std::span<const uint8_t>& data, double& d)
+static bool NODELETE readDouble(std::span<const uint8_t>& data, double& d)
 {
     return readLittleEndian(data, *reinterpret_cast<uint64_t*>(&d));
 }
@@ -289,7 +289,7 @@ RefPtr<SharedBuffer> serializeIDBKeyData(const IDBKeyData& key)
     return SharedBuffer::create(WTF::move(data));
 }
 
-WARN_UNUSED_RETURN static bool decodeKey(std::span<const uint8_t>& data, IDBKeyData& result)
+[[nodiscard]] static bool decodeKey(std::span<const uint8_t>& data, IDBKeyData& result)
 {
     if (data.empty())
         return false;
@@ -323,7 +323,7 @@ WARN_UNUSED_RETURN static bool decodeKey(std::span<const uint8_t>& data, IDBKeyD
         if (!readLittleEndian(data, length))
             return false;
 
-        if (data.size() < length * 2)
+        if (data.size() < static_cast<size_t>(length) * 2)
             return false;
 
         Vector<char16_t> buffer;
@@ -351,7 +351,7 @@ WARN_UNUSED_RETURN static bool decodeKey(std::span<const uint8_t>& data, IDBKeyD
             return false;
 
         size_t size = static_cast<size_t>(size64);
-        Vector<uint8_t> dataVector(data);
+        Vector<uint8_t> dataVector(data.first(size));
         skip(data, size);
 
         result.setBinaryValue(ThreadSafeDataBuffer::create(WTF::move(dataVector)));

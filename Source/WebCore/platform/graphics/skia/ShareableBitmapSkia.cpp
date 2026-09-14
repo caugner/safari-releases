@@ -57,10 +57,10 @@ CheckedUint32 ShareableBitmapConfiguration::calculateBytesPerRow(const IntSize& 
     return SkImageInfo::MakeN32Premul(size.width(), size.height(), colorSpace.platformColorSpace()).minRowBytes();
 }
 
-std::unique_ptr<GraphicsContext> ShareableBitmap::createGraphicsContext()
+sk_sp<SkSurface> ShareableBitmap::createSurface()
 {
     ref();
-    SkSurfaceProps properties = { 0, FontRenderOptions::singleton().subpixelOrder() };
+    SkSurfaceProps properties = FontRenderOptions::singleton().createSurfaceProps();
     auto surface = SkSurfaces::WrapPixels(m_configuration.imageInfo(), mutableSpan().data(), bytesPerRow(), [](void*, void* context) {
         static_cast<ShareableBitmap*>(context)->deref();
     }, this, &properties);
@@ -69,6 +69,17 @@ std::unique_ptr<GraphicsContext> ShareableBitmap::createGraphicsContext()
     if (!canvas)
         return nullptr;
 
+    return surface;
+}
+
+std::unique_ptr<GraphicsContext> ShareableBitmap::createGraphicsContext()
+{
+    auto surface = createSurface();
+    if (!surface)
+        return nullptr;
+
+    auto* canvas = surface->getCanvas();
+    ASSERT(canvas);
     return makeUnique<GraphicsContextSkia>(*canvas, RenderingMode::Unaccelerated, RenderingPurpose::ShareableSnapshot, [surface = WTF::move(surface)] { });
 }
 
@@ -92,7 +103,7 @@ RefPtr<Image> ShareableBitmap::createImage()
     return BitmapImage::create(createPlatformImage(BackingStoreCopy::DontCopyBackingStore));
 }
 
-PlatformImagePtr ShareableBitmap::createPlatformImage(BackingStoreCopy backingStoreCopy, ShouldInterpolate)
+PlatformImagePtr ShareableBitmap::createBasePlatformImage(BackingStoreCopy backingStoreCopy, ShouldInterpolate)
 {
     sk_sp<SkData> pixelData;
     if (backingStoreCopy == BackingStoreCopy::CopyBackingStore)
@@ -104,6 +115,11 @@ PlatformImagePtr ShareableBitmap::createPlatformImage(BackingStoreCopy backingSt
         }, this);
     }
     return SkImages::RasterFromData(m_configuration.imageInfo(), pixelData, bytesPerRow());
+}
+
+PlatformImagePtr ShareableBitmap::createPlatformImage(BackingStoreCopy copyBehavior, ShouldInterpolate shouldInterpolate)
+{
+    return createBasePlatformImage(copyBehavior, shouldInterpolate);
 }
 
 void ShareableBitmap::setOwnershipOfMemory(const ProcessIdentity&)

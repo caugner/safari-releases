@@ -21,11 +21,11 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 // THE POSSIBILITY OF SUCH DAMAGE.
 
-#if ENABLE_SWIFTUI && compiler(>=6.0)
+#if ENABLE_SWIFTUI
 
 import Foundation
-internal import WebKit_Private
-internal import WebKit_Internal
+import WebKit_Private
+import WebKit_Internal
 
 #if os(macOS) && !targetEnvironment(macCatalyst)
 @_spiOnly import WebKit_Private._WKContextMenuElementInfo
@@ -146,6 +146,12 @@ final class WKUIDelegateAdapter: NSObject, WKUIDelegatePrivate {
     @objc(_webView:geometryDidChange:)
     func _webView(_ webView: WKWebView!, geometryDidChange geometry: WKScrollGeometry) {
         owner?.backingWebView.geometryDidChange(WKScrollGeometryAdapter(geometry))
+    }
+
+    // swift-format-ignore: NoLeadingUnderscores
+    @objc(_webView:editorStateDidChange:)
+    func _webView(_ webView: WKWebView, editorStateDidChange editorState: [AnyHashable: Any]) {
+        owner?.addEditorStateUpdate(editorState)
     }
 }
 

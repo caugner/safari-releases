@@ -25,6 +25,9 @@
 
 #include "config.h"
 #include "SourceBrush.h"
+#include <wtf/text/TextStream.h>
+
+#include <wtf/text/TextStream.h>
 
 namespace WebCore {
 

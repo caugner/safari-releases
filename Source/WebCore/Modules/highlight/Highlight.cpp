@@ -55,7 +55,6 @@ Ref<Highlight> Highlight::create(FixedVector<std::reference_wrapper<AbstractRang
 Highlight::Highlight(FixedVector<std::reference_wrapper<AbstractRange>>&& initialRanges)
 {
     m_highlightRanges = WTF::map(initialRanges, [&](std::reference_wrapper<AbstractRange>& range) {
-        repaintRange(Ref { range.get() }.get());
         return HighlightRange::create(range.get());
     });
 }
@@ -78,9 +77,6 @@ void Highlight::clearFromSetLike()
 {
     for (auto& highlightRange : std::exchange(m_highlightRanges, { }))
         repaintRange(highlightRange->range());
-
-    // Exchange with an empty vector, as this function might reenter when m_highlightRanges' contents are released.
-    std::exchange(m_highlightRanges, { });
 }
 
 bool Highlight::addToSetLike(AbstractRange& range)

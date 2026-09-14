@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Google LLC.
+ * Copyright 2020 Google LLC
  *
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
@@ -26,7 +26,7 @@
 #include "include/core/SkSurface.h"
 #include "include/core/SkTileMode.h"
 #include "include/core/SkTypes.h"
-#include "include/effects/SkGradientShader.h"
+#include "include/effects/SkGradient.h"
 #include "include/gpu/GpuTypes.h"
 #include "include/gpu/ganesh/GrBackendSurface.h"
 #include "include/gpu/ganesh/GrDirectContext.h"
@@ -100,6 +100,7 @@ static constexpr int min_rgb_channel_bits(SkColorType ct) {
         case kRGBA_F16Norm_SkColorType:       return 10;  // just counting the mantissa
         case kRGBA_F16_SkColorType:           return 10;  // just counting the mantissa
         case kRGB_F16F16F16x_SkColorType:     return 10;
+        case kR16_float_SkColorType:          return 10;
         case kRGBA_F32_SkColorType:           return 23;  // just counting the mantissa
         case kR16G16B16A16_unorm_SkColorType: return 16;
         case kR8_unorm_SkColorType:           return 8;
@@ -134,6 +135,7 @@ static constexpr int alpha_channel_bits(SkColorType ct) {
         case kRGBA_F16Norm_SkColorType:       return 10;  // just counting the mantissa
         case kRGBA_F16_SkColorType:           return 10;  // just counting the mantissa
         case kRGB_F16F16F16x_SkColorType:     return 0;
+        case kR16_float_SkColorType:          return 0;
         case kRGBA_F32_SkColorType:           return 23;  // just counting the mantissa
         case kR16G16B16A16_unorm_SkColorType: return 16;
         case kR8_unorm_SkColorType:           return 0;
@@ -263,28 +265,28 @@ static SkAutoPixmapStorage make_ref_data(const SkImageInfo& info, bool forceOpaq
     }
 
     SkPoint pts1[] = {{0, 0}, {float(info.width()), float(info.height())}};
-    static constexpr SkColor kColors1[] = {SK_ColorGREEN, SK_ColorRED};
+    static constexpr SkColor4f kColors1[] = {SkColors::kGreen, SkColors::kRed};
     SkPaint paint;
-    paint.setShader(SkGradientShader::MakeLinear(pts1, kColors1, nullptr, 2, SkTileMode::kClamp));
+    paint.setShader(SkShaders::LinearGradient(pts1, {{kColors1, {}, SkTileMode::kClamp}, {}}));
     surface->getCanvas()->drawPaint(paint);
 
     SkPoint pts2[] = {{float(info.width()), 0}, {0, float(info.height())}};
-    static constexpr SkColor kColors2[] = {SK_ColorBLUE, SK_ColorBLACK};
-    paint.setShader(SkGradientShader::MakeLinear(pts2, kColors2, nullptr, 2, SkTileMode::kClamp));
+    static constexpr SkColor4f kColors2[] = {SkColors::kBlue, SkColors::kBlack};
+    paint.setShader(SkShaders::LinearGradient(pts2, {{kColors2, {}, SkTileMode::kClamp}, {}}));
     paint.setBlendMode(SkBlendMode::kPlus);
     surface->getCanvas()->drawPaint(paint);
 
     // If not opaque add some fractional alpha.
     if (info.alphaType() != kOpaque_SkAlphaType && !forceOpaque) {
-        static constexpr SkColor kColors3[] = {SK_ColorWHITE,
-                                               SK_ColorWHITE,
-                                               0x60FFFFFF,
-                                               SK_ColorWHITE,
-                                               SK_ColorWHITE};
+        static const SkColor4f kColors3[] = {SkColors::kWhite,
+                                             SkColors::kWhite,
+                                             SkColor4f::FromColor(0x60FFFFFF),
+                                             SkColors::kWhite,
+                                             SkColors::kWhite};
         static constexpr SkScalar kPos3[] = {0.f, 0.15f, 0.5f, 0.85f, 1.f};
-        paint.setShader(SkGradientShader::MakeRadial({info.width()/2.f, info.height()/2.f},
-                                                     (info.width() + info.height())/10.f,
-                                                     kColors3, kPos3, 5, SkTileMode::kMirror));
+        paint.setShader(SkShaders::RadialGradient({info.width()/2.f, info.height()/2.f},
+                                                  (info.width() + info.height())/10.f,
+                                                  {{kColors3, kPos3, SkTileMode::kMirror}, {}}));
         paint.setBlendMode(SkBlendMode::kDstIn);
         surface->getCanvas()->drawPaint(paint);
     }

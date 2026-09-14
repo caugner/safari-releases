@@ -53,7 +53,7 @@ wgpu::RenderPipeline create_blit_render_pipeline(const DawnSharedContext* shared
                                                  const char* fsEntryPoint,
                                                  wgpu::TextureFormat renderPassColorFormat,
                                                  wgpu::TextureFormat renderPassDepthStencilFormat,
-                                                 int numSamples) {
+                                                 SampleCount sampleCount) {
     wgpu::RenderPipelineDescriptor descriptor;
     descriptor.label = label;
     descriptor.layout = nullptr;
@@ -93,7 +93,7 @@ wgpu::RenderPipeline create_blit_render_pipeline(const DawnSharedContext* shared
     descriptor.primitive.topology = wgpu::PrimitiveTopology::TriangleStrip;
     descriptor.primitive.stripIndexFormat = wgpu::IndexFormat::Undefined;
 
-    descriptor.multisample.count = numSamples;
+    descriptor.multisample.count = (uint8_t) sampleCount;
     descriptor.multisample.mask = 0xFFFFFFFF;
     descriptor.multisample.alphaToCoverageEnabled = false;
 
@@ -214,7 +214,8 @@ public:
 
     ~IntrinsicConstantsManager() {
         auto alwaysTrue = [](IntrinsicBuffer* buffer) { return true; };
-        this->purgeBuffersIf(alwaysTrue);
+        this->purgeBuffersUntilDoneOrFalse(alwaysTrue);
+        this->releasePendingIntrinsicBuffers();
 
         SkASSERT(fIntrinsicBuffersLRU.isEmpty());
     }
@@ -223,22 +224,44 @@ public:
     // buffer.
     BindBufferInfo add(DawnCommandBuffer* cb, UniformDataBlock intrinsicValues);
 
-    void purgeResourcesNotUsedSince(StdSteadyClock::time_point purgeTime) {
-        auto bufferNotUsedSince = [purgeTime, this](IntrinsicBuffer* buffer) {
-            // We always keep the current buffer as it is likely to be used again soon.
-            return buffer != fCurrentBuffer && buffer->lastAccessTime() < purgeTime;
+    void purgeResourcesNotUsedSince(StdSteadyClock::time_point purgeTime,
+                                    std::optional<StdSteadyClock::time_point> quitPurgingTime) {
+        auto bufferShouldBePurged = [&](IntrinsicBuffer* buffer) {
+            // We always keep the current buffer as it is likely to be used again soon. If we
+            // surpass quitPurgingTime, further buffers should not be purged.
+            return ( !quitPurgingTime.has_value() ||
+                     skgpu::StdSteadyClock::now() < quitPurgingTime.value()) &&
+                   (buffer != fCurrentBuffer && buffer->lastAccessTime() < purgeTime);
         };
-        this->purgeBuffersIf(bufferNotUsedSince);
+        this->purgeBuffersUntilDoneOrFalse(bufferShouldBePurged);
     }
 
-    void freeGpuResources() { this->purgeResourcesNotUsedSince(skgpu::StdSteadyClock::now()); }
+    void releasePendingIntrinsicBuffers() {
+        using Iter = SkTInternalLList<IntrinsicBuffer>::Iter;
+        Iter iter;
+        auto* curr = iter.init(fPendingIntrinsicBuffers, Iter::kHead_IterStart);
+        while (curr != nullptr) {
+            auto* next = iter.next();
+
+            fPendingIntrinsicBuffers.remove(curr);
+            delete curr;
+
+            curr = next;
+        }
+    }
+
+    void freeGpuResources() {
+        this->purgeResourcesNotUsedSince(skgpu::StdSteadyClock::now(),
+                                         /*quitPurgingTime=*/std::nullopt);
+    }
 
 private:
     // The max number of intrinsic buffers to keep around in the cache.
     static constexpr uint32_t kMaxNumBuffers = 16;
 
-    // Traverse the intrinsic buffers and purge the ones that match the 'pred'.
-    template<typename T> void purgeBuffersIf(T pred);
+    // Traverse the intrinsic buffers, purging all the purgeable LRU buffers until either all of
+    // them are purged OR until `pred` returns false.
+    template<typename T> void purgeBuffersUntilDoneOrFalse(T pred);
 
     DawnResourceProvider* const fResourceProvider;
     // The current buffer being filled up, as well as the how much of it has been written to.
@@ -248,6 +271,10 @@ private:
     SkTInternalLList<IntrinsicBuffer> fIntrinsicBuffersLRU;
     // The number of intrinsic buffers currently in the cache.
     uint32_t fNumBuffers = 0;
+
+    // Linked list of instrinsic buffers which have been bumped out of the LRU. Is cleared when the
+    // command buffer is finished.
+    SkTInternalLList<IntrinsicBuffer> fPendingIntrinsicBuffers;
 };
 
 // Find or create a bind buffer info for the given intrinsic values used in the given command
@@ -312,7 +339,7 @@ BindBufferInfo DawnResourceProvider::IntrinsicConstantsManager::add(
         if (fNumBuffers > kMaxNumBuffers) {
             auto* tail = fIntrinsicBuffersLRU.tail();
             fIntrinsicBuffersLRU.remove(tail);
-            delete tail;
+            fPendingIntrinsicBuffers.addToHead(tail);
             fNumBuffers--;
         }
     }
@@ -334,7 +361,8 @@ BindBufferInfo DawnResourceProvider::IntrinsicConstantsManager::add(
     return {fCurrentBuffer->buffer().get(), newOffset, SkTo<uint32_t>(intrinsicValues.size())};
 }
 
-template <typename T> void DawnResourceProvider::IntrinsicConstantsManager::purgeBuffersIf(T pred) {
+template <typename T>
+void DawnResourceProvider::IntrinsicConstantsManager::purgeBuffersUntilDoneOrFalse(T pred) {
     using Iter = SkTInternalLList<IntrinsicBuffer>::Iter;
     Iter iter;
     auto* curr = iter.init(fIntrinsicBuffersLRU, Iter::kHead_IterStart);
@@ -344,6 +372,9 @@ template <typename T> void DawnResourceProvider::IntrinsicConstantsManager::purg
             fIntrinsicBuffersLRU.remove(curr);
             fNumBuffers--;
             delete curr;
+        } else {
+            // If 'pred' returns false, we stop the process of purging buffers.
+            return;
         }
         curr = next;
     }
@@ -397,10 +428,13 @@ void DawnResourceProvider::BlitWithDrawEncoder::EncodeBlit(
     SkASSERT(std::abs(deltaY) < std::numeric_limits<int16_t>::max());
     int32_t baseInstance = (deltaX & 0xffff) | (deltaY << 16);
 
+    // NOTE(b/457887457): need to cast baseInstance to uint32_t explicitly otherwise it would cause
+    // TypeError in emscripten, because baseInstance value could be negative in signed integer
+    // representation.
     renderEncoder.Draw(/*vertexCount=*/3,
                        /*instanceCount=*/ 1,
                        /*firstVertex=*/0,
-                       /*firstInstance=*/baseInstance);
+                       /*firstInstance=*/static_cast<uint32_t>(baseInstance));
 }
 
 // ----------------------------------------------------------------------------
@@ -421,12 +455,11 @@ DawnResourceProvider::DawnResourceProvider(SharedContext* sharedContext,
 DawnResourceProvider::~DawnResourceProvider() = default;
 
 DawnResourceProvider::BlitWithDrawEncoder DawnResourceProvider::findOrCreateBlitWithDrawEncoder(
-        const RenderPassDesc& renderPassDesc, int srcSampleCount) {
-    // Currently Dawn only supports one sample count > 1. So we can optimize the pipeline key by
-    // specifying whether the source has MSAA or not.
-    SkASSERT(srcSampleCount <= 1 ||
-             srcSampleCount == this->dawnSharedContext()->dawnCaps()->defaultMSAASamplesCount());
-    const bool srcIsMSAA = srcSampleCount > 1;
+        const RenderPassDesc& renderPassDesc, SampleCount srcSampleCount) {
+    // Currently Dawn only supports k1 and k4. So we can optimize the pipeline key by specifying
+    // whether the source has MSAA or not.
+    SkASSERT(srcSampleCount == SampleCount::k1 || srcSampleCount == SampleCount::k4);
+    const bool srcIsMSAA = srcSampleCount > SampleCount::k1;
     const uint32_t pipelineKey = this->dawnSharedContext()->dawnCaps()->getRenderPassDescKeyForPipeline(
             renderPassDesc, srcIsMSAA);
     wgpu::RenderPipeline pipeline = fBlitWithDrawPipelines[pipelineKey];
@@ -477,7 +510,7 @@ DawnResourceProvider::BlitWithDrawEncoder DawnResourceProvider::findOrCreateBlit
             "@fragment\n"
             "fn SampleMSAAFS(input: VertexOutput) -> @location(0) vec4<f32> {"
                 "let coords = getSamplingCoords(input);"
-                "const sampleCount = %d;"
+                "const sampleCount = %u;"
                 "var sum = vec4f(0.0);"
                 "for (var i: u32 = 0; i < sampleCount; i = i + 1) {"
                     "sum += textureLoad(msColorMap, coords, i);"
@@ -486,7 +519,8 @@ DawnResourceProvider::BlitWithDrawEncoder DawnResourceProvider::findOrCreateBlit
             "}";
 
         auto shaderModule = create_shader_module(
-                dawnSharedContext()->device(), SkStringPrintf(kShaderSrc, srcSampleCount).c_str());
+                dawnSharedContext()->device(),
+                SkStringPrintf(kShaderSrc, (unsigned) srcSampleCount).c_str());
 
         pipeline = create_blit_render_pipeline(
                 dawnSharedContext(),
@@ -498,7 +532,7 @@ DawnResourceProvider::BlitWithDrawEncoder DawnResourceProvider::findOrCreateBlit
                 TextureFormatToDawnFormat(renderPassDesc.fColorAttachment.fFormat),
                 /*renderPassDepthStencilFormat=*/
                 TextureFormatToDawnFormat(renderPassDesc.fDepthStencilAttachment.fFormat),
-                /*numSamples=*/renderPassDesc.fColorAttachment.fSampleCount);
+                renderPassDesc.fColorAttachment.fSampleCount);
 
         if (pipeline) {
             fBlitWithDrawPipelines.set(pipelineKey, pipeline);
@@ -508,7 +542,8 @@ DawnResourceProvider::BlitWithDrawEncoder DawnResourceProvider::findOrCreateBlit
     return BlitWithDrawEncoder(std::move(pipeline), srcIsMSAA);
 }
 
-sk_sp<Texture> DawnResourceProvider::onCreateWrappedTexture(const BackendTexture& texture) {
+sk_sp<Texture> DawnResourceProvider::onCreateWrappedTexture(const BackendTexture& texture,
+                                                            std::string_view label) {
     // Convert to smart pointers. wgpu::Texture* constructor will increment the ref count.
     wgpu::Texture dawnTexture         = BackendTextures::GetDawnTexturePtr(texture);
     wgpu::TextureView dawnTextureView = BackendTextures::GetDawnTextureViewPtr(texture);
@@ -522,12 +557,14 @@ sk_sp<Texture> DawnResourceProvider::onCreateWrappedTexture(const BackendTexture
         return DawnTexture::MakeWrapped(this->dawnSharedContext(),
                                         texture.dimensions(),
                                         texture.info(),
-                                        std::move(dawnTexture));
+                                        std::move(dawnTexture),
+                                        label);
     } else {
         return DawnTexture::MakeWrapped(this->dawnSharedContext(),
                                         texture.dimensions(),
                                         texture.info(),
-                                        std::move(dawnTextureView));
+                                        std::move(dawnTextureView),
+                                        label);
     }
 }
 
@@ -537,7 +574,7 @@ sk_sp<DawnTexture> DawnResourceProvider::findOrCreateDiscardableMSAALoadTexture(
 
     // Derive the load texture's info from MSAA texture's info.
     DawnTextureInfo dawnMsaaLoadTextureInfo = TextureInfoPriv::Get<DawnTextureInfo>(msaaInfo);
-    dawnMsaaLoadTextureInfo.fSampleCount = 1;
+    dawnMsaaLoadTextureInfo.fSampleCount = SampleCount::k1;
     dawnMsaaLoadTextureInfo.fUsage |= wgpu::TextureUsage::TextureBinding;
 
 #if !defined(__EMSCRIPTEN__)
@@ -563,14 +600,16 @@ sk_sp<ComputePipeline> DawnResourceProvider::createComputePipeline(
     return DawnComputePipeline::Make(this->dawnSharedContext(), desc);
 }
 
-sk_sp<Texture> DawnResourceProvider::createTexture(SkISize dimensions, const TextureInfo& info) {
-    return DawnTexture::Make(this->dawnSharedContext(), dimensions, info);
+sk_sp<Texture> DawnResourceProvider::createTexture(
+        SkISize dimensions, const TextureInfo& info, std::string_view label) {
+    return DawnTexture::Make(this->dawnSharedContext(), dimensions, info, label);
 }
 
 sk_sp<Buffer> DawnResourceProvider::createBuffer(size_t size,
                                                  BufferType type,
-                                                 AccessPattern accessPattern) {
-    return DawnBuffer::Make(this->dawnSharedContext(), size, type, accessPattern);
+                                                 AccessPattern accessPattern,
+                                                 std::string_view label) {
+    return DawnBuffer::Make(this->dawnSharedContext(), size, type, accessPattern, label);
 }
 
 sk_sp<Sampler> DawnResourceProvider::createSampler(const SamplerDesc& samplerDesc) {
@@ -614,8 +653,7 @@ sk_sp<DawnBuffer> DawnResourceProvider::findOrCreateDawnBuffer(size_t size,
                                                                BufferType type,
                                                                AccessPattern accessPattern,
                                                                std::string_view label) {
-    sk_sp<Buffer> buffer = this->findOrCreateNonShareableBuffer(
-            size, type, accessPattern, std::move(label));
+    sk_sp<Buffer> buffer = this->findOrCreateNonShareableBuffer(size, type, accessPattern, label);
     DawnBuffer* ptr = static_cast<DawnBuffer*>(buffer.release());
     return sk_sp<DawnBuffer>(ptr);
 }
@@ -655,8 +693,7 @@ const wgpu::BindGroup& DawnResourceProvider::findOrCreateUniformBuffersBindGroup
 
     constexpr uint32_t kBindingIndices[] = {
         DawnGraphicsPipeline::kIntrinsicUniformBufferIndex,
-        DawnGraphicsPipeline::kRenderStepUniformBufferIndex,
-        DawnGraphicsPipeline::kPaintUniformBufferIndex,
+        DawnGraphicsPipeline::kCombinedUniformIndex,
         DawnGraphicsPipeline::kGradientBufferIndex,
     };
 
@@ -726,13 +763,19 @@ void DawnResourceProvider::onFreeGpuResources() {
     fUniformBufferBindGroupCache.reset();
 }
 
-void DawnResourceProvider::onPurgeResourcesNotUsedSince(StdSteadyClock::time_point purgeTime) {
-    fIntrinsicConstantsManager->purgeResourcesNotUsedSince(purgeTime);
+void DawnResourceProvider::onPurgeResourcesNotUsedSince(
+        StdSteadyClock::time_point purgeTime,
+        std::optional<StdSteadyClock::time_point> quitPurgingTime) {
+    fIntrinsicConstantsManager->purgeResourcesNotUsedSince(purgeTime, quitPurgingTime);
 }
 
 BindBufferInfo DawnResourceProvider::findOrCreateIntrinsicBindBufferInfo(
         DawnCommandBuffer* cb, UniformDataBlock intrinsicValues) {
     return fIntrinsicConstantsManager->add(cb, intrinsicValues);
+}
+
+void DawnResourceProvider::releasePendingIntrinsicBuffers() {
+    fIntrinsicConstantsManager->releasePendingIntrinsicBuffers();
 }
 
 DawnThreadSafeResourceProvider::DawnThreadSafeResourceProvider(

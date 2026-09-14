@@ -29,6 +29,7 @@
 #if PLATFORM(IOS_FAMILY) || (PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE))
 
 #import "MessageSenderInlines.h"
+#import "PlaybackSessionInterfaceAVKit.h"
 #import "PlaybackSessionInterfaceLMK.h"
 #import "PlaybackSessionManagerMessages.h"
 #import "PlaybackSessionManagerProxyMessages.h"
@@ -40,7 +41,6 @@
 #import "WebProcessProxy.h"
 #import <Foundation/Foundation.h>
 #import <WebCore/NullPlaybackSessionInterface.h>
-#import <WebCore/PlaybackSessionInterfaceAVKit.h>
 #import <WebCore/PlaybackSessionInterfaceAVKitLegacy.h>
 #import <WebCore/PlaybackSessionInterfaceMac.h>
 #import <WebCore/PlaybackSessionInterfaceTVOS.h>
@@ -567,7 +567,7 @@ PlaybackSessionManagerProxy::PlaybackSessionManagerProxy(WebPageProxy& page)
     ALWAYS_LOG(LOGIDENTIFIER);
 
     RefPtr protectedPage = m_page.get();
-    protectedPage->protectedLegacyMainFrameProcess()->addMessageReceiver(Messages::PlaybackSessionManagerProxy::messageReceiverName(), protectedPage->webPageIDInMainFrameProcess(), *this);
+    protect(protectedPage->legacyMainFrameProcess())->addMessageReceiver(Messages::PlaybackSessionManagerProxy::messageReceiverName(), protectedPage->webPageIDInMainFrameProcess(), *this);
 }
 
 PlaybackSessionManagerProxy::~PlaybackSessionManagerProxy()
@@ -582,7 +582,7 @@ void PlaybackSessionManagerProxy::invalidate()
 {
     ALWAYS_LOG(LOGIDENTIFIER);
     if (RefPtr page = m_page.get()) {
-        page->protectedLegacyMainFrameProcess()->removeMessageReceiver(Messages::PlaybackSessionManagerProxy::messageReceiverName(), page->webPageIDInMainFrameProcess());
+        protect(page->legacyMainFrameProcess())->removeMessageReceiver(Messages::PlaybackSessionManagerProxy::messageReceiverName(), page->webPageIDInMainFrameProcess());
         m_page = nullptr;
     }
 
@@ -609,8 +609,8 @@ void PlaybackSessionManagerProxy::sendToWebProcess(PlaybackSessionContextIdentif
 
 static Ref<PlatformPlaybackSessionInterface> playbackSessionInterface(WebPageProxy& page, PlaybackSessionModel& model)
 {
-#if HAVE(AVKIT_CONTENT_SOURCE)
-    if (page.preferences().isAVKitContentSourceEnabled())
+#if HAVE(AVEXPERIENCECONTROLLER)
+    if (page.preferences().isAVExperienceControllerFullscreenEnabled())
         return PlaybackSessionInterfaceAVKit::create(model);
 #endif
 
@@ -655,11 +655,6 @@ PlatformPlaybackSessionInterface& PlaybackSessionManagerProxy::ensureInterface(P
     return std::get<1>(ensureModelAndInterface(contextId)).get();
 }
 
-Ref<PlatformPlaybackSessionInterface> PlaybackSessionManagerProxy::ensureProtectedInterface(PlaybackSessionContextIdentifier contextId)
-{
-    return ensureInterface(contextId);
-}
-
 void PlaybackSessionManagerProxy::addClientForContext(PlaybackSessionContextIdentifier contextId)
 {
     m_clientCounts.add(contextId);
@@ -670,7 +665,7 @@ void PlaybackSessionManagerProxy::removeClientForContext(PlaybackSessionContextI
     if (!m_clientCounts.remove(contextId))
         return;
 
-    ensureProtectedInterface(contextId)->invalidate();
+    protect(ensureInterface(contextId))->invalidate();
     m_contextMap.remove(contextId);
 }
 
@@ -686,7 +681,7 @@ void PlaybackSessionManagerProxy::setUpPlaybackControlsManagerWithID(PlaybackSes
 
     m_controlsManagerContextId = contextId;
     m_controlsManagerContextIsVideo = isVideo;
-    ensureProtectedInterface(*m_controlsManagerContextId)->ensureControlsManager();
+    protect(ensureInterface(*m_controlsManagerContextId))->ensureControlsManager();
     addClientForContext(*m_controlsManagerContextId);
 
     if (RefPtr page = m_page.get())
@@ -741,11 +736,6 @@ void PlaybackSessionManagerProxy::swapFullscreenModes(PlaybackSessionContextIden
 void PlaybackSessionManagerProxy::currentTimeChanged(PlaybackSessionContextIdentifier contextId, double currentTime, double hostTime)
 {
     ensureModel(contextId)->currentTimeChanged(currentTime);
-
-#if ENABLE(VIDEO_PRESENTATION_MODE)
-    if (RefPtr page = m_page.get())
-        page->didChangeCurrentTime(contextId);
-#endif
 }
 
 void PlaybackSessionManagerProxy::bufferedTimeChanged(PlaybackSessionContextIdentifier contextId, double bufferedTime)
@@ -816,11 +806,6 @@ void PlaybackSessionManagerProxy::playbackStartedTimeChanged(PlaybackSessionCont
 void PlaybackSessionManagerProxy::rateChanged(PlaybackSessionContextIdentifier contextId, OptionSet<WebCore::PlaybackSessionModel::PlaybackState> playbackState, double rate, double defaultPlaybackRate)
 {
     ensureModel(contextId)->rateChanged(playbackState, rate, defaultPlaybackRate);
-
-#if ENABLE(VIDEO_PRESENTATION_MODE)
-    if (RefPtr page = m_page.get())
-        page->didChangePlaybackRate(contextId);
-#endif
 }
 
 void PlaybackSessionManagerProxy::pictureInPictureSupportedChanged(PlaybackSessionContextIdentifier contextId, bool supported)
@@ -867,7 +852,7 @@ void PlaybackSessionManagerProxy::immersiveVideoMetadataChanged(PlaybackSessionC
 void PlaybackSessionManagerProxy::handleControlledElementIDResponse(PlaybackSessionContextIdentifier contextId, String identifier) const
 {
 #if PLATFORM(MAC)
-    if (RefPtr page = m_page.get(); contextId == m_controlsManagerContextId)
+    if (RefPtr page = m_page.get(); page && contextId == m_controlsManagerContextId)
         page->handleControlledElementIDResponse(identifier);
 #else
     UNUSED_PARAM(contextId);
@@ -1041,9 +1026,9 @@ void PlaybackSessionManagerProxy::setVideoReceiverEndpoint(PlaybackSessionContex
     }
     WebCore::ProcessIdentifier processIdentifier = process->coreProcessIdentifier();
 
-    Ref gpuProcess = process->processPool().ensureProtectedGPUProcess();
+    Ref gpuProcess = process->processPool().ensureGPUProcess();
     Ref connection = gpuProcess->connection();
-    XPCObjectPtr<xpc_connection_t> xpcConnection = connection->xpcConnection();
+    OSObjectPtr<xpc_connection_t> xpcConnection = connection->xpcConnection();
     if (!xpcConnection)
         return;
 
@@ -1081,9 +1066,9 @@ void PlaybackSessionManagerProxy::swapVideoReceiverEndpoints(PlaybackSessionCont
     }
     WebCore::ProcessIdentifier processIdentifier = process->coreProcessIdentifier();
 
-    Ref gpuProcess = process->processPool().ensureProtectedGPUProcess();
+    Ref gpuProcess = process->processPool().ensureGPUProcess();
     Ref connection = gpuProcess->connection();
-    XPCObjectPtr<xpc_connection_t> xpcConnection = connection->xpcConnection();
+    OSObjectPtr<xpc_connection_t> xpcConnection = connection->xpcConnection();
     if (!xpcConnection)
         return;
 
@@ -1157,13 +1142,13 @@ bool PlaybackSessionManagerProxy::wirelessVideoPlaybackDisabled()
     if (it == m_contextMap.end())
         return true;
 
-    return std::get<0>(it->value)->wirelessVideoPlaybackDisabled();
+    return protect(std::get<0>(it->value))->wirelessVideoPlaybackDisabled();
 }
 
 void PlaybackSessionManagerProxy::requestControlledElementID()
 {
-    if (RefPtr page = m_page.get(); m_controlsManagerContextId)
-        page->protectedLegacyMainFrameProcess()->send(Messages::PlaybackSessionManager::HandleControlledElementIDRequest(m_controlsManagerContextId->object()), page->webPageIDInMainFrameProcess());
+    if (RefPtr page = m_page.get(); page && m_controlsManagerContextId)
+        protect(page->legacyMainFrameProcess())->send(Messages::PlaybackSessionManager::HandleControlledElementIDRequest(m_controlsManagerContextId->object()), page->webPageIDInMainFrameProcess());
 }
 
 PlatformPlaybackSessionInterface* PlaybackSessionManagerProxy::controlsManagerInterface()
@@ -1172,11 +1157,6 @@ PlatformPlaybackSessionInterface* PlaybackSessionManagerProxy::controlsManagerIn
         return nullptr;
 
     return &ensureInterface(*m_controlsManagerContextId);
-}
-
-RefPtr<WebCore::PlatformPlaybackSessionInterface> PlaybackSessionManagerProxy::protectedControlsManagerInterface()
-{
-    return controlsManagerInterface();
 }
 
 bool PlaybackSessionManagerProxy::isPaused(PlaybackSessionContextIdentifier identifier) const

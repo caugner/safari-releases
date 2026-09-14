@@ -28,8 +28,16 @@
 #if USE(COORDINATED_GRAPHICS)
 
 #include "MessageReceiver.h"
+#include <WebCore/Color.h>
+#include <WebCore/CoordinatedCompositionReason.h>
+#include <WebCore/DMABufBuffer.h>
 #include <WebCore/Damage.h>
 #include <WebCore/IntSize.h>
+WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_BEGIN
+#include <skia/core/SkSurface.h>
+WTF_IGNORE_WARNINGS_IN_THIRD_PARTY_CODE_END
+#include <wtf/CheckedRef.h>
+#include <wtf/Lock.h>
 #include <wtf/RunLoop.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/ThreadSafeRefCounted.h>
@@ -39,7 +47,6 @@
 #if USE(GBM) || OS(ANDROID)
 #include "RendererBufferFormat.h"
 #include <atomic>
-#include <wtf/Lock.h>
 #endif
 
 #if USE(GBM)
@@ -56,10 +63,6 @@ typedef struct AHardwareBuffer AHardwareBuffer;
 typedef void *EGLImage;
 #endif
 
-#if USE(SKIA)
-#include <WebCore/GraphicsContextSkia.h>
-#endif
-
 #if USE(WPE_RENDERER)
 struct wpe_renderer_backend_egl_target;
 #endif
@@ -69,8 +72,8 @@ class RunLoop;
 }
 
 namespace WebCore {
+class BitmapTexture;
 class GLFence;
-class GraphicsContext;
 class ShareableBitmap;
 class ShareableBitmapHandle;
 }
@@ -82,14 +85,20 @@ class AcceleratedSurface;
 namespace WebKit {
 class WebPage;
 
-class AcceleratedSurface final : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<AcceleratedSurface, WTF::DestructionThread::MainRunLoop>
+class AcceleratedSurface final : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<AcceleratedSurface, WTF::DestructionThread::MainRunLoop>, public CanMakeThreadSafeCheckedPtr<AcceleratedSurface>
 #if PLATFORM(GTK) || ENABLE(WPE_PLATFORM)
     , public IPC::MessageReceiver
 #endif
 {
     WTF_MAKE_TZONE_ALLOCATED(AcceleratedSurface);
+    WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(AcceleratedSurface);
 public:
-    static Ref<AcceleratedSurface> create(WebPage&, Function<void()>&& frameCompleteHandler);
+    enum class RenderingPurpose {
+        Composited,
+        NonComposited,
+    };
+
+    static Ref<AcceleratedSurface> create(WebPage&, Function<void()>&& frameCompleteHandler, RenderingPurpose, bool useSkia);
     ~AcceleratedSurface();
 
 #if PLATFORM(GTK) || ENABLE(WPE_PLATFORM)
@@ -97,9 +106,8 @@ public:
     void deref() const final { ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr::deref(); }
 #endif
 
-public:
-    uint64_t window() const;
-    uint64_t surfaceID() const;
+    uint64_t window();
+    uint64_t surfaceID() const { return m_id; }
     bool shouldPaintMirrored() const
     {
 #if PLATFORM(WPE) || (PLATFORM(GTK) && USE(GTK4))
@@ -109,16 +117,25 @@ public:
 #endif
     }
 
-    WebCore::GraphicsContext* graphicsContext();
+#if PLATFORM(GTK) || ENABLE(WPE_PLATFORM)
+    bool usesGL() const { return m_renderingPurpose == RenderingPurpose::Composited || m_hardwareAccelerationEnabled; }
+#elif PLATFORM(WPE)
+    constexpr bool usesGL() const { return true; }
+#endif
+
+    SkCanvas* canvas();
 
     void willDestroyGLContext();
     void willRenderFrame(const WebCore::IntSize&);
     void didRenderFrame();
+    void sendFrame();
+    void clear(const OptionSet<WebCore::CompositionReason>&);
 
 #if ENABLE(DAMAGE_TRACKING)
-    void setFrameDamage(WebCore::Damage&&);
-    const std::optional<WebCore::Damage>& frameDamage() const { return m_frameDamage; }
-    const std::optional<WebCore::Damage>& frameDamageSinceLastUse();
+    void setFrameDamage(WebCore::Damage&& damage) { m_damageTracker.recordFrameDamage(WTF::move(damage)); }
+    void setFrameDamageRectangleThreshold(unsigned threshold) { m_damageTracker.setRectangleThreshold(threshold); }
+    const std::optional<WebCore::Damage>& frameDamage() const LIFETIME_BOUND { return m_damageTracker.frameDamage(); }
+    const std::optional<WebCore::Damage>& renderTargetDamage();
 #endif
 
     void didCreateCompositingRunLoop(WTF::RunLoop&);
@@ -129,10 +146,17 @@ public:
 #endif
 
     void visibilityDidChange(bool);
-    bool backgroundColorDidChange();
+    void backgroundColorDidChange();
 
 private:
-    AcceleratedSurface(WebPage&, Function<void()>&& frameCompleteHandler);
+    AcceleratedSurface(WebPage&, Function<void()>&& frameCompleteHandler, RenderingPurpose, bool useSkia);
+
+    RenderingPurpose renderingPurpose() const { return m_renderingPurpose; }
+#if PLATFORM(GTK) || ENABLE(WPE_PLATFORM)
+    bool hardwareAccelerationEnabled() const { return m_hardwareAccelerationEnabled; }
+#endif
+    bool useSkia() const { return m_useSkia; }
+    bool isOpaque() const;
 
 #if PLATFORM(GTK) || ENABLE(WPE_PLATFORM)
     // IPC::MessageReceiver.
@@ -150,25 +174,29 @@ private:
 
         uint64_t id() const { return m_id; }
 
-        virtual WebCore::GraphicsContext* graphicsContext() { RELEASE_ASSERT_NOT_REACHED(); }
-
         virtual void willRenderFrame() { }
-        virtual void didRenderFrame(Vector<WebCore::IntRect, 1>&&) { }
+        virtual void didRenderFrame() { }
+        virtual void sendFrame(Vector<WebCore::IntRect, 1>&&) { };
 
         virtual void sync(bool) { }
         virtual void setReleaseFenceFD(UnixFileDescriptor&&) { }
 
+        SkSurface* skiaSurface() const { return m_skiaSurface.get(); }
+
 #if ENABLE(DAMAGE_TRACKING)
         void setDamage(WebCore::Damage&& damage) { m_damage = WTF::move(damage); }
-        const std::optional<WebCore::Damage>& damage() { return m_damage; }
+        const std::optional<WebCore::Damage>& damage() LIFETIME_BOUND { return m_damage; }
         void addDamage(const std::optional<WebCore::Damage>&);
 #endif
 
     protected:
-        explicit RenderTarget(uint64_t);
+        explicit RenderTarget(AcceleratedSurface&);
+
+        void createSkiaSurfaceForTexture(const WebCore::BitmapTexture&);
 
         uint64_t m_id { 0 };
-        uint64_t m_surfaceID { 0 };
+        const CheckedRef<AcceleratedSurface> m_surface;
+        sk_sp<SkSurface> m_skiaSurface;
 #if ENABLE(DAMAGE_TRACKING)
         std::optional<WebCore::Damage> m_damage;
 #endif
@@ -184,12 +212,10 @@ private:
         std::unique_ptr<WebCore::GLFence> createRenderingFence(bool) const;
 
     protected:
-        RenderTargetShareableBuffer(uint64_t, const WebCore::IntSize&);
-
-        WebCore::GraphicsContext* graphicsContext() override;
+        RenderTargetShareableBuffer(AcceleratedSurface&, const WebCore::IntSize&);
 
         void willRenderFrame() override;
-        void didRenderFrame(Vector<WebCore::IntRect, 1>&&) override;
+        void sendFrame(Vector<WebCore::IntRect, 1>&&) override;
 
         virtual bool supportsExplicitSync() const = 0;
         void sync(bool) override;
@@ -199,12 +225,6 @@ private:
         unsigned m_depthStencilBuffer { 0 };
         UnixFileDescriptor m_renderingFenceFD;
         UnixFileDescriptor m_releaseFenceFD;
-#if USE(SKIA)
-        struct {
-            sk_sp<SkSurface> surface;
-            std::unique_ptr<WebCore::GraphicsContextSkia> context;
-        } m_graphicsContext;
-#endif
         WebCore::IntSize m_initialSize;
     };
 
@@ -251,10 +271,12 @@ private:
 
     class RenderTargetEGLImage final : public RenderTargetShareableBuffer {
     public:
-        static std::unique_ptr<RenderTarget> create(uint64_t, const WebCore::IntSize&, const BufferFormat&);
-        RenderTargetEGLImage(uint64_t, const WebCore::IntSize&, EGLImage, uint32_t format, Vector<WTF::UnixFileDescriptor>&&, Vector<uint32_t>&& offsets, Vector<uint32_t>&& strides, uint64_t modifier, RendererBufferFormat::Usage);
+        static std::unique_ptr<RenderTarget> create(AcceleratedSurface&, const WebCore::IntSize&, const BufferFormat&);
+#if USE(GBM)
+        RenderTargetEGLImage(AcceleratedSurface&, const WebCore::IntSize&, EGLImage, WebCore::DMABufBufferAttributes&&, RendererBufferFormat::Usage);
+#endif
 #if OS(ANDROID)
-        RenderTargetEGLImage(uint64_t, const WebCore::IntSize&, EGLImage, RefPtr<AHardwareBuffer>&&);
+        RenderTargetEGLImage(AcceleratedSurface&, const WebCore::IntSize&, EGLImage, RefPtr<AHardwareBuffer>&&);
 #endif
         ~RenderTargetEGLImage();
 
@@ -264,41 +286,43 @@ private:
 
         unsigned m_colorBuffer { 0 };
         EGLImage m_image { nullptr };
+        RefPtr<WebCore::BitmapTexture> m_texture;
     };
 #endif // USE(GBM) || OS(ANDROID)
 
     class RenderTargetSHMImage final : public RenderTargetShareableBuffer {
     public:
-        static std::unique_ptr<RenderTarget> create(uint64_t, const WebCore::IntSize&);
-        RenderTargetSHMImage(uint64_t, const WebCore::IntSize&, Ref<WebCore::ShareableBitmap>&&, WebCore::ShareableBitmapHandle&&);
+        static std::unique_ptr<RenderTarget> create(AcceleratedSurface&, const WebCore::IntSize&);
+        RenderTargetSHMImage(AcceleratedSurface&, const WebCore::IntSize&, Ref<WebCore::ShareableBitmap>&&, WebCore::ShareableBitmapHandle&&);
         ~RenderTargetSHMImage();
 
     private:
         bool supportsExplicitSync() const override { return false; }
-        void didRenderFrame(Vector<WebCore::IntRect, 1>&&) override;
+        void didRenderFrame() override;
 
         unsigned m_colorBuffer { 0 };
         const Ref<WebCore::ShareableBitmap> m_bitmap;
+        RefPtr<WebCore::BitmapTexture> m_texture;
     };
 
     class RenderTargetTexture final : public RenderTargetShareableBuffer {
     public:
-        static std::unique_ptr<RenderTarget> create(uint64_t, const WebCore::IntSize&);
-        RenderTargetTexture(uint64_t, const WebCore::IntSize&, unsigned texture, uint32_t format, Vector<WTF::UnixFileDescriptor>&&, Vector<uint32_t>&& offsets, Vector<uint32_t>&& strides, uint64_t modifier);
+        static std::unique_ptr<RenderTarget> create(AcceleratedSurface&, const WebCore::IntSize&);
+        RenderTargetTexture(AcceleratedSurface&, const WebCore::IntSize&, Ref<WebCore::BitmapTexture>&&, uint32_t format, Vector<WTF::UnixFileDescriptor>&&, Vector<uint32_t>&& offsets, Vector<uint32_t>&& strides, uint64_t modifier);
         ~RenderTargetTexture();
 
     private:
         bool supportsExplicitSync() const override { return true; }
 
-        unsigned m_texture { 0 };
+        Ref<WebCore::BitmapTexture> m_texture;
     };
 #endif // PLATFORM(GTK) || ENABLE(WPE_PLATFORM)
 
 #if USE(WPE_RENDERER)
     class RenderTargetWPEBackend final : public RenderTarget {
     public:
-        static std::unique_ptr<RenderTarget> create(uint64_t, const WebCore::IntSize&, UnixFileDescriptor&&, const AcceleratedSurface&);
-        RenderTargetWPEBackend(uint64_t, const WebCore::IntSize&, UnixFileDescriptor&&, const AcceleratedSurface&);
+        static std::unique_ptr<RenderTarget> create(AcceleratedSurface&, const WebCore::IntSize&, UnixFileDescriptor&&);
+        RenderTargetWPEBackend(AcceleratedSurface&, const WebCore::IntSize&, UnixFileDescriptor&&);
         ~RenderTargetWPEBackend();
 
         uint64_t window() const;
@@ -306,16 +330,17 @@ private:
 
     private:
         void willRenderFrame() override;
-        void didRenderFrame(Vector<WebCore::IntRect, 1>&&) override;
+        void didRenderFrame() override;
 
         struct wpe_renderer_backend_egl_target* m_backend { nullptr };
+        WebCore::IntSize m_size;
     };
 #endif
 
     class SwapChain {
         WTF_MAKE_NONCOPYABLE(SwapChain);
     public:
-        explicit SwapChain(uint64_t);
+        explicit SwapChain(AcceleratedSurface&);
 
         enum class Type {
             Invalid,
@@ -333,35 +358,44 @@ private:
 
         Type type() const { return m_type; }
         bool resize(const WebCore::IntSize&);
-        const WebCore::IntSize& size() const { return m_size; }
+        bool handleBufferFormatChangeIfNeeded();
+        const WebCore::IntSize& size() const LIFETIME_BOUND { return m_size; }
         RenderTarget* nextTarget();
         void releaseTarget(uint64_t, UnixFileDescriptor&& releaseFence);
         void reset();
         void releaseUnusedBuffers();
 
 #if ENABLE(DAMAGE_TRACKING)
-        void addDamage(const std::optional<WebCore::Damage>&);
+        template<typename Functor> void forEachTarget(Functor&& functor)
+        {
+            for (auto& target : m_freeTargets)
+                functor(*target);
+            for (auto& target : m_lockedTargets)
+                functor(*target);
+        }
 #endif
 
 #if (PLATFORM(GTK) || ENABLE(WPE_PLATFORM)) && (USE(GBM) || OS(ANDROID))
-        void setupBufferFormat(const Vector<RendererBufferFormat>&, bool);
+        void setupBufferFormat();
 #endif
 
 #if USE(WPE_RENDERER)
-        void initialize(WebPage&);
-        uint64_t initializeTarget(const AcceleratedSurface&);
+        uint64_t window();
 #endif
 
     private:
+        // FIXME: Allow configuring the initial buffer count, e.g. for triple buffering.
+        static constexpr unsigned s_initialBuffers = 2;
         static constexpr unsigned s_maximumBuffers = 4;
 
         std::unique_ptr<RenderTarget> createTarget() const;
 
-        uint64_t m_surfaceID { 0 };
+        const CheckedRef<AcceleratedSurface> m_surface;
         Type m_type { Type::Invalid };
         WebCore::IntSize m_size;
         Vector<std::unique_ptr<RenderTarget>, s_maximumBuffers> m_freeTargets;
         Vector<std::unique_ptr<RenderTarget>, s_maximumBuffers> m_lockedTargets;
+        bool m_initialTargetsCreated { false };
 #if (PLATFORM(GTK) || ENABLE(WPE_PLATFORM)) && (USE(GBM) || OS(ANDROID))
         Lock m_bufferFormatLock;
         BufferFormat m_bufferFormat WTF_GUARDED_BY_LOCK(m_bufferFormatLock);
@@ -373,18 +407,55 @@ private:
 #endif
     };
 
-    WeakRef<WebPage> m_webPage;
+#if ENABLE(DAMAGE_TRACKING)
+    class SwapChainDamageTracker {
+        WTF_MAKE_NONCOPYABLE(SwapChainDamageTracker);
+    public:
+        explicit SwapChainDamageTracker(SwapChain& swapChain)
+            : m_swapChain(swapChain)
+        {
+        }
+
+        void setRectangleThreshold(unsigned threshold) { m_rectangleThreshold = threshold; }
+        unsigned rectangleThreshold() const { return m_rectangleThreshold; }
+
+        // This frame's content change vs the last presented frame - propagated to the platform.
+        void recordFrameDamage(WebCore::Damage&& damage) { m_frameDamage = WTF::move(damage); }
+        const std::optional<WebCore::Damage>& frameDamage() const LIFETIME_BOUND { return m_frameDamage; }
+        Vector<WebCore::IntRect, 1> takeFrameDamageRects();
+
+        // Propagates this frame's damage into every buffer and returns the given buffer's accumulated damage.
+        const std::optional<WebCore::Damage>& damageForTarget(RenderTarget&);
+
+        // Discards the pending frame damage, e.g. when the swap chain is resized.
+        void reset() { m_frameDamage = std::nullopt; }
+
+    private:
+        SwapChain& m_swapChain;
+        std::optional<WebCore::Damage> m_frameDamage;
+        unsigned m_rectangleThreshold { 4 };
+    };
+#endif
+
+    const WeakRef<WebPage> m_webPage;
     Function<void()> m_frameCompleteHandler;
+    bool m_useSkia { false };
     uint64_t m_id { 0 };
-    WebCore::IntSize m_size;
+    RenderingPurpose m_renderingPurpose { RenderingPurpose::Composited };
+#if PLATFORM(GTK) || ENABLE(WPE_PLATFORM)
+    bool m_hardwareAccelerationEnabled { true };
+#endif
+    Lock m_backgroundColorLock;
+    std::optional<WebCore::Color> m_backgroundColor WTF_GUARDED_BY_LOCK(m_backgroundColorLock);
     SwapChain m_swapChain;
     RenderTarget* m_target { nullptr };
+    Vector<std::pair<RenderTarget*, Vector<WebCore::IntRect, 1>>, 1> m_pendingFrameNotifyTargets;
     bool m_isVisible { false };
     bool m_useExplicitSync { false };
-    std::atomic<bool> m_isOpaque { true };
     std::unique_ptr<RunLoop::Timer> m_releaseUnusedBuffersTimer;
+    RefPtr<WTF::RunLoop> m_compositingRunLoop;
 #if ENABLE(DAMAGE_TRACKING)
-    std::optional<WebCore::Damage> m_frameDamage;
+    SwapChainDamageTracker m_damageTracker;
 #endif
 };
 

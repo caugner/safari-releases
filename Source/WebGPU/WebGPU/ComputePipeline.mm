@@ -68,11 +68,11 @@ static id<MTLComputePipelineState> createComputePipelineState(id<MTLDevice> devi
     return computePipelineState;
 }
 
-static std::optional<MTLSize> metalSize(auto workgroupSize, const HashMap<String, WGSL::ConstantValue>& wgslConstantValues)
+static std::optional<MTLSize> metalSize(WGSL::ShaderModule& shaderModule, auto workgroupSize, const HashMap<String, WGSL::ConstantValue>& wgslConstantValues)
 {
-    auto width = WGSL::evaluate(*workgroupSize.width, wgslConstantValues);
-    auto height = workgroupSize.height ? WGSL::evaluate(*workgroupSize.height, wgslConstantValues) : 1;
-    auto depth = workgroupSize.depth ? WGSL::evaluate(*workgroupSize.depth, wgslConstantValues) : 1;
+    auto width = WGSL::evaluate(shaderModule, *workgroupSize.width, wgslConstantValues);
+    auto height = workgroupSize.height ? WGSL::evaluate(shaderModule, *workgroupSize.height, wgslConstantValues) : 1;
+    auto depth = workgroupSize.depth ? WGSL::evaluate(shaderModule, *workgroupSize.depth, wgslConstantValues) : 1;
     if (!width.has_value() || !height.has_value() || !depth.has_value())
         return std::nullopt;
 
@@ -88,11 +88,11 @@ static std::pair<Ref<ComputePipeline>, NSString*> returnInvalidComputePipeline(W
 
 std::pair<Ref<ComputePipeline>, NSString*> Device::createComputePipeline(const WGPUComputePipelineDescriptor& descriptor, bool isAsync)
 {
-    auto shaderModule = WebGPU::protectedFromAPI(descriptor.compute.module);
+    Ref shaderModule = WebGPU::fromAPI(descriptor.compute.module);
     if (!shaderModule->isValid() || &shaderModule->device() != this || !descriptor.layout)
         return returnInvalidComputePipeline(*this, isAsync);
 
-    Ref pipelineLayout = WebGPU::protectedFromAPI(descriptor.layout);
+    Ref pipelineLayout = WebGPU::fromAPI(descriptor.layout);
     if (!isValidToUseWithDevice(pipelineLayout.get(), *this))
         return returnInvalidComputePipeline(*this, isAsync, @"GPUDevice.createComputePipeline: Pipeline layout is invalid");
 
@@ -118,7 +118,7 @@ std::pair<Ref<ComputePipeline>, NSString*> Device::createComputePipeline(const W
     if (!function || function.functionType != MTLFunctionTypeKernel || entryPointInformation.specializationConstants.size() != wgslConstantValues.size())
         return returnInvalidComputePipeline(*this, isAsync);
 
-    auto evaluatedSize = metalSize(computeInformation.workgroupSize, wgslConstantValues);
+    auto evaluatedSize = metalSize(*shaderModule->ast(), computeInformation.workgroupSize, wgslConstantValues);
     if (!evaluatedSize)
         return returnInvalidComputePipeline(*this, isAsync, @"Failed to evaluate overrides");
     auto size = *evaluatedSize;
@@ -163,7 +163,7 @@ void Device::createComputePipelineAsync(const WGPUComputePipelineDescriptor& des
 {
     auto pipelineAndError = createComputePipeline(descriptor, true);
     if (auto inst = instance(); inst.get()) {
-        inst->scheduleWork([pipeline = WTF::move(pipelineAndError.first), callback = WTF::move(callback), protectedThis = Ref { *this }, error = WTF::move(pipelineAndError.second)]() mutable {
+        inst->scheduleWork([pipeline = WTF::move(pipelineAndError.first), callback = WTF::move(callback), protectedThis = protect(*this), error = WTF::move(pipelineAndError.second)]() mutable {
             callback((pipeline->isValid() || protectedThis->isDestroyed()) ? WGPUCreatePipelineAsyncStatus_Success : WGPUCreatePipelineAsyncStatus_ValidationError, WTF::move(pipeline), WTF::move(error));
         });
     } else
@@ -229,7 +229,7 @@ const BufferBindingSizesForBindGroup* ComputePipeline::minimumBufferSizes(uint32
 
 #pragma mark WGPU Stubs
 
-void wgpuComputePipelineReference(WGPUComputePipeline computePipeline)
+void NODELETE wgpuComputePipelineReference(WGPUComputePipeline computePipeline)
 {
     WebGPU::fromAPI(computePipeline).ref();
 }
@@ -241,10 +241,10 @@ void wgpuComputePipelineRelease(WGPUComputePipeline computePipeline)
 
 WGPUBindGroupLayout wgpuComputePipelineGetBindGroupLayout(WGPUComputePipeline computePipeline, uint32_t groupIndex)
 {
-    return WebGPU::releaseToAPI(WebGPU::protectedFromAPI(computePipeline)->getBindGroupLayout(groupIndex));
+    return WebGPU::releaseToAPI(protect(WebGPU::fromAPI(computePipeline))->getBindGroupLayout(groupIndex));
 }
 
 void wgpuComputePipelineSetLabel(WGPUComputePipeline computePipeline, const char* label)
 {
-    WebGPU::protectedFromAPI(computePipeline)->setLabel(WebGPU::fromAPI(label));
+    WebGPU::fromAPI(computePipeline).setLabel(WebGPU::fromAPI(label));
 }

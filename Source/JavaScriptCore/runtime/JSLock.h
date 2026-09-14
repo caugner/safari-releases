@@ -21,9 +21,7 @@
 #pragma once
 
 #include <JavaScriptCore/JSExportMacros.h>
-#include <mutex>
 #include <wtf/Assertions.h>
-#include <wtf/ForbidHeapAllocation.h>
 #include <wtf/Lock.h>
 #include <wtf/Noncopyable.h>
 #include <wtf/RefPtr.h>
@@ -106,7 +104,7 @@ public:
 
     bool currentThreadIsHoldingLock() { return m_hasOwnerThread.load(std::memory_order_acquire) && m_ownerThread.get() == &Thread::currentSingleton(); }
 
-    void willDestroyVM(VM*);
+    void NODELETE willDestroyVM(VM*);
 
     class DropAllLocks {
         WTF_MAKE_NONCOPYABLE(DropAllLocks);

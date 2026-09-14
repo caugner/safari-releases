@@ -86,7 +86,7 @@ public:
     WEBCORE_EXPORT IDBKeyData isolatedCopy() const;
 
     WEBCORE_EXPORT void encode(KeyedEncoder&) const;
-    WARN_UNUSED_RETURN WEBCORE_EXPORT static bool decode(KeyedDecoder&, IDBKeyData&);
+    [[nodiscard]] WEBCORE_EXPORT static bool decode(KeyedDecoder&, IDBKeyData&);
 
     void setArrayValue(const Vector<IDBKeyData>&);
     void setBinaryValue(const ThreadSafeDataBuffer&);
@@ -132,7 +132,7 @@ public:
 
     size_t size() const;
 
-    const ValueVariant& value() const { return m_value; };
+    const ValueVariant& value() const LIFETIME_BOUND { return m_value; };
 
 private:
     friend struct IDBKeyDataHashTraits;

@@ -84,8 +84,8 @@ static constexpr double defaultAppOriginQuotaRatio = 0.15;
 #if ENABLE(APP_BOUND_DOMAINS)
 static WorkQueue& appBoundDomainQueue()
 {
-    static auto& queue = WorkQueue::create("com.apple.WebKit.AppBoundDomains"_s).leakRef();
-    return queue;
+    static NeverDestroyed<Ref<WorkQueue>> queue = WorkQueue::create("com.apple.WebKit.AppBoundDomains"_s);
+    return queue.get();
 }
 static std::atomic<bool> hasInitializedAppBoundDomains = false;
 static std::atomic<bool> keyExists = false;
@@ -290,21 +290,6 @@ std::optional<bool> WebsiteDataStore::useNetworkLoader()
 
 #endif // NETWORK_LOADER
 }
-
-#if ENABLE(OPT_IN_PARTITIONED_COOKIES)
-bool WebsiteDataStore::isOptInCookiePartitioningEnabled() const
-{
-#if defined(CFN_COOKIE_ACCEPTS_POLICY_PARTITION) && CFN_COOKIE_ACCEPTS_POLICY_PARTITION
-    return std::ranges::any_of(m_processes, [](auto& process) {
-        return std::ranges::any_of(process.pages(), [](auto& page) {
-            return page->preferences().optInPartitionedCookiesEnabled();
-        });
-    });
-#else
-    return false;
-#endif
-}
-#endif
 
 void WebsiteDataStore::platformInitialize()
 {
@@ -563,15 +548,6 @@ String WebsiteDataStore::defaultJavaScriptConfigurationDirectory(const String& b
     return tempDirectoryFileSystemRepresentation("JavaScriptCoreDebug"_s, ShouldCreateDirectory::No);
 }
 
-#if ENABLE(ARKIT_INLINE_PREVIEW)
-String WebsiteDataStore::defaultModelElementCacheDirectory(const String& baseDirectory)
-{
-    if (!baseDirectory.isEmpty())
-        return FileSystem::pathByAppendingComponent(baseDirectory, "ModelElement"_s);
-
-    return tempDirectoryFileSystemRepresentation("ModelElement"_s, ShouldCreateDirectory::No);
-}
-#endif
 
 #if ENABLE(CONTENT_EXTENSIONS)
 String WebsiteDataStore::defaultResourceMonitorThrottlerDirectory(const String& baseDirectory)
@@ -681,8 +657,8 @@ void WebsiteDataStore::initializeAppBoundDomains(ForceReinitialization forceRein
         return;
     
     static const auto maxAppBoundDomainCount = 10;
-    
-    appBoundDomainQueue().dispatch([forceReinitialization] () mutable {
+
+    protect(appBoundDomainQueue())->dispatch([forceReinitialization] () mutable {
         if (hasInitializedAppBoundDomains && forceReinitialization != ForceReinitialization::Yes)
             return;
         
@@ -743,7 +719,7 @@ void WebsiteDataStore::ensureAppBoundDomains(CompletionHandler<void(const HashSe
 
     // Hopping to the background thread then back to the main thread
     // ensures that initializeAppBoundDomains() has finished.
-    appBoundDomainQueue().dispatch([this, protectedThis = Ref { *this }, completionHandler = WTF::move(completionHandler)] () mutable {
+    protect(appBoundDomainQueue())->dispatch([this, protectedThis = Ref { *this }, completionHandler = WTF::move(completionHandler)] () mutable {
         RunLoop::mainSingleton().dispatch([this, protectedThis = WTF::move(protectedThis), completionHandler = WTF::move(completionHandler)] () mutable {
             ASSERT(hasInitializedAppBoundDomains);
             if (m_configuration->enableInAppBrowserPrivacyForTesting())
@@ -821,7 +797,7 @@ void WebsiteDataStore::reinitializeAppBoundDomains()
 
 
 #if ENABLE(MANAGED_DOMAINS)
-static HashSet<WebCore::RegistrableDomain>& managedDomains()
+static HashSet<WebCore::RegistrableDomain>& NODELETE managedDomains()
 {
     ASSERT(RunLoop::isMain());
     static NeverDestroyed<HashSet<WebCore::RegistrableDomain>> managedDomains;
@@ -969,7 +945,7 @@ void WebsiteDataStore::reinitializeManagedDomains()
 
 bool WebsiteDataStore::networkProcessHasEntitlementForTesting(const String& entitlement)
 {
-    return WTF::hasEntitlement(networkProcess().protectedConnection()->protectedXPCConnection().get(), entitlement);
+    return WTF::hasEntitlement(protect(protect(networkProcess().connection())->xpcConnection()).get(), entitlement);
 }
 
 std::optional<double> WebsiteDataStore::defaultOriginQuotaRatio()
@@ -1050,7 +1026,7 @@ String WebsiteDataStore::defaultResolvedContainerTemporaryDirectory()
 
 void WebsiteDataStore::setBackupExclusionPeriodForTesting(Seconds period, CompletionHandler<void()>&& completionHandler)
 {
-    networkProcess().setBackupExclusionPeriodForTesting(m_sessionID, period, WTF::move(completionHandler));
+    protect(networkProcess())->setBackupExclusionPeriodForTesting(m_sessionID, period, WTF::move(completionHandler));
 }
 
 #endif

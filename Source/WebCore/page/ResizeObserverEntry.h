@@ -45,11 +45,11 @@ public:
         return adoptRef(*new ResizeObserverEntry(WTF::move(target), contentRect, borderBoxSize, contentBoxSize));
     }
 
-    Element& target() const { return m_target.get(); }
-    DOMRectReadOnly* contentRect() const { return m_contentRect.ptr(); }
-    
-    const Vector<Ref<ResizeObserverSize>>& borderBoxSize() const { return m_borderBoxSizes; }
-    const Vector<Ref<ResizeObserverSize>>& contentBoxSize() const { return m_contentBoxSizes; }
+    Element& target() const { return m_target; }
+    DOMRectReadOnly& contentRect() const { return m_contentRect; }
+
+    const Vector<Ref<ResizeObserverSize>>& borderBoxSize() const LIFETIME_BOUND { return m_borderBoxSizes; }
+    const Vector<Ref<ResizeObserverSize>>& contentBoxSize() const LIFETIME_BOUND { return m_contentBoxSizes; }
 
 private:
     ResizeObserverEntry(Ref<Element>&& target, const FloatRect& contentRect, FloatSize borderBoxSize, FloatSize contentBoxSize)

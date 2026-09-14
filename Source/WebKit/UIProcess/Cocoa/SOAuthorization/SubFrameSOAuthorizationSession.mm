@@ -138,8 +138,9 @@ void SubFrameSOAuthorizationSession::loadRequestToFrame()
     RefPtr page = this->page();
     if (!page || m_requestsToLoad.isEmpty())
         return;
-
-    if (RefPtr frame = WebFrameProxy::webFrame(m_frameID)) {
+    RefPtr frame = WebFrameProxy::webFrame(m_frameID);
+    ASSERT(!frame || frame->page() == page.get());
+    if (frame && frame->page() == page.get()) {
         page->setShouldSuppressSOAuthorizationInNextNavigationPolicyDecision();
         auto& url = m_requestsToLoad.first().first;
         WTF::switchOn(m_requestsToLoad.first().second, [&](const Vector<uint8_t>& data) {
@@ -183,7 +184,7 @@ bool SubFrameSOAuthorizationSession::shouldInterruptLoadForXFrameOptions(Vector<
 
 bool SubFrameSOAuthorizationSession::shouldInterruptLoadForCSPFrameAncestorsOrXFrameOptions(const WebCore::ResourceResponse& response)
 {
-    if (RefPtr page = this->page(); page && page->protectedPreferences()->ignoreIframeEmbeddingProtectionsEnabled())
+    if (RefPtr page = this->page(); page && protect(page->preferences())->ignoreIframeEmbeddingProtectionsEnabled())
         return false;
 
     Vector<Ref<SecurityOrigin>> frameAncestorOrigins;

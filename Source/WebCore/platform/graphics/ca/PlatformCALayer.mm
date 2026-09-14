@@ -28,12 +28,14 @@
 
 #if USE(CA)
 
+#include "FontSelector.h"
 #include "GraphicsContextCG.h"
 #include "IOSurface.h"
 #include "LayerPool.h"
 #include "PlatformCALayerClient.h"
 #include "PlatformCALayerDelegatedContents.h"
 #include "PlatformScreen.h"
+#include "TextRun.h"
 #include <CoreFoundation/CoreFoundation.h>
 #include <CoreText/CoreText.h>
 #include <QuartzCore/CABase.h>
@@ -204,8 +206,8 @@ ContentsFormat PlatformCALayer::contentsFormatForLayer(PlatformCALayerClient* cl
 void PlatformCALayer::moveToLayerPool()
 {
     ASSERT(!superlayer());
-    if (auto pool = layerPool())
-        pool->addLayer(this);
+    if (CheckedPtr pool = layerPool())
+        pool->addLayer(*this);
 }
 
 LayerPool* PlatformCALayer::layerPool()

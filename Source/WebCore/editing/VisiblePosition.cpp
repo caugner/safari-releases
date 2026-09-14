@@ -44,7 +44,9 @@
 #include "PositionInlines.h"
 #include "Range.h"
 #include "RenderBlockFlow.h"
+#include "RenderBoxModelObject.h"
 #include "RenderObjectInlines.h"
+#include "RenderTextFragment.h"
 #include "SimpleRange.h"
 #include "Text.h"
 #include "TextIterator.h"
@@ -57,6 +59,16 @@
 namespace WebCore {
 
 using namespace HTMLNames;
+
+// The anonymous text renderer inside ::first-letter has no DOM node.
+static RenderTextFragment* remainingTextFragmentForFirstLetter(const RenderObject& renderer)
+{
+    if (renderer.node())
+        return { };
+    if (auto* parent = dynamicDowncast<RenderBoxModelObject>(renderer.parent()))
+        return parent->firstLetterRemainingText();
+    return { };
+}
 
 VisiblePosition::VisiblePosition(const Position& position, Affinity affinity)
     : m_deepPosition { canonicalPosition(position) }
@@ -140,7 +152,7 @@ Position VisiblePosition::leftVisuallyDistinctCandidate() const
             if ((renderer->isBlockLevelReplacedOrAtomicInline() || renderer->isBR()) && offset == box->rightmostCaretOffset())
                 return box->isLeftToRightDirection() ? previousVisuallyDistinctCandidate(m_deepPosition) : nextVisuallyDistinctCandidate(m_deepPosition);
 
-            if (!renderer->node()) {
+            if (!renderer->node() && !remainingTextFragmentForFirstLetter(*renderer)) {
                 box.traverseLineLeftwardOnLine();
                 if (!box)
                     return primaryDirection == TextDirection::LTR ? previousVisuallyDistinctCandidate(m_deepPosition) : nextVisuallyDistinctCandidate(m_deepPosition);
@@ -182,8 +194,8 @@ Position VisiblePosition::leftVisuallyDistinctCandidate() const
             if (box->direction() == primaryDirection) {
                 if (!previousBox) {
                     auto logicalStart = primaryDirection == TextDirection::LTR
-                        ? InlineIterator::firstLeafOnLineInLogicalOrderWithNode(box->lineBox(), orderCache)
-                        : InlineIterator::lastLeafOnLineInLogicalOrderWithNode(box->lineBox(), orderCache);
+                        ? InlineIterator::firstLeafOnLineInLogicalOrder(box->lineBox(), orderCache)
+                        : InlineIterator::lastLeafOnLineInLogicalOrder(box->lineBox(), orderCache);
                     if (logicalStart) {
                         box = logicalStart;
                         renderer = &box->renderer();
@@ -253,7 +265,9 @@ Position VisiblePosition::leftVisuallyDistinctCandidate() const
             break;
         }
 
-        p = makeDeprecatedLegacyPosition(renderer->protectedNode().get(), offset);
+        CheckedPtr remainingFragment = remainingTextFragmentForFirstLetter(*renderer);
+        RefPtr node = remainingFragment ? remainingFragment->textNode() : renderer->node();
+        p = makeDeprecatedLegacyPosition(protect(node).get(), convertOffsetInTextFragmentToNodeOffset(*renderer, offset));
 
         if ((p.isCandidate() && p.downstream() != downstreamStart) || p.atStartOfTree() || p.atEndOfTree())
             return p;
@@ -305,7 +319,7 @@ Position VisiblePosition::rightVisuallyDistinctCandidate() const
             if ((renderer->isBlockLevelReplacedOrAtomicInline() || renderer->isBR()) && offset == box->leftmostCaretOffset())
                 return box->isLeftToRightDirection() ? nextVisuallyDistinctCandidate(m_deepPosition) : previousVisuallyDistinctCandidate(m_deepPosition);
 
-            if (!renderer->node()) {
+            if (!renderer->node() && !remainingTextFragmentForFirstLetter(*renderer)) {
                 box.traverseLineRightwardOnLine();
                 if (!box)
                     return primaryDirection == TextDirection::LTR ? nextVisuallyDistinctCandidate(m_deepPosition) : previousVisuallyDistinctCandidate(m_deepPosition);
@@ -422,7 +436,9 @@ Position VisiblePosition::rightVisuallyDistinctCandidate() const
             break;
         }
 
-        p = makeDeprecatedLegacyPosition(renderer->protectedNode().get(), offset);
+        CheckedPtr remainingFragment = remainingTextFragmentForFirstLetter(*renderer);
+        RefPtr node = remainingFragment ? remainingFragment->textNode() : renderer->node();
+        p = makeDeprecatedLegacyPosition(protect(node).get(), convertOffsetInTextFragmentToNodeOffset(*renderer, offset));
 
         if ((p.isCandidate() && p.downstream() != downstreamStart) || p.atStartOfTree() || p.atEndOfTree())
             return p;
@@ -462,7 +478,7 @@ VisiblePosition VisiblePosition::honorEditingBoundaryAtOrBefore(const VisiblePos
     RefPtr highestRoot = highestEditableRoot(deepEquivalent());
     
     // Return empty position if pos is not somewhere inside the editable region containing this position
-    if (highestRoot && !position.deepEquivalent().protectedDeprecatedNode()->isDescendantOf(*highestRoot)) {
+    if (highestRoot && !position.deepEquivalent().deprecatedNode()->isDescendantOf(*highestRoot)) {
         if (reachedBoundary)
             *reachedBoundary = true;
         return VisiblePosition();
@@ -499,7 +515,7 @@ VisiblePosition VisiblePosition::honorEditingBoundaryAtOrAfter(const VisiblePosi
     RefPtr highestRoot = highestEditableRoot(deepEquivalent());
     
     // Return empty position if otherPosition is not somewhere inside the editable region containing this position
-    if (highestRoot && !otherPosition.deepEquivalent().protectedDeprecatedNode()->isDescendantOf(*highestRoot)) {
+    if (highestRoot && !otherPosition.deepEquivalent().deprecatedNode()->isDescendantOf(*highestRoot)) {
         if (reachedBoundary)
             *reachedBoundary = true;
         return VisiblePosition();
@@ -553,7 +569,7 @@ Position VisiblePosition::canonicalPosition(const Position& passedPosition)
         return Position();
 
     ASSERT(position.document());
-    position.document()->updateLayoutIgnorePendingStylesheets();
+    protect(position.document())->updateLayoutIgnorePendingStylesheets();
 
     RefPtr node = position.containerNode();
 
@@ -727,7 +743,7 @@ Element* enclosingBlockFlowElement(const VisiblePosition& visiblePosition)
     if (visiblePosition.isNull())
         return nullptr;
 
-    return deprecatedEnclosingBlockFlowElement(visiblePosition.deepEquivalent().protectedDeprecatedNode().get());
+    return deprecatedEnclosingBlockFlowElement(protect(visiblePosition.deepEquivalent().deprecatedNode()).get());
 }
 
 bool isFirstVisiblePositionInNode(const VisiblePosition& visiblePosition, const Node* node)
@@ -735,11 +751,11 @@ bool isFirstVisiblePositionInNode(const VisiblePosition& visiblePosition, const 
     if (visiblePosition.isNull())
         return false;
 
-    if (!visiblePosition.deepEquivalent().protectedContainerNode()->isDescendantOf(node))
+    if (!visiblePosition.deepEquivalent().containerNode()->isDescendantOf(node))
         return false;
 
     VisiblePosition previous = visiblePosition.previous();
-    return previous.isNull() || !previous.deepEquivalent().protectedDeprecatedNode()->isDescendantOf(node);
+    return previous.isNull() || !previous.deepEquivalent().deprecatedNode()->isDescendantOf(node);
 }
 
 bool isLastVisiblePositionInNode(const VisiblePosition& visiblePosition, const Node* node)
@@ -747,16 +763,16 @@ bool isLastVisiblePositionInNode(const VisiblePosition& visiblePosition, const N
     if (visiblePosition.isNull())
         return false;
 
-    if (!visiblePosition.deepEquivalent().protectedContainerNode()->isDescendantOf(node))
+    if (!visiblePosition.deepEquivalent().containerNode()->isDescendantOf(node))
         return false;
 
     VisiblePosition next = visiblePosition.next();
-    return next.isNull() || !next.deepEquivalent().protectedDeprecatedNode()->isDescendantOf(node);
+    return next.isNull() || !next.deepEquivalent().deprecatedNode()->isDescendantOf(node);
 }
 
 bool areVisiblePositionsInSameTreeScope(const VisiblePosition& a, const VisiblePosition& b)
 {
-    return connectedInSameTreeScope(a.deepEquivalent().protectedAnchorNode().get(), b.deepEquivalent().protectedAnchorNode().get());
+    return connectedInSameTreeScope(a.deepEquivalent().anchorNode(), b.deepEquivalent().anchorNode());
 }
 
 bool VisiblePosition::equals(const VisiblePosition& other) const

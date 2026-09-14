@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2014-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -28,7 +28,6 @@
 
 #if ENABLE(VIDEO_PRESENTATION_MODE)
 
-#import "AddEventListenerOptionsInlines.h"
 #import "DocumentFullscreen.h"
 #import "Event.h"
 #import "EventListener.h"
@@ -49,6 +48,11 @@
 #import <wtf/LoggerHelper.h>
 #import <wtf/NeverDestroyed.h>
 #import <wtf/SoftLinking.h>
+
+#if PLATFORM(IOS)
+#include "EventTarget.h"
+#include <pal/system/ios/UserInterfaceIdiom.h>
+#endif
 
 namespace WebCore {
 
@@ -82,11 +86,11 @@ void VideoPresentationModelVideoElement::cleanVideoListeners()
     if (RefPtr videoElement = m_videoElement) {
         videoElement->removeClient(*this);
         for (auto& eventName : observedEventNames())
-            videoElement->removeEventListener(eventName, m_videoListener, false);
+            videoElement->removeEventListener(eventName, m_videoListener, { .capture = false });
     }
     if (RefPtr document = m_document.get()) {
         for (auto& eventName : documentObservedEventNames())
-            document->removeEventListener(eventName, m_videoListener, false);
+            document->removeEventListener(eventName, m_videoListener, { .capture = false });
     }
 }
 
@@ -110,10 +114,10 @@ void VideoPresentationModelVideoElement::setVideoElement(HTMLVideoElement* video
         videoElement->addClient(*this);
         m_document = videoElement->document();
         for (auto& eventName : observedEventNames())
-            videoElement->addEventListener(eventName, m_videoListener, false);
+            videoElement->addEventListener(eventName, m_videoListener);
         m_isListening = true;
         for (auto& eventName : documentObservedEventNames())
-            videoElement->document().addEventListener(eventName, m_videoListener, false);
+            protect(videoElement->document())->addEventListener(eventName, m_videoListener);
     }
 
     updateForEventName(eventNameAll());
@@ -173,7 +177,7 @@ void VideoPresentationModelVideoElement::documentVisibilityChanged()
     if (!videoElement)
         return;
 
-    bool isDocumentVisible = !videoElement->document().hidden();
+    bool isDocumentVisible = !protect(videoElement->document())->hidden();
 
     if (isDocumentVisible == m_documentIsVisible)
         return;
@@ -199,10 +203,7 @@ void VideoPresentationModelVideoElement::documentFullscreenChanged()
         RefPtr fullscreenElement = fullscreen->fullscreenElement();
         if (!fullscreenElement)
             return false;
-        RefPtr ancestor = videoElement->parentNode();
-        while (ancestor && ancestor != fullscreenElement)
-            ancestor = ancestor->parentNode();
-        return !!ancestor.get();
+        return videoElement->isShadowIncludingDescendantOf(*fullscreenElement);
     }();
 
     if (std::exchange(m_isChildOfElementFullscreen, isChildOfElementFullscreen) == isChildOfElementFullscreen)
@@ -292,11 +293,14 @@ void VideoPresentationModelVideoElement::requestFullscreenMode(HTMLMediaElementE
 
     videoElement->setPresentationMode(HTMLVideoElement::toPresentationMode(mode));
 
-    if (finishedWithMedia && mode == MediaPlayer::VideoFullscreenModeNone) {
-        if (videoElement->document().isMediaDocument()) {
-            if (RefPtr window = videoElement->document().window())
-                window->history().back();
-        }
+    if (finishedWithMedia
+#if PLATFORM(IOS)
+        && PAL::currentUserInterfaceIdiomIsSmallScreen()
+#endif
+        && mode == MediaPlayer::VideoFullscreenModeNone
+        && videoElement->document().isMediaDocument()) {
+        if (RefPtr window = protect(videoElement->document())->window())
+            window->history().back();
     }
 }
 

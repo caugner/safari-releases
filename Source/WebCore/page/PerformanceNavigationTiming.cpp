@@ -29,10 +29,11 @@
 #include "CachedResource.h"
 #include "Performance.h"
 #include "ResourceTiming.h"
+#include <wtf/ReducedResolutionSeconds.h>
 
 namespace WebCore {
 
-static PerformanceNavigationTiming::NavigationType toPerformanceNavigationTimingNavigationType(NavigationType navigationType)
+static PerformanceNavigationTiming::NavigationType NODELETE toPerformanceNavigationTimingNavigationType(NavigationType navigationType)
 {
     switch (navigationType) {
     case NavigationType::BackForward:

@@ -252,13 +252,13 @@ export function resolveAlias(argumentType) {
 
     // remove any 'const ' prefix
     if (argumentType.startsWith("const ")) {
-        argumentType = argumentType.slice("const ".length);
+        return resolveAlias(argumentType.slice("const ".length));
     }
 
     return argumentType;
 }
 
-function isPrimtiveType(type) {
+function isPrimitiveType(type) {
     return ["double", "float", "bool","String","uint8_t", "int8_t","uint16_t", "int16_t","uint32_t", "int32_t","uint64_t", "int64_t",].includes(type);
 }
 
@@ -545,6 +545,7 @@ export class ArgumentSerializer {
         if (argumentType.includes("<")) {
             const [ templateType, innerType ] = ArgumentSerializer.parseTemplate(argumentType);
             switch (templateType) {
+                case 'Box':
                 case 'RefPtr':
                 case 'std::unique_ptr':
                 case 'RetainPtr':
@@ -727,6 +728,8 @@ export class ArgumentSerializer {
                 }
                 throw new SerializationError(`Primitive value of type ${ argumentDefinition.type } is neither a number nor a bigint`);
             case 'String':
+                if (argument === null)
+                    return {value: null, type: 'String'};
                 if (typeof argument != 'string') {
                     throw new SerializationError(`Primitive value is not a string`);
                 }
@@ -1052,6 +1055,7 @@ export class ArgumentParser {
         if (argumentType.includes("<")) {
             const [ templateType, innerType ] = ArgumentSerializer.parseTemplate(argumentType);
             switch (templateType) {
+                case 'Box':
                 case 'RefPtr':
                 case 'std::unique_ptr':
                 case 'RetainPtr':
@@ -1258,7 +1262,7 @@ export class ArgumentParser {
     static untypeResult(typedResult) {
         if (typeof(typedResult)=='object') {
             if ('parsedType' in typedResult) {
-                if (isEnum(typedResult.parsedType) || isPrimtiveType(typedResult.parsedType) || isIdentifier(typedResult.parsedType)) {
+                if (isEnum(typedResult.parsedType) || isPrimitiveType(typedResult.parsedType) || isIdentifier(typedResult.parsedType)) {
                     return typedResult.parsedValue;
                 }
                 return ArgumentParser.untypeResult(typedResult.parsedValue);

@@ -47,8 +47,8 @@
 #import <WebKit/WKPreferencesRefPrivate.h>
 #import <WebKit/WKProcessPoolPrivate.h>
 #import <WebKit/WKStringCF.h>
+#import <WebKit/WKURLResponseNS.h>
 #import <WebKit/WKUserContentControllerPrivate.h>
-#import <WebKit/WKUserMediaPermissionCheck.h>
 #import <WebKit/WKWebView.h>
 #import <WebKit/WKWebViewConfiguration.h>
 #import <WebKit/WKWebViewConfigurationPrivate.h>
@@ -248,7 +248,9 @@ void TestController::platformInitializeDataStore(WKPageConfigurationRef, const T
         // Including any non-trivial value of "persistent notifications have a minimum timeout before being closeable"
         // is counterproductive for layout tests - especially WPT tests. We cover the behavior in API tests.
         // So let's just set it to a tiny value for no behavior change in layout tests.
+#if ENABLE(NOTIFICATIONS) && ENABLE(NOTIFICATION_EVENT)
         websiteDataStoreConfig.get().overridePersistentNotificationMinimumLifetimeForTesting = std::numeric_limits<float>::min();
+#endif
         if (!useEphemeralSession)
             configureWebsiteDataStoreTemporaryDirectories((WKWebsiteDataStoreConfigurationRef)websiteDataStoreConfig.get());
         if (standaloneWebApplicationURL.length())
@@ -324,6 +326,10 @@ void TestController::platformCreateWebView(WKPageConfigurationRef configuration,
     [cocoaConfiguration _setLongPressActionsEnabled:options.longPressActionsEnabled()];
 #endif
 
+#if ENABLE(MODEL_ELEMENT_IMMERSIVE)
+    [cocoaConfiguration setAllowsImmersiveEnvironments:YES];
+#endif
+
     if (options.enableAttachmentElement())
         [cocoaConfiguration _setAttachmentElementEnabled:YES];
     if (options.enableAttachmentWideLayout())
@@ -391,12 +397,12 @@ void TestController::finishCreatingPlatformWebView(PlatformWebView* view, const 
 void TestController::initializeDNS()
 {
     auto agentUUID = adoptNS([[NSUUID alloc] init]);
-    uuid_t agentUUIDBytes;
-    [agentUUID.get() getUUIDBytes:agentUUIDBytes];
-    NSLog(@"useLocalDNSResolver: agent UUID: %@.", agentUUID.get());
 
     m_resolverConfig = adoptOSObject(nw_resolver_config_create());
     if (auto resolverConfig = m_resolverConfig) {
+        uuid_t agentUUIDBytes;
+        [agentUUID.get() getUUIDBytes:agentUUIDBytes];
+
         nw_resolver_config_set_protocol(resolverConfig.get(), nw_resolver_protocol_dns53);
         nw_resolver_config_set_class(resolverConfig.get(), nw_resolver_class_designated_direct);
         nw_resolver_config_add_name_server(resolverConfig.get(), "127.0.0.1:8053");
@@ -407,7 +413,12 @@ void TestController::initializeDNS()
         if (!published) {
             NSLog(@"Failed to register DNS resolver agent UUID: %@. Using local DNS resolver failed.", agentUUID.get());
             RELEASE_ASSERT_NOT_REACHED();
+            return;
         }
+    } else {
+        NSLog(@"Failed to create DNS resolver config for agent UUID: %@. Using local DNS resolver failed.", agentUUID.get());
+        RELEASE_ASSERT_NOT_REACHED();
+        return;
     }
 
     // The following NetworkExtension policy is needed so we can run tests while a VPN is connected
@@ -519,8 +530,6 @@ void TestController::cocoaResetStateToConsistentValues(const TestOptions& option
     [LayoutTestSpellChecker uninstallAndReset];
 
     WebCoreTestSupport::setAdditionalSupportedImageTypesForTesting(String::fromLatin1(options.additionalSupportedImageTypes().c_str()));
-
-    [globalWebsiteDataStoreDelegateClient() clearReportedWindowProxyAccessDomains];
 }
 
 void TestController::platformSetStatisticsCrossSiteLoadWithLinkDecoration(WKStringRef fromHost, WKStringRef toHost, bool wasFiltered, void* context, SetStatisticsCrossSiteLoadWithLinkDecorationCallBack callback)
@@ -773,25 +782,6 @@ WKRetainPtr<WKStringRef> TestController::takeViewPortSnapshot()
     return adoptWK(WKImageCreateDataURLFromImage(mainWebView()->windowSnapshotImage().get()));
 }
 
-static WKRetainPtr<WKArrayRef> createWKArray(NSArray *nsArray)
-{
-    auto array = adoptWK(WKMutableArrayCreate());
-
-    for (NSString *nsString in nsArray) {
-        auto string = adoptWK(WKStringCreateWithCFString((CFStringRef)nsString));
-        WKArrayAppendItem(array.get(), string.get());
-    }
-
-    return array;
-}
-
-WKRetainPtr<WKArrayRef> TestController::getAndClearReportedWindowProxyAccessDomains()
-{
-    auto domains = createWKArray([globalWebsiteDataStoreDelegateClient() reportedWindowProxyAccessDomains]);
-    [globalWebsiteDataStoreDelegateClient() clearReportedWindowProxyAccessDomains];
-    return domains;
-}
-
 WKRetainPtr<WKStringRef> TestController::getBackgroundFetchIdentifier()
 {
     __block String result;
@@ -882,6 +872,22 @@ void TestController::updatePresentation(CompletionHandler<void(WKTypeRef)>&& com
     [m_mainWebView->platformView() _doAfterNextPresentationUpdate:makeBlockPtr([completionHandler = WTF::move(completionHandler)] mutable {
         completionHandler(nullptr);
     }).get()];
+}
+
+uint64_t TestController::responseHeaderCount(WKURLResponseRef response)
+{
+    RetainPtr nsURLResponse = adoptNS(WKURLResponseCopyNSURLResponse(response));
+    if (![nsURLResponse isKindOfClass:[NSHTTPURLResponse class]])
+        return { };
+
+    NSHTTPURLResponse *httpResponse = (NSHTTPURLResponse *)nsURLResponse.get();
+    return [[httpResponse allHeaderFields] count];
+}
+
+String TestController::platformResponseMIMEType(WKURLResponseRef response)
+{
+    RetainPtr nsURLResponse = adoptNS(WKURLResponseCopyNSURLResponse(response));
+    return [nsURLResponse.get() MIMEType];
 }
 
 } // namespace WTR

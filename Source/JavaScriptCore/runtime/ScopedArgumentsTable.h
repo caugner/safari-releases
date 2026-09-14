@@ -79,10 +79,10 @@ public:
     }
     
     ScopedArgumentsTable* trySet(VM&, uint32_t index, ScopeOffset);
-    void trySetWatchpointSet(uint32_t index, WatchpointSet* watchpoints);
+    void NODELETE trySetWatchpointSet(uint32_t index, WatchpointSet* watchpoints);
     void clearWatchpointSet(uint32_t index) { m_watchpointSets[index] = nullptr; }
 
-    DECLARE_INFO;
+    DECLARE_EXPORT_INFO;
     
     static Structure* createStructure(VM&, JSGlobalObject*, JSValue prototype);
 

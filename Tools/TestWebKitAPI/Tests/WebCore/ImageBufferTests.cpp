@@ -25,9 +25,9 @@
 
 #include "config.h"
 
-#include "GraphicsTestUtilities.h"
-#include "Test.h"
-#include "WebCoreTestUtilities.h"
+#include "Helpers/GraphicsTestUtilities.h"
+#include "Helpers/Test.h"
+#include "Helpers/WebCoreTestUtilities.h"
 #include <WebCore/Color.h>
 #include <WebCore/GraphicsContext.h>
 #include <WebCore/ImageBuffer.h>
@@ -326,6 +326,8 @@ INSTANTIATE_TEST_SUITE_P(ImageBufferTests,
         testing::Values(RenderingMode::Unaccelerated, RenderingMode::Accelerated)),
     TestParametersToStringFormatter());
 
+#if USE(CG)
+
 TEST(ImageBufferTests, GetPixelBufferAllZeros)
 {
     auto sourceColorSpace = DestinationColorSpace::SRGB();
@@ -358,5 +360,7 @@ TEST(ImageBufferTests, GetPixelBufferAllZeros)
     EXPECT_TRUE(getPixelBufferAllZeros({ { }, size / 10 }));
     EXPECT_TRUE(getPixelBufferAllZeros({ FloatPoint { size - size / 10 }, size / 10 }));
 }
+
+#endif
 
 }

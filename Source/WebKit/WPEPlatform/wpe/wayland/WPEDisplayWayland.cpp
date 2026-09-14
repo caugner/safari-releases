@@ -55,8 +55,7 @@
 #include <wtf/glib/GRefPtr.h>
 #include <wtf/glib/GUniquePtr.h>
 #include <wtf/glib/WTFGType.h>
-#include <wtf/text/CString.h>
-#include <wtf/text/StringView.h>
+#include <wtf/text/CStringView.h>
 
 // These includes need to be in this order because wayland-egl.h defines WL_EGL_PLATFORM
 // and egl.h checks that to decide whether it's Wayland platform.
@@ -74,6 +73,16 @@
 /**
  * WPEDisplayWayland:
  *
+ * A [class@WPEPlatform.Display] implementation for Wayland.
+ *
+ * [class@DisplayWayland] is the built-in [class@WPEPlatform.Display]
+ * implementation for the Wayland windowing system. Use
+ * [ctor@DisplayWayland.new] to create a new instance and
+ * [method@DisplayWayland.connect] to connect to a particular Wayland display
+ * by name. The underlying Wayland objects can be accessed with
+ * [method@DisplayWayland.get_wl_display],
+ * [method@DisplayWayland.get_wl_compositor] and
+ * [method@DisplayWayland.get_wl_shm].
  */
 struct _WPEDisplayWaylandPrivate {
     struct wl_display* wlDisplay;
@@ -260,7 +269,7 @@ const struct wl_registry_listener registryListener = {
         auto* display = WPE_DISPLAY_WAYLAND(data);
         auto* priv = display->priv;
 
-        const auto interfaceName = StringView::fromLatin1(interface);
+        const auto interfaceName = CStringView::unsafeFromUTF8(interface);
 
         if (interfaceName == "wl_compositor"_s)
             priv->wlCompositor = static_cast<struct wl_compositor*>(wl_registry_bind(registry, name, &wl_compositor_interface, std::min<uint32_t>(version, 5)));
@@ -496,14 +505,12 @@ static gboolean wpeDisplayWaylandConnect(WPEDisplay* display, GError** error)
 
 static WPEView* wpeDisplayWaylandCreateView(WPEDisplay* display)
 {
-    auto* view = WPE_VIEW(g_object_new(WPE_TYPE_VIEW_WAYLAND, "display", display, nullptr));
+    return WPE_VIEW(g_object_new(WPE_TYPE_VIEW_WAYLAND, "display", display, nullptr));
+}
 
-    if (wpe_settings_get_boolean(wpe_display_get_settings(display), WPE_SETTING_CREATE_VIEWS_WITH_A_TOPLEVEL, nullptr)) {
-        GRefPtr<WPEToplevel> toplevel = adoptGRef(wpe_toplevel_wayland_new(WPE_DISPLAY_WAYLAND(display), 1));
-        wpe_view_set_toplevel(view, toplevel.get());
-    }
-
-    return view;
+static WPEToplevel* wpeDisplayWaylandCreateToplevel(WPEDisplay* display, guint maxViews)
+{
+    return WPE_TOPLEVEL(g_object_new(WPE_TYPE_TOPLEVEL_WAYLAND, "display", display, "max-views", maxViews, nullptr));
 }
 
 static WPEInputMethodContext* wpeDisplayWaylandCreateInputMethodContext(WPEDisplay* display, WPEView* view)
@@ -667,6 +674,7 @@ static void wpe_display_wayland_class_init(WPEDisplayWaylandClass* displayWaylan
     WPEDisplayClass* displayClass = WPE_DISPLAY_CLASS(displayWaylandClass);
     displayClass->connect = wpeDisplayWaylandConnect;
     displayClass->create_view = wpeDisplayWaylandCreateView;
+    displayClass->create_toplevel = wpeDisplayWaylandCreateToplevel;
     displayClass->create_input_method_context = wpeDisplayWaylandCreateInputMethodContext;
     displayClass->get_egl_display = wpeDisplayWaylandGetEGLDisplay;
     displayClass->get_keymap = wpeDisplayWaylandGetKeymap;

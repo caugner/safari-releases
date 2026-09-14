@@ -37,6 +37,8 @@
 #include "HTTPHeaderField.h"
 #include "HTTPParsers.h"
 #include "JSBlob.h"
+#include "JSDOMConvertInterface.h"
+#include "JSDOMConvertStrings.h"
 #include "JSDOMFormData.h"
 #include "JSDOMPromiseDeferred.h"
 #include "TextResourceDecoder.h"
@@ -53,7 +55,7 @@ static inline Ref<Blob> blobFromData(ScriptExecutionContext* context, Vector<uin
 }
 
 // https://mimesniff.spec.whatwg.org/#http-quoted-string-token-code-point
-static bool isHTTPQuotedStringTokenCodePoint(char16_t c)
+static bool NODELETE isHTTPQuotedStringTokenCodePoint(char16_t c)
 {
     return c == 0x09
         || (c >= 0x20 && c <= 0x7E)
@@ -208,12 +210,26 @@ RefPtr<DOMFormData> FetchBodyConsumer::packageFormData(ScriptExecutionContext* c
         size_t currentBoundaryIndex = find(data, boundary.span());
         if (currentBoundaryIndex == notFound)
             return nullptr;
+
         skip(data, currentBoundaryIndex + boundaryLength);
+        if (spanHasPrefix(data, "--\r\n"_span)) {
+            // FIXME: This is not valid as per RFC, but is consistent with how empty form data are serialized.
+            return form;
+        }
+        skipWhile<isTabOrSpace>(data);
+        if (!spanHasPrefix(data, "\r\n"_span))
+            return nullptr;
+
         size_t nextBoundaryIndex;
         while ((nextBoundaryIndex = find(data, boundary.span())) != notFound) {
             parseMultipartPart(data.first(nextBoundaryIndex - oneNewLine.length()), form.get());
             currentBoundaryIndex = nextBoundaryIndex;
             skip(data, nextBoundaryIndex + boundaryLength);
+            if (spanHasPrefix(data, "--"_span))
+                return form;
+            skipWhile<isTabOrSpace>(data);
+            if (!spanHasPrefix(data, "\r\n"_span))
+                return nullptr;
         }
     } else if (mimeType && equalLettersIgnoringASCIICase(mimeType->type, "application"_s) && equalLettersIgnoringASCIICase(mimeType->subtype, "x-www-form-urlencoded"_s)) {
         auto dataString = String::fromUTF8(data);
@@ -304,7 +320,7 @@ void FetchBodyConsumer::resolveWithFormData(Ref<DeferredPromise>&& promise, cons
         builder.append(value);
         return true;
     });
-    protectedFormDataConsumer()->start();
+    protect(m_formDataConsumer)->start();
 }
 
 void FetchBodyConsumer::consumeFormDataAsStream(const FormData& formData, FetchBodySource& source, ScriptExecutionContext* context)
@@ -333,14 +349,14 @@ void FetchBodyConsumer::consumeFormDataAsStream(const FormData& formData, FetchB
 
         return source->enqueue(ArrayBuffer::tryCreate(value));
     });
-    protectedFormDataConsumer()->start();
+    protect(m_formDataConsumer)->start();
 }
 
 void FetchBodyConsumer::extract(ReadableStream& stream, ReadableStreamToSharedBufferSink::Callback&& callback)
 {
     ASSERT(!m_sink);
     m_sink = ReadableStreamToSharedBufferSink::create(WTF::move(callback));
-    protectedSink()->pipeFrom(stream);
+    protect(m_sink)->pipeFrom(stream);
 }
 
 void FetchBodyConsumer::resolve(Ref<DeferredPromise>&& promise, const String& contentType, FetchBodyOwner* owner, ReadableStream* stream)
@@ -364,7 +380,7 @@ void FetchBodyConsumer::resolve(Ref<DeferredPromise>&& promise, const String& co
                 protectedPromise->reject(WTF::move(error));
             });
         });
-        protectedSink()->pipeFrom(*stream);
+        protect(m_sink)->pipeFrom(*stream);
         return;
     }
 
@@ -399,7 +415,7 @@ void FetchBodyConsumer::resolve(Ref<DeferredPromise>&& promise, const String& co
         return;
     case FetchBodyConsumer::Type::FormData: {
         auto buffer = takeData();
-        if (auto formData = packageFormData(promise->protectedScriptExecutionContext().get(), contentType, buffer ? buffer->makeContiguous()->span() : std::span<const uint8_t> { }))
+        if (auto formData = packageFormData(protect(promise->scriptExecutionContext()).get(), contentType, buffer ? buffer->makeContiguous()->span() : std::span<const uint8_t> { }))
             promise->resolve<IDLInterface<DOMFormData>>(*formData);
         else
             promise->reject(ExceptionCode::TypeError);

@@ -37,9 +37,12 @@
 #include "StringFunctions.h"
 #include "TestController.h"
 #include <WebKit/GtkVersioning.h>
+#include <WebKit/WKPagePrivate.h>
 #include <gdk/gdk.h>
 #include <gdk/gdkkeysyms.h>
 #include <webkit/WebKitWebViewBaseInternal.h>
+#include <wtf/CompletionHandler.h>
+#include <wtf/Seconds.h>
 #include <wtf/StdLibExtras.h>
 #include <wtf/UniqueArray.h>
 #include <wtf/glib/GUniquePtr.h>
@@ -247,9 +250,11 @@ static inline void processKeyEvent(WebKitWebViewBase* webViewBase, WKStringRef k
     webkitWebViewBaseSynthesizeKeyEvent(webViewBase, type, gdkKeySym, modifiers, ShouldTranslateKeyboardState::No);
 }
 
-void EventSenderProxy::keyDown(WKStringRef keyRef, WKEventModifiers wkModifiers, unsigned location)
+void EventSenderProxy::keyDown(WKStringRef keyRef, WKEventModifiers wkModifiers, unsigned location, CompletionHandler<void()>&& completionHandler)
 {
     processKeyEvent(toWebKitGLibAPI(m_testController->mainWebView()->platformView()), keyRef, wkModifiers, location, KeyEventType::Insert);
+    if (completionHandler)
+        m_testController->doAfterProcessingAllPendingKeyEvents(WTF::move(completionHandler));
 }
 
 void EventSenderProxy::rawKeyDown(WKStringRef key, WKEventModifiers wkModifiers, unsigned keyLocation)
@@ -271,42 +276,51 @@ static inline unsigned stateModifierForGdkButton(unsigned button)
     return 1 << (8 + button - 1);
 }
 
-void EventSenderProxy::mouseDown(unsigned button, WKEventModifiers wkModifiers, WKStringRef pointerType)
+void EventSenderProxy::mouseDown(unsigned button, WKEventModifiers wkModifiers, WKStringRef pointerType, CompletionHandler<void()>&& completionHandler)
 {
     unsigned gdkButton = eventSenderButtonToGDKButton(button);
     auto modifier = stateModifierForGdkButton(gdkButton);
 
     // If the same mouse button is already in the down position don't
     // send another event as it may confuse Xvfb.
-    if (m_mouseButtonsCurrentlyDown & modifier)
+    if (m_mouseButtonsCurrentlyDown & modifier) {
+        if (completionHandler)
+            completionHandler();
         return;
+    }
 
     updateClickCountForButton(button);
     m_mouseButtonsCurrentlyDown |= modifier;
 
-    webkitWebViewBaseSynthesizeMouseEvent(toWebKitGLibAPI(m_testController->mainWebView()->platformView()),
+    webkitWebViewBaseSynthesizeMouseEvent(toWebKitGLibAPI(m_testController->targetView()->platformView()),
         MouseEventType::Press, gdkButton, m_mouseButtonsCurrentlyDown, m_position.x, m_position.y, webkitModifiersToGDKModifiers(wkModifiers), m_clickCount, toWTFString(pointerType));
+    if (completionHandler)
+        m_testController->doAfterProcessingAllPendingMouseEvents(WTF::move(completionHandler));
 }
 
-void EventSenderProxy::mouseUp(unsigned button, WKEventModifiers wkModifiers, WKStringRef pointerType)
+void EventSenderProxy::mouseUp(unsigned button, WKEventModifiers wkModifiers, WKStringRef pointerType, CompletionHandler<void()>&& completionHandler)
 {
     unsigned gdkButton = eventSenderButtonToGDKButton(button);
     auto modifier = stateModifierForGdkButton(gdkButton);
     m_mouseButtonsCurrentlyDown &= ~modifier;
-    webkitWebViewBaseSynthesizeMouseEvent(toWebKitGLibAPI(m_testController->mainWebView()->platformView()),
+    webkitWebViewBaseSynthesizeMouseEvent(toWebKitGLibAPI(m_testController->targetView()->platformView()),
         MouseEventType::Release, gdkButton, m_mouseButtonsCurrentlyDown, m_position.x, m_position.y, webkitModifiersToGDKModifiers(wkModifiers), 0, toWTFString(pointerType));
 
     m_clickPosition = m_position;
     m_clickTime = m_time;
+    if (completionHandler)
+        m_testController->doAfterProcessingAllPendingMouseEvents(WTF::move(completionHandler));
 }
 
-void EventSenderProxy::mouseMoveTo(double x, double y, WKStringRef pointerType)
+void EventSenderProxy::mouseMoveTo(double x, double y, WKStringRef pointerType, CompletionHandler<void()>&& completionHandler)
 {
     m_position.x = x;
     m_position.y = y;
 
-    webkitWebViewBaseSynthesizeMouseEvent(toWebKitGLibAPI(m_testController->mainWebView()->platformView()),
+    webkitWebViewBaseSynthesizeMouseEvent(toWebKitGLibAPI(m_testController->targetView()->platformView()),
         MouseEventType::Motion, 0, m_mouseButtonsCurrentlyDown, m_position.x, m_position.y, 0, 0, toWTFString(pointerType));
+    if (completionHandler)
+        m_testController->doAfterProcessingAllPendingMouseEvents(WTF::move(completionHandler));
 }
 
 void EventSenderProxy::mouseScrollBy(int horizontal, int vertical)
@@ -430,9 +444,5 @@ void EventSenderProxy::setTouchModifier(WKEventModifiers, bool)
 {
 }
 #endif // ENABLE(TOUCH_EVENTS)
-
-void EventSenderProxy::waitForPendingMouseEvents()
-{
-}
 
 } // namespace WTR

@@ -34,6 +34,7 @@
 #import <WebCore/Document.h>
 #import <WebCore/LocalDOMWindow.h>
 #import <WebCore/LocalFrame.h>
+#import <WebCore/LocalFrameInlines.h>
 #import <WebCore/ThreadCheck.h>
 #import <WebCore/WebScriptObjectPrivate.h>
 #import <WebCore/WindowProxy.h>
@@ -86,8 +87,8 @@ DOMAbstractView *kit(WebCore::LocalDOMWindow* value)
     auto* frame = value->frame();
     if (!frame)
         return nil;
-    if (DOMAbstractView *wrapper = getDOMWrapper(frame))
-        return retainPtr(wrapper).autorelease();
+    if (RetainPtr wrapper = getDOMWrapper(frame))
+        return wrapper.autorelease();
     auto wrapper = adoptNS([[DOMAbstractView alloc] _init]);
     wrapper->_internal = reinterpret_cast<DOMObjectInternal*>(frame);
     addDOMWrapper(wrapper.get(), frame);

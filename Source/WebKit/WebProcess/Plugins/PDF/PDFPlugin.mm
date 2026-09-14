@@ -286,7 +286,7 @@ ALLOW_DEPRECATED_IMPLEMENTATIONS_END
 {
     if (RefPtr activeAnnotation = _pdfPlugin->activeAnnotation()) {
         if (WebCore::AXObjectCache* existingCache = _pdfPlugin->axObjectCache()) {
-            if (RefPtr object = existingCache->exportedGetOrCreate(activeAnnotation->protectedElement().get()))
+            if (RefPtr object = existingCache->exportedGetOrCreate(activeAnnotation->element()))
 ALLOW_DEPRECATED_DECLARATIONS_BEGIN
                 return [object->wrapper() accessibilityAttributeValue:@"_AXAssociatedPluginParent"];
 ALLOW_DEPRECATED_DECLARATIONS_END
@@ -304,7 +304,7 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     id wrapper = nil;
     callOnMainRunLoopAndWait([activeAnnotation, protectedSelf = retainPtr(self), &wrapper] {
         if (auto* axObjectCache = protectedSelf->_pdfPlugin->axObjectCache()) {
-            if (RefPtr annotationElementAxObject = axObjectCache->exportedGetOrCreate(activeAnnotation->protectedElement().get()))
+            if (RefPtr annotationElementAxObject = axObjectCache->exportedGetOrCreate(activeAnnotation->element()))
                 wrapper = annotationElementAxObject->wrapper();
         }
     });
@@ -556,7 +556,7 @@ PDFPlugin::PDFPlugin(HTMLPlugInElement& element)
     [m_containerLayer addSublayer:m_contentLayer.get()];
     [m_containerLayer addSublayer:m_scrollCornerLayer.get()];
     if ([m_pdfLayerController respondsToSelector:@selector(setDeviceColorSpace:)])
-        [m_pdfLayerController setDeviceColorSpace:screenColorSpace(frame->protectedCoreLocalFrame()->view()).platformColorSpace()];
+        [m_pdfLayerController setDeviceColorSpace:screenColorSpace(protect(frame->coreLocalFrame())->view()).platformColorSpace()];
     
     if ([getPDFLayerControllerClassSingleton() respondsToSelector:@selector(setUseIOSurfaceForTiles:)])
         [getPDFLayerControllerClassSingleton() setUseIOSurfaceForTiles:false];
@@ -569,13 +569,13 @@ void PDFPlugin::updateScrollbars()
     PDFPluginBase::updateScrollbars();
 
     if (m_verticalScrollbarLayer) {
-        m_verticalScrollbarLayer.get().frame = protectedVerticalScrollbar()->frameRect();
+        m_verticalScrollbarLayer.get().frame = protect(verticalScrollbar())->frameRect();
         [m_verticalScrollbarLayer setContents:nil];
         [m_verticalScrollbarLayer setNeedsDisplay];
     }
     
     if (m_horizontalScrollbarLayer) {
-        m_horizontalScrollbarLayer.get().frame = protectedHorizontalScrollbar()->frameRect();
+        m_horizontalScrollbarLayer.get().frame = protect(horizontalScrollbar())->frameRect();
         [m_horizontalScrollbarLayer setContents:nil];
         [m_horizontalScrollbarLayer setNeedsDisplay];
     }
@@ -742,7 +742,7 @@ void PDFPlugin::teardown()
     m_pdfLayerController.get().delegate = nil;
 
     RefPtr frame = m_frame.get();
-    if (RefPtr frameView = frame && frame->coreLocalFrame() ? frame->protectedCoreLocalFrame()->view() : nullptr)
+    if (RefPtr frameView = frame && frame->coreLocalFrame() ? protect(frame->coreLocalFrame())->view() : nullptr)
         frameView->removeScrollableArea(this);
 
     m_activeAnnotation = nullptr;
@@ -1102,7 +1102,7 @@ bool PDFPlugin::handleContextMenuEvent(const WebMouseEvent& event)
     RefPtr webPage = frame->page();
     if (!webPage)
         return false;
-    RefPtr frameView = frame->protectedCoreLocalFrame()->view();
+    RefPtr frameView = protect(frame->coreLocalFrame())->view();
     if (!frameView)
         return false;
 

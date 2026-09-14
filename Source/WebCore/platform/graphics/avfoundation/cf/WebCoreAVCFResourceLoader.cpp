@@ -35,6 +35,7 @@
 #include "ResourceLoaderOptions.h"
 #include "SharedBuffer.h"
 #include <AVFoundationCF/AVFoundationCF.h>
+#include <WebCore/HTTPStatusCodes.h>
 #include <wtf/SoftLinking.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/CString.h>
@@ -87,7 +88,11 @@ void WebCoreAVCFResourceLoader::startLoading()
         CachingPolicy::DisallowCaching));
 
     CachedResourceLoader* loader = m_parent->player()->cachedResourceLoader();
-    m_resource = loader ? loader->requestRawResource(WTF::move(request)).value_or(nullptr) : nullptr;
+    m_resource = nullptr;
+    if (loader) {
+        if (auto result = loader->requestRawResource(WTF::move(request)))
+            m_resource = WTF::move(result.value());
+    }
     if (m_resource)
         m_resource->addClient(*this);
     else {
@@ -127,7 +132,7 @@ void WebCoreAVCFResourceLoader::responseReceived(CachedResource& resource, const
     CompletionHandlerCallingScope completionHandlerCaller(WTF::move(completionHandler));
 
     int status = response.httpStatusCode();
-    if (status && (status < 200 || status > 299)) {
+    if (status && !isHttpOkStatus(status)) {
         RetainPtr<CFErrorRef> error = adoptCF(CFErrorCreate(kCFAllocatorDefault, kCFErrorDomainCFNetwork, status, nullptr));
         AVCFAssetResourceLoadingRequestFinishLoadingWithError(m_avRequest.get(), error.get());
         return;

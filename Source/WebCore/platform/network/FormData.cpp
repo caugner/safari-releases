@@ -118,16 +118,6 @@ Ref<FormData> FormData::isolatedCopy() const
     return formData;
 }
 
-unsigned FormData::filesCount() const
-{
-    unsigned filesCount = 0;
-    for (auto& element : m_elements) {
-        if (std::holds_alternative<WebCore::FormDataElement::EncodedFileData>(element.data))
-            ++filesCount;
-    }
-    return filesCount;
-}
-
 unsigned FormData::imageOrMediaFilesCount() const
 {
     unsigned imageOrMediaFilesCount = 0;
@@ -259,10 +249,14 @@ void FormData::appendMultiPartKeyValuePairItems(const DOMFormData& formData)
         Vector<uint8_t> header;
         FormDataBuilder::beginMultiPartHeader(header, m_boundary.span(), normalizedName);
 
-        if (auto* file = std::get_if<RefPtr<File>>(&item.data))
-            appendMultiPartFileValue(Ref { **file }, header, encoding);
-        else
-            appendMultiPartStringValue(std::get<String>(item.data), header, encoding);
+        WTF::switchOn(item.data,
+            [&](const Ref<File>& file) {
+                appendMultiPartFileValue(file, header, encoding);
+            },
+            [&](const String& string) {
+                appendMultiPartStringValue(string, header, encoding);
+            }
+        );
 
         constexpr std::array<uint8_t, 2> newline { '\r', '\n' };
         appendData(newline);
@@ -282,7 +276,8 @@ void FormData::appendNonMultiPartKeyValuePairItems(const DOMFormData& formData, 
         String stringValue = WTF::switchOn(item.data,
             [](const String& string) {
                 return string;
-            }, [](const RefPtr<File>& file) {
+            },
+            [](const Ref<File>& file) {
                 return file->name();
             }
         );
@@ -325,14 +320,14 @@ static void appendBlobResolved(BlobRegistryImpl* blobRegistry, FormData& formDat
     }
 
     for (const auto& blobItem : blobData->items()) {
-        if (blobItem.type() == BlobDataItem::Type::Data) {
-            ASSERT(blobItem.data());
-            formData.appendData(blobItem.protectedData()->span().subspan(blobItem.offset(), blobItem.length()));
-        } else if (blobItem.type() == BlobDataItem::Type::File) {
-            RefPtr file = blobItem.file();
-            formData.appendFileRange(file->path(), blobItem.offset(), blobItem.length(), file->expectedModificationTime());
-        } else
-            ASSERT_NOT_REACHED();
+        WTF::switchOn(blobItem,
+            [&](const DataSegment& data) {
+                formData.appendData(data.span().subspan(blobItem.offset(), blobItem.length()));
+            },
+            [&](BlobDataFileReference& file) {
+                formData.appendFileRange(file.path(), blobItem.offset(), blobItem.length(), file.expectedModificationTime());
+            }
+        );
     }
 }
 

@@ -29,9 +29,10 @@
 #include "CSSCursorImageValue.h"
 #include "DocumentResourceLoader.h"
 #include "DocumentView.h"
-#include "RenderStyle+GettersInlines.h"
+#include "NodeInlinesLight.h"
 #include "SVGURIReference.h"
 #include "Settings.h"
+#include "StyleComputedStyle+GettersInlines.h"
 #include "StyleCursor.h"
 #include "StyleImage.h"
 
@@ -40,9 +41,10 @@ namespace Style {
 
 // <https://html.spec.whatwg.org/multipage/urls-and-fetching.html#cors-settings-attributes>
 enum class LoadPolicy { CORS, NoCORS, Anonymous };
-static void loadPendingImage(Document& document, const StyleImage* styleImage, const Element* element, LoadPolicy loadPolicy = LoadPolicy::NoCORS)
+
+static void loadPendingImage(Document& document, const Image* image, const Element* element, LoadPolicy loadPolicy = LoadPolicy::NoCORS)
 {
-    if (!styleImage || !styleImage->isPending())
+    if (!image || !image->isPending())
         return;
 
     bool isInUserAgentShadowTree = element && element->isInUserAgentShadowTree();
@@ -65,16 +67,16 @@ static void loadPendingImage(Document& document, const StyleImage* styleImage, c
         }
     }
 
-    const_cast<StyleImage&>(*styleImage).load(document.cachedResourceLoader(), options);
+    const_cast<Image&>(*image).load(protect(document.cachedResourceLoader()), options);
 }
 
-void loadPendingResources(RenderStyle& style, Document& document, const Element* element)
+void loadPendingResources(Style::ComputedStyle& style, Document& document, const Element* element)
 {
     for (auto& backgroundLayer : style.backgroundLayers().usedValues())
         loadPendingImage(document, backgroundLayer.image().tryStyleImage().get(), element);
 
     if (auto* contentData = style.content().tryData()) {
-        for (auto& contentItem : contentData->list) {
+        for (auto& contentItem : contentData->visible) {
             WTF::switchOn(contentItem,
                 [&](const Style::Content::Image& image) {
                     loadPendingImage(document, image.image.value.ptr(), element);
@@ -106,7 +108,7 @@ void loadPendingResources(RenderStyle& style, Document& document, const Element*
         loadPendingImage(document, shapeValueImage.get(), element, LoadPolicy::Anonymous);
 
     // Are there other pseudo-elements that need resource loading? 
-    if (auto* firstLineStyle = style.getCachedPseudoStyle({ PseudoElementType::FirstLine }))
+    if (CheckedPtr firstLineStyle = style.pseudoElementStyle({ PseudoElementType::FirstLine }))
         loadPendingResources(*firstLineStyle, document, element);
 }
 

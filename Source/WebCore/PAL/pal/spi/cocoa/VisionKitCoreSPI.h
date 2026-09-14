@@ -30,9 +30,21 @@
 
 DECLARE_SYSTEM_HEADER
 
+// On iOS Simulator with clang modules (and without WebGPU's simulator OpenGL
+// support), <UIKit/UIKit.h> can't be safely imported: CoreImage -> CoreVideo ->
+// OpenGLES imports C++ modules from inside an extern "C" block. In that
+// configuration, skip the UIKit-dependent portions of this header and fall back
+// to minimal @class forward declarations.
+#if !PLATFORM(IOS_SIMULATOR) || !__has_feature(modules) || HAVE(WEBGPU_IOS_SIMULATOR_OPENGL_SUPPORT)
+#define VK_IMAGE_ANALYSIS_CAN_IMPORT_UIKIT 1
+#else
+#define VK_IMAGE_ANALYSIS_CAN_IMPORT_UIKIT 0
+#endif
+
 #if HAVE(VK_IMAGE_ANALYSIS)
 
-#if USE(APPLE_INTERNAL_SDK)
+// FIXME: Remove the `__has_feature(modules)` condition when possible.
+#if USE(APPLE_INTERNAL_SDK) && !__has_feature(modules)
 
 #if __has_include(<TextRecognition/CRRegion.h>)
 #import <TextRecognition/CRRegion.h>
@@ -42,14 +54,18 @@ DECLARE_SYSTEM_HEADER
 IGNORE_WARNINGS_BEGIN("undef")
 #import <VisionKitCore/VKImageAnalysis_WebKit.h>
 IGNORE_WARNINGS_END
-#import <VisionKitCore/VisionKitCore.h>
 
-#else
+// FIXME: Remove this after rdar://150529276 is resolved.
+IGNORE_WARNINGS_BEGIN("objc-property-no-attribute")
+#import <VisionKitCore/VisionKitCore.h>
+IGNORE_WARNINGS_END
+
+#elif defined(__OBJC__)
 
 #import <CoreGraphics/CoreGraphics.h>
 #import <Foundation/Foundation.h>
 
-#if PLATFORM(IOS_FAMILY)
+#if PLATFORM(IOS_FAMILY) && VK_IMAGE_ANALYSIS_CAN_IMPORT_UIKIT
 #import <UIKit/UIKit.h>
 #elif PLATFORM(MAC)
 #import <AppKit/AppKit.h>
@@ -89,7 +105,7 @@ typedef NS_ENUM(NSUInteger, VKImageAnalyzerRequestImageSource) {
     VKImageAnalyzerRequestImageSourceVideoFrame,
 };
 
-#if PLATFORM(IOS_FAMILY)
+#if PLATFORM(IOS_FAMILY) && VK_IMAGE_ANALYSIS_CAN_IMPORT_UIKIT
 
 typedef UIImage VKImageClass;
 typedef UIImageOrientation VKImageOrientation;
@@ -105,7 +121,9 @@ typedef UIImageOrientation VKImageOrientation;
 
 #else
 
+#if PLATFORM(MAC)
 typedef NSImage VKImageClass;
+#endif
 
 typedef NS_ENUM(NSInteger, VKImageOrientation) {
     VKImageOrientationUp,
@@ -119,6 +137,8 @@ typedef NS_ENUM(NSInteger, VKImageOrientation) {
 };
 
 #endif
+
+#if VK_IMAGE_ANALYSIS_CAN_IMPORT_UIKIT || PLATFORM(MAC)
 
 @interface VKImageAnalysis : NSObject <NSSecureCoding>
 - (BOOL)hasResultsForAnalysisTypes:(VKAnalysisTypes)analysisTypes;
@@ -181,9 +201,19 @@ typedef NS_ENUM(NSInteger, VKImageOrientation) {
 #endif
 @end
 
+#else // iOS Simulator + modules: UIKit isn't importable; provide minimal @class declarations.
+
+@class VKImageAnalysis;
+@class VKImageAnalyzer;
+@class VKImageAnalyzerRequest;
+
+#endif
+
 NS_ASSUME_NONNULL_END
 
 #endif
+
+#if defined(__OBJC__) && (VK_IMAGE_ANALYSIS_CAN_IMPORT_UIKIT || PLATFORM(MAC))
 
 @interface VKWKLineInfo (Staging_85139101)
 @property (nonatomic, readonly) NSUInteger layoutDirection;
@@ -195,14 +225,17 @@ NS_ASSUME_NONNULL_END
 @end
 #endif
 
+#endif
+
 #if ENABLE(IMAGE_ANALYSIS_ENHANCEMENTS)
 
-#if __has_include(<VisionKitCore/VKCImageAnalysisTranslation.h>)
+#if __has_include(<VisionKitCore/VKCImageAnalysisTranslation.h>) && !__has_feature(modules)
 #import <VisionKitCore/VKCImageAnalysisTranslation.h>
-#else
+#elif defined(__OBJC__)
 
 NS_ASSUME_NONNULL_BEGIN
 
+#if VK_IMAGE_ANALYSIS_CAN_IMPORT_UIKIT || PLATFORM(MAC)
 @interface VKCTranslatedParagraph : NSObject
 @property (nonatomic, readonly) VKQuad *quad;
 @property (nonatomic, readonly) NSString *text;
@@ -212,49 +245,63 @@ NS_ASSUME_NONNULL_BEGIN
 @interface VKCImageAnalysisTranslation : NSObject
 @property (nonatomic, readonly) NSArray<VKCTranslatedParagraph *> *paragraphs;
 @end
+#else
+@class VKCTranslatedParagraph;
+@class VKCImageAnalysisTranslation;
+#endif
 
 NS_ASSUME_NONNULL_END
 
 #endif
 
-#if __has_include(<VisionKitCore/VKCImageAnalysis.h>)
+#if __has_include(<VisionKitCore/VKCImageAnalysis.h>) && !__has_feature(modules)
 #import <VisionKitCore/VKCImageAnalysis.h>
-#else
+#elif defined(__OBJC__)
 
 NS_ASSUME_NONNULL_BEGIN
 
+#if VK_IMAGE_ANALYSIS_CAN_IMPORT_UIKIT || PLATFORM(MAC)
 @interface VKCImageAnalysis : VKImageAnalysis
 - (NSAttributedString *)_attributedStringForRange:(NSRange)range;
 - (void)translateTo:(NSString *)targetLanguage withCompletion:(void (^)(VKCImageAnalysisTranslation *translation, NSError * _Nullable))completion;
 - (void)translateFrom:(NSString *)sourceLanguage to:(NSString *)targetLanguage withCompletion:(void (^)(VKCImageAnalysisTranslation *translation, NSError *))completion;
 @end
+#else
+@class VKCImageAnalysis;
+#endif
 
 NS_ASSUME_NONNULL_END
 
 #endif
 
-#if __has_include(<VisionKitCore/VKImageClass_Private.h>)
+#if __has_include(<VisionKitCore/VKImageClass_Private.h>) && !__has_feature(modules)
 #import <VisionKitCore/VKImageClass_Private.h>
-#else
+#elif defined(__OBJC__)
 
 NS_ASSUME_NONNULL_BEGIN
 
 typedef void (^VKCGImageRemoveBackgroundCompletion)(CGImageRef, CGRect cropRect, NSError *);
-extern "C" void vk_cgImageRemoveBackground(CGImageRef, BOOL cropToFit, VKCGImageRemoveBackgroundCompletion);
-extern "C" void vk_cgImageRemoveBackgroundWithDownsizing(CGImageRef, BOOL canDownsize, BOOL cropToFit, void(^completion)(CGImageRef, NSError *));
+
+WTF_EXTERN_C_BEGIN
+
+void vk_cgImageRemoveBackground(CGImageRef, BOOL cropToFit, VKCGImageRemoveBackgroundCompletion);
+void vk_cgImageRemoveBackgroundWithDownsizing(CGImageRef, BOOL canDownsize, BOOL cropToFit, void(^completion)(CGImageRef, NSError *));
+
+WTF_EXTERN_C_END
 
 NS_ASSUME_NONNULL_END
 
 #endif
 
-#if __has_include(<VisionKitCore/VKCRemoveBackgroundRequestHandler.h>)
+#if __has_include(<VisionKitCore/VKCRemoveBackgroundRequestHandler.h>) && !__has_feature(modules)
 #import <VisionKitCore/VKCRemoveBackgroundRequest.h>
 #import <VisionKitCore/VKCRemoveBackgroundRequestHandler.h>
 #import <VisionKitCore/VKCRemoveBackgroundResult.h>
-#else
+#elif defined(__OBJC__)
 
 NS_ASSUME_NONNULL_BEGIN
 
+#if VK_IMAGE_ANALYSIS_CAN_IMPORT_UIKIT || PLATFORM(MAC)
 @interface VKCRemoveBackgroundResult : NSObject
 @property (nonatomic, readonly) CGRect cropRect;
 - (CGImageRef)createCGImage;
@@ -268,18 +315,24 @@ NS_ASSUME_NONNULL_BEGIN
 @interface VKCRemoveBackgroundRequestHandler : NSObject
 - (void)performRequest:(VKCRemoveBackgroundRequest *)request completion:(void (^)(VKCRemoveBackgroundResult *result, NSError *error))completion;
 @end
+#else
+@class VKCRemoveBackgroundResult;
+@class VKCRemoveBackgroundRequest;
+@class VKCRemoveBackgroundRequestHandler;
+#endif
 
 NS_ASSUME_NONNULL_END
 
 #endif
 
-#if __has_include(<VisionKitCore/VKCImageAnalyzer.h>)
+#if __has_include(<VisionKitCore/VKCImageAnalyzer.h>) && !__has_feature(modules)
 #import <VisionKitCore/VKCImageAnalyzer.h>
 #import <VisionKitCore/VKCImageAnalyzerRequest.h>
-#else
+#elif defined(__OBJC__)
 
 NS_ASSUME_NONNULL_BEGIN
 
+#if VK_IMAGE_ANALYSIS_CAN_IMPORT_UIKIT || PLATFORM(MAC)
 @interface VKCImageAnalyzerRequest : NSObject <NSCopying, VKFeedbackAssetsProvider>
 @property (nonatomic, copy, nullable) NSURL *imageURL;
 @property (nonatomic, copy, nullable) NSURL *pageURL;
@@ -295,14 +348,18 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)cancelRequestID:(VKImageAnalysisRequestID)requestID;
 - (VKImageAnalysisRequestID)processRequest:(VKCImageAnalyzerRequest *)request progressHandler:(void (^_Nullable)(double progress))progressHandler completionHandler:(void (^)(VKCImageAnalysis* _Nullable analysis, NSError * _Nullable error))completionHandler;
 @end
+#else
+@class VKCImageAnalyzerRequest;
+@class VKCImageAnalyzer;
+#endif
 
 NS_ASSUME_NONNULL_END
 #endif
 
 #if PLATFORM(MAC)
-#if __has_include(<VisionKitCore/VKCImageAnalysisOverlayView.h>)
+#if __has_include(<VisionKitCore/VKCImageAnalysisOverlayView.h>) && !__has_feature(modules)
 #import <VisionKitCore/VKCImageAnalysisOverlayView.h>
-#else
+#elif defined(__OBJC__)
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -326,13 +383,14 @@ NS_ASSUME_NONNULL_END
 #endif
 #endif // PLATFORM(MAC)
 
-#if PLATFORM(IOS) || PLATFORM(VISION)
-#if __has_include(<VisionKitCore/VKCImageAnalysisInteraction.h>)
+#if PLATFORM(IOS) || PLATFORM(VISION) || PLATFORM(MACCATALYST)
+#if __has_include(<VisionKitCore/VKCImageAnalysisInteraction.h>) && !__has_feature(modules)
 #import <VisionKitCore/VKCImageAnalysisInteraction.h>
-#else
+#elif defined(__OBJC__)
 
 NS_ASSUME_NONNULL_BEGIN
 
+#if VK_IMAGE_ANALYSIS_CAN_IMPORT_UIKIT
 @protocol VKCImageAnalysisInteractionDelegate <NSObject>
 @end
 
@@ -353,11 +411,14 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)resetSelection;
 - (void)setActionInfoViewHidden:(BOOL)hidden animated:(BOOL)animated;
 @end
+#else
+@class VKCImageAnalysisInteraction;
+#endif
 
 NS_ASSUME_NONNULL_END
 
 #endif
-#endif // PLATFORM(IOS) || PLATFORM(VISION)
+#endif // PLATFORM(IOS) || PLATFORM(VISION) || PLATFORM(MACCATALYST)
 
 #endif // ENABLE(IMAGE_ANALYSIS_ENHANCEMENTS)
 

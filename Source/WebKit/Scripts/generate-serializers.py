@@ -23,12 +23,199 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+import argparse
 import copy
 import os
 import re
 import sys
 
 from webkit.opaque_ipc_types import is_opaque_type, opaque_ipc_types
+
+# Generated serializers are split into per-bundle translation units to keep
+# any single .{mm,cpp} from dominating the critical path. Each
+# .serialization.in input is matched against this prefix list and routed to
+# the bundle with the longest matching prefix; the bundle name is the prefix
+# with path separators stripped (e.g. 'Shared/WebGPU' -> 'SharedWebGPU').
+#
+# The match key is the input file's path relative to the repo root, with the
+# '.serialization.in' suffix stripped, so a directory entry like 'Shared'
+# captures everything under Shared/, and a file-level entry like
+# 'Shared/WebCoreArgumentCodersMedia' captures just that one file (because
+# 'Shared/WebCoreArgumentCodersMedia' is a longer match than 'Shared').
+#
+# Anything not matching any prefix lands in the 'Common' bundle. The Common
+# bundle is always emitted (even when empty) so build-system file lists stay
+# stable.
+BUNDLE_PREFIXES = [
+    'Shared',
+    'Shared/API',
+    'Shared/Cocoa',
+    'Shared/EditorState',
+    'Shared/Extensions',
+    'Shared/Model',
+    'Shared/RemoteLayerTree',
+    'Shared/WebCoreArgumentCodersAuth',
+    'Shared/WebCoreArgumentCodersMedia',
+    'Shared/WebCoreArgumentCodersNetwork',
+    'Shared/WebCoreArgumentCodersPayment',
+    'Shared/WebCoreArgumentCodersPlatform',
+    'Shared/WebCoreArgumentCodersStorage',
+    'Shared/WebCoreFont',
+    'Shared/WebEvent',
+    'Shared/WebGL',
+    'Shared/WebGPU',
+    'Shared/WebPageCreationParameters',
+    'Shared/WebProcessCreationParameters',
+    'Shared/XR',
+    'WebProcess',
+    'GPUProcess',
+    'NetworkProcess',
+    'Platform',
+    'ModelProcess',
+    'UIProcess',
+]
+
+COMMON_BUNDLE = 'Common'
+
+# Pre-sort by length descending so the first match in derive_bundle is the
+# longest one (longest-prefix-wins).
+_SORTED_BUNDLE_PREFIXES = sorted(BUNDLE_PREFIXES, key=len, reverse=True)
+
+# Bundles whose contents should be hash-sharded across N output files instead
+# of emitted as one. Used for the residual `Shared` bundle, which would
+# otherwise be a long-tail compile (~46s) at the end of the WebKit build phase
+# while ~23 cores sit idle. Sharding it across 2 outputs keeps each output
+# under ~25s and within reach of the other GeneratedSerializers* bundles, so
+# the entire end-of-WebKit GS phase fits under the longest non-shared bundle.
+# The shard suffix (0..N-1) is appended to the bundle name; e.g. with a count
+# of 2, files routed to 'Shared' end up in either 'Shared0' or 'Shared1'.
+BUNDLE_SHARD_COUNT = {
+    'Shared': 2,
+}
+
+
+def _expand_bundles_with_shards():
+    out = []
+    for prefix in BUNDLE_PREFIXES:
+        name = prefix.replace('/', '')
+        n = BUNDLE_SHARD_COUNT.get(name, 1)
+        if n > 1:
+            for i in range(n):
+                out.append(f'{name}{i}')
+        else:
+            out.append(name)
+    out.append(COMMON_BUNDLE)
+    return out
+
+
+# Bundle names used when emitting --split-by-directory output, in the order
+# they appear in BUNDLE_PREFIXES, with COMMON_BUNDLE last. Each named bundle
+# is emitted as GeneratedSerializers<name>.{mm,cpp}. Sharded bundles appear
+# as <name>0, <name>1, etc.
+ALL_BUNDLES = _expand_bundles_with_shards()
+
+
+def derive_bundle(input_file_path):
+    """Return the bundle name for a .serialization.in input path.
+
+    The match key is <path-with-extensions-stripped> relative to the repo;
+    we look for the longest BUNDLE_PREFIXES entry that is a path-segment
+    prefix of that key, anchored under any 'Source/WebKit/' ancestor. Files
+    that don't live under Source/WebKit/ (e.g. WebCore-derived inputs) match
+    nothing and route to the Common bundle.
+
+    For bundles listed in BUNDLE_SHARD_COUNT this returns the *base* bundle
+    name (e.g. 'Shared') — actual shard assignment is decided by
+    `assign_shards()` since balanced sharding requires global knowledge of
+    every file's contribution to the bundle.
+    """
+    parts = os.path.normpath(input_file_path).split(os.sep)
+    # Locate Source/WebKit/ in the path; take everything after it (with the
+    # double-stripped basename) as the relative key.
+    rel_parts = None
+    for i in range(len(parts) - 2):
+        if parts[i] == 'Source' and parts[i + 1] == 'WebKit':
+            rel_parts = parts[i + 2:]
+            break
+    if not rel_parts:
+        return COMMON_BUNDLE
+    # Strip both .in and .serialization from the trailing component so a
+    # file-level prefix like 'Shared/WebCoreArgumentCodersMedia' matches.
+    last = rel_parts[-1]
+    last = os.path.splitext(last)[0]
+    last = os.path.splitext(last)[0]
+    rel_parts = rel_parts[:-1] + [last]
+    rel_key = '/'.join(rel_parts)
+    for prefix in _SORTED_BUNDLE_PREFIXES:
+        if rel_key == prefix or rel_key.startswith(prefix + '/'):
+            return prefix.replace('/', '')
+    return COMMON_BUNDLE
+
+
+def assign_shards(input_file_paths):
+    """Decide the final bundle name (with shard suffix where applicable) for
+    every input file.
+
+    For bundles in BUNDLE_SHARD_COUNT, files are split across N shards via
+    greedy bin-packing on a *content density* proxy — the number of
+    top-level type declarations (struct/class/enum/alias) the file
+    contains. This predicts the .mm output size much better than the raw
+    input file size, because some .in files are tiny but pack many dense
+    types (200 KB → 1.4 MB of output) while others are larger but mostly
+    comments and whitespace.
+
+    Returns a dict mapping each input path to its final bundle name. For
+    non-sharded bundles, the value equals derive_bundle(path).
+    """
+    import heapq
+    decl_re = re.compile(
+        r'^\s*(?:\[[^\]]*\]\s*)?'
+        r'(?:webkit_platform_export\s+)?'
+        r'(?:struct|class|union|alias|enum\s+class|enum)\s+'
+        r'[\w:]+'
+    )
+
+    def declaration_count(path):
+        n = 0
+        try:
+            with open(path) as f:
+                for line in f:
+                    if decl_re.match(line):
+                        n += 1
+        except OSError:
+            return 0
+        return n
+
+    assignments = {}
+    by_sharded_bundle = {}  # base bundle -> list of (weight, path)
+    for path in input_file_paths:
+        base = derive_bundle(path)
+        if base in BUNDLE_SHARD_COUNT:
+            # Add 1 so a degenerate file (zero declarations) still gets
+            # weighted instead of disappearing into the smallest bin.
+            weight = declaration_count(path) + 1
+            by_sharded_bundle.setdefault(base, []).append((weight, path))
+        else:
+            assignments[path] = base
+    for base, items in by_sharded_bundle.items():
+        n = BUNDLE_SHARD_COUNT[base]
+        items.sort(reverse=True)
+        # Heap of (cumulative_weight, shard_index); pop smallest, assign,
+        # push back. Tie-break by shard index for determinism.
+        heap = [(0, i) for i in range(n)]
+        heapq.heapify(heap)
+        for weight, path in items:
+            cur, idx = heapq.heappop(heap)
+            assignments[path] = f'{base}{idx}'
+            heapq.heappush(heap, (cur + weight, idx))
+    return assignments
+
+
+def matches_bundle(item, bundle_filter):
+    """Filter helper used by argument_coder_declarations and generate_impl."""
+    if bundle_filter is None:
+        return True
+    return getattr(item, 'bundle', None) == bundle_filter
 
 # Supported type attributes:
 #
@@ -106,6 +293,7 @@ class SerializedType(object):
         self.disableMissingMemberCheck = False
         self.debug_decoding_failure = False
         self.generic_wrapper = None
+        self.bundle = None
         if attributes is not None:
             for attribute in attributes.split(', '):
                 if '=' in attribute:
@@ -273,6 +461,7 @@ class SerializedEnum(object):
         self.valid_values = valid_values
         self.condition = condition
         self.attributes = attributes
+        self.bundle = None
 
     def namespace_and_name(self):
         if self.namespace is None:
@@ -572,12 +761,14 @@ def one_argument_coder_declaration(type, template_argument):
     return result
 
 
-def argument_coder_declarations(serialized_types, skip_nested, webkit_platform):
+def argument_coder_declarations(serialized_types, skip_nested, webkit_platform, bundle_filter=None):
     result = []
     for type in serialized_types:
         if type.nested == skip_nested:
             continue
         if (webkit_platform is not None and type.webkit_platform != webkit_platform):
+            continue
+        if not matches_bundle(type, bundle_filter):
             continue
         if type.templates:
             for template in type.templates:
@@ -743,6 +934,63 @@ def generate_header(serialized_types, serialized_enums, additional_forward_decla
     return '\n'.join(result)
 
 
+def generate_extra_header(serialized_types, serialized_enums, headers):
+    # Companion to GeneratedSerializers.h that exposes ArgumentCoder<>
+    # specializations for [Nested] types so they can be referenced from any
+    # GeneratedSerializers*.mm file, not just the .mm that owns each type's
+    # body. This breaks the cross-bundle co-location requirement and lets the
+    # split-by-directory output be partitioned freely. Only included by the
+    # generated .mm files; the public GeneratedSerializers.h does not pull
+    # in any of the heavy outer-type headers, so the rest of WebKit is
+    # unaffected.
+    #
+    # Scope: non-WebKitPlatform types only. WebKitPlatform's nested types
+    # remain emitted directly inside WebKitPlatformGeneratedSerializers.mm
+    # because the corresponding webkit_platform_headers can be Cocoa-only
+    # without an explicit #if guard.
+    #
+    # This file deliberately does NOT include any of the outer-type headers
+    # required by the declarations below — generate_impl() places the
+    # `#include "GeneratedSerializersExtra.h"` directive *after* the bundle's
+    # own header includes, so every type referenced here is already in scope
+    # by the time this file is parsed. That keeps Extra.h tiny (no redundant
+    # header parsing) without having to figure out the exact subset of
+    # outer-type headers each [Nested] declaration requires.
+    result = []
+    result.append(_license_header)
+    result.append('#pragma once')
+    result.append('')
+    result.append('#include "GeneratedSerializers.h"')
+    result.append('')
+    result.append('namespace IPC {')
+    result.append('')
+    result.append('class Decoder;')
+    result.append('class Encoder;')
+    result.append('class StreamConnectionEncoder;')
+    result += argument_coder_declarations(serialized_types, False, False)
+    result.append('')
+    result.append('} // namespace IPC')
+    result.append('')
+    result.append('namespace WTF {')
+    result.append('')
+    for enum in serialized_enums:
+        if not enum.is_nested():
+            continue
+        if enum.is_webkit_platform():
+            continue
+        if enum.underlying_type == 'bool':
+            continue
+        if enum.condition is not None:
+            result.append(f'#if {enum.condition}')
+        result.append(f'template<> bool {enum.function_name()}<{enum.namespace_and_name()}>({enum.parameter()});')
+        if enum.condition is not None:
+            result.append('#endif')
+    result.append('')
+    result.append('} // namespace WTF')
+    result.append('')
+    return '\n'.join(result)
+
+
 def resolve_inheritance(serialized_types):
     result = []
     for serialized_type in serialized_types:
@@ -781,7 +1029,7 @@ def check_type_members(type, checking_parent_class):
                 result.append(f'        {member.dictionary_type()} {member.type};')
             result.append('    };')
             result.append(f'    static_assert(sizeof(ShouldBeSameSizeAs{type.name_as_identifier()}) == sizeof({type.namespace_and_name()}));')
-        result.append('    static_assert(MembersInCorrectOrder < 0')
+        result.append('    static_assert(IsIncreasing < 0')
         for member in type.members:
             if 'BitField' in member.attributes:
                 continue
@@ -792,7 +1040,7 @@ def check_type_members(type, checking_parent_class):
                 result.append('#endif')
         for member in type.dictionary_members:
             result.append(f'        , offsetof({type.namespace_and_name()}, m_{member.type})')
-        result.append(f'    >::value);')
+        result.append(f'    >);')
     if type.has_optional_tuple_bits():
         serialized_members = type.serialized_members()
         optional_tuple_state = None
@@ -1157,15 +1405,24 @@ def generate_one_impl(type, template_argument, serialized_types):
     return result
 
 
-def generate_impl(serialized_types, serialized_enums, headers, generating_webkit_platform_impl, objc_wrapped_types):
+def generate_impl(serialized_types, serialized_enums, headers, generating_webkit_platform_impl, objc_wrapped_types, bundle_filter=None):
     result = []
     result.append(_license_header)
     result.append('#include "config.h"')
     result.append('#include "GeneratedSerializers.h"')
     result.append('#include "GeneratedWebKitSecureCoding.h"')
+    result.append('#include <wtf/IsIncreasing.h>')
     result.append('')
+    # *SoftLink.h headers must be included after every other header (WebKit's
+    # build/include_order style rule). Emit them last — after the bundle's own
+    # headers and the GeneratedSerializersExtra.h include below — by holding
+    # them aside while iterating the sorted header list.
+    soft_link_headers = []
     for header in headers:
         if header.webkit_platform != generating_webkit_platform_impl:
+            continue
+        if header.header[:-1].endswith('SoftLink.h'):
+            soft_link_headers.append(header)
             continue
         if header.condition is not None:
             result.append(f'#if {header.condition}')
@@ -1173,14 +1430,23 @@ def generate_impl(serialized_types, serialized_enums, headers, generating_webkit
         if header.condition is not None:
             result.append('#endif')
     result.append('')
-    result.append('template<size_t...> struct MembersInCorrectOrder;')
-    result.append('template<size_t onlyOffset> struct MembersInCorrectOrder<onlyOffset> {')
-    result.append('    static constexpr bool value = true;')
-    result.append('};')
-    result.append('template<size_t firstOffset, size_t secondOffset, size_t... remainingOffsets> struct MembersInCorrectOrder<firstOffset, secondOffset, remainingOffsets...> {')
-    result.append('    static constexpr bool value = firstOffset > secondOffset ? false : MembersInCorrectOrder<secondOffset, remainingOffsets...>::value;')
-    result.append('};')
-    result.append('')
+    if not generating_webkit_platform_impl:
+        # GeneratedSerializersExtra.h carries the [Nested] type ArgumentCoder<>
+        # specializations that would otherwise be emitted inline in this .mm.
+        # Including it AFTER the per-bundle headers above means Extra.h itself
+        # can emit zero header includes — every type it references is already
+        # in scope from the includes above. This avoids redundant header parsing
+        # across all the GeneratedSerializers*.mm files.
+        result.append('#include "GeneratedSerializersExtra.h" // NOLINT')
+        result.append('')
+    if soft_link_headers:
+        for header in soft_link_headers:
+            if header.condition is not None:
+                result.append(f'#if {header.condition}')
+            result.append(f'#include {header.header}')
+            if header.condition is not None:
+                result.append('#endif')
+        result.append('')
     result.append('template<uint64_t...> struct BitsInIncreasingOrder;')
     result.append('template<uint64_t onlyBit> struct BitsInIncreasingOrder<onlyBit> {')
     result.append('    static constexpr bool value = true;')
@@ -1225,11 +1491,20 @@ def generate_impl(serialized_types, serialized_enums, headers, generating_webkit
             result.append(f'#endif // {type.condition}')
         result.append('')
 
-    result = result + argument_coder_declarations(serialized_types, False, generating_webkit_platform_impl)
+    # Nested-type ArgumentCoder<> specializations:
+    #   * For non-WebKitPlatform output: declared in GeneratedSerializersExtra.h
+    #     (included above) — nothing to emit here.
+    #   * For WebKitPlatform output: still emitted inline because that header
+    #     does not cover platform-only types (their headers can be Cocoa-only
+    #     without explicit #if guards).
+    if generating_webkit_platform_impl:
+        result = result + argument_coder_declarations(serialized_types, False, True, bundle_filter=bundle_filter)
     result.append('')
 
     for type in serialized_types:
         if type.webkit_platform != generating_webkit_platform_impl:
+            continue
+        if not matches_bundle(type, bundle_filter):
             continue
         if type.templates:
             for template in type.templates:
@@ -1243,6 +1518,8 @@ def generate_impl(serialized_types, serialized_enums, headers, generating_webkit
         if generating_webkit_platform_impl:
             continue
         if not type.members_are_subclasses:
+            continue
+        if not matches_bundle(type, bundle_filter):
             continue
         result.append('')
         if type.condition is not None:
@@ -1267,6 +1544,8 @@ def generate_impl(serialized_types, serialized_enums, headers, generating_webkit
 
     for enum in serialized_enums:
         if enum.is_webkit_platform() != generating_webkit_platform_impl:
+            continue
+        if not matches_bundle(enum, bundle_filter):
             continue
         result.append('')
         if enum.condition is not None:
@@ -1298,9 +1577,8 @@ def generate_impl(serialized_types, serialized_enums, headers, generating_webkit
                     if valid_value.condition is not None:
                         result.append('#endif')
             result.append('        return true;')
-            result.append('    default:')
-            result.append('        return false;')
             result.append('    }')
+            result.append('    return false;')
         result.append('}')
         if enum.condition is not None:
             result.append('#endif')
@@ -2033,6 +2311,15 @@ def generate_webkit_secure_coding_header(serialized_types):
 
 
 def main(argv):
+    parser = argparse.ArgumentParser(description='Generate serializers from input files')
+    parser.add_argument('file_extension', help='File extension for output files')
+    parser.add_argument('input_files', nargs='+', help='Input files to process')
+    parser.add_argument('--output-dir', help='Directory for output files')
+    parser.add_argument('--split-by-directory', action='store_true',
+                        help='Emit per-domain GeneratedSerializers<Domain>.{ext} files instead of a single GeneratedSerializers.{ext}.')
+
+    args = parser.parse_args(argv[1:])
+
     serialized_types = []
     serialized_enums = []
     using_statements = []
@@ -2041,14 +2328,23 @@ def main(argv):
     header_set = set()
     header_set.add(ConditionalHeader('"FormDataReference.h"', None))
     additional_forward_declarations_list = []
-    file_extension = argv[1]
-    for i in range(2, len(argv)):
-        with open(argv[i]) as file:
+    file_extension = args.file_extension
+    output_dir = args.output_dir
+    split_by_directory = args.split_by_directory
+
+    input_files = args.input_files
+    bundle_assignments = assign_shards(input_files)
+
+    for input_file in input_files:
+        bundle = bundle_assignments[input_file]
+        with open(input_file) as file:
             new_types, new_enums, new_headers, new_using_statements, new_additional_forward_declarations, new_objc_wrapped_types = parse_serialized_types(file)
             for type in new_types:
                 type.enforce_opaque_ipc_types_usage()
+                type.bundle = bundle
                 serialized_types.append(type)
             for enum in new_enums:
+                enum.bundle = bundle
                 serialized_enums.append(enum)
             for using_statement in new_using_statements:
                 using_statement.enforce_opaque_ipc_types_usage()
@@ -2063,17 +2359,36 @@ def main(argv):
 
     serialized_types = resolve_inheritance(serialized_types)
 
-    with open('GeneratedSerializers.h', "w+") as output:
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    def output_path(filename):
+        if output_dir:
+            return os.path.join(output_dir, filename)
+        return filename
+
+    with open(output_path('GeneratedSerializers.h'), "w+") as output:
         output.write(generate_header(serialized_types, serialized_enums, additional_forward_declarations_list))
-    with open('GeneratedSerializers.%s' % file_extension, "w+") as output:
-        output.write(generate_impl(serialized_types, serialized_enums, headers, False, []))
-    with open('WebKitPlatformGeneratedSerializers.%s' % file_extension, "w+") as output:
+    with open(output_path('GeneratedSerializersExtra.h'), "w+") as output:
+        output.write(generate_extra_header(serialized_types, serialized_enums, headers))
+    if split_by_directory:
+        # Emit one .{ext} per bundle. Each bundle file is always emitted
+        # (even if empty) so CMake/Xcode output lists stay deterministic. The
+        # Common bundle catches inputs that don't match any prefix
+        # (e.g. WebCore-generated inputs that aren't under Source/WebKit/).
+        for bundle in ALL_BUNDLES:
+            with open(output_path(f'GeneratedSerializers{bundle}.{file_extension}'), "w+") as output:
+                output.write(generate_impl(serialized_types, serialized_enums, headers, False, [], bundle_filter=bundle))
+    else:
+        with open(output_path('GeneratedSerializers.%s' % file_extension), "w+") as output:
+            output.write(generate_impl(serialized_types, serialized_enums, headers, False, []))
+    with open(output_path('WebKitPlatformGeneratedSerializers.%s' % file_extension), "w+") as output:
         output.write(generate_impl(serialized_types, serialized_enums, headers, True, objc_wrapped_types))
-    with open('SerializedTypeInfo.%s' % file_extension, "w+") as output:
+    with open(output_path('SerializedTypeInfo.%s' % file_extension), "w+") as output:
         output.write(generate_serialized_type_info(serialized_types, serialized_enums, headers, using_statements, objc_wrapped_types))
-    with open('GeneratedWebKitSecureCoding.h', "w+") as output:
+    with open(output_path('GeneratedWebKitSecureCoding.h'), "w+") as output:
         output.write(generate_webkit_secure_coding_header(serialized_types))
-    with open('GeneratedWebKitSecureCoding.%s' % file_extension, "w+") as output:
+    with open(output_path('GeneratedWebKitSecureCoding.%s' % file_extension), "w+") as output:
         output.write(generate_webkit_secure_coding_impl(serialized_types, headers))
     return 0
 

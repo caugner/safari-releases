@@ -58,11 +58,6 @@ MemoryObjectStore* MemoryIndex::objectStore()
     return m_objectStore.get();
 }
 
-RefPtr<MemoryObjectStore> MemoryIndex::protectedObjectStore()
-{
-    return m_objectStore.get();
-}
-
 void MemoryIndex::cursorDidBecomeClean(MemoryIndexCursor& cursor)
 {
     m_cleanCursors.add(cursor);
@@ -128,8 +123,14 @@ IDBGetResult MemoryIndex::getResultForKeyRange(IndexedDB::IndexRecordType type, 
     if (!keyValue)
         return { };
 
+    if (type == IndexedDB::IndexRecordType::Key)
+        return IDBGetResult(*keyValue);
+
     RefPtr objectStore = m_objectStore.get();
-    return type == IndexedDB::IndexRecordType::Key ? IDBGetResult(*keyValue) : IDBGetResult(*keyValue, objectStore->valueForKeyRange(*keyValue), objectStore->info().keyPath());
+    if (!objectStore)
+        return { };
+
+    return IDBGetResult(*keyValue, objectStore->valueForKeyRange(*keyValue), objectStore->info().keyPath());
 }
 
 uint64_t MemoryIndex::countForKeyRange(const IDBKeyRangeData& inRange)
@@ -161,6 +162,11 @@ void MemoryIndex::getAllRecords(const IDBKeyRangeData& keyRangeData, std::option
     LOG(IndexedDB, "MemoryIndex::getAllRecords");
 
     RefPtr objectStore = m_objectStore.get();
+    if (!objectStore) {
+        result = { };
+        return;
+    }
+
     result = { type, objectStore->info().keyPath() };
 
     CheckedPtr records = m_records.get();
@@ -273,7 +279,7 @@ void MemoryIndex::removeEntriesWithValueKey(const IDBKeyData& valueKey)
 MemoryIndexCursor* MemoryIndex::maybeOpenCursor(const IDBCursorInfo& info, MemoryBackingStoreTransaction& transaction)
 {
     if (transaction.isWriting()) {
-        RefPtr objectStore = m_objectStore.get();
+        auto* objectStore = m_objectStore.get();
         if (!objectStore)
             return nullptr;
 
@@ -281,12 +287,12 @@ MemoryIndexCursor* MemoryIndex::maybeOpenCursor(const IDBCursorInfo& info, Memor
             return nullptr;
     }
 
-    auto result = m_cursors.add(info.identifier(), nullptr);
+    auto result = m_cursors.ensure(info.identifier(), [&] {
+        return MemoryIndexCursor::create(*this, info, transaction);
+    });
     if (!result.isNewEntry)
         return nullptr;
-
-    result.iterator->value = MemoryIndexCursor::create(*this, info, transaction);
-    return result.iterator->value.get();
+    return result.iterator->value.ptr();
 }
 
 IDBError MemoryIndex::addIndexRecord(const IDBKeyData& indexKey, const IDBKeyData& valueKey)

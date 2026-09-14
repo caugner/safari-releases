@@ -86,12 +86,13 @@
 #include "config.h"
 #include <wtf/Threading.h>
 
+#include <bmalloc/BPlatform.h>
+#include <bmalloc/pas_process.h>
 #include <errno.h>
 #include <process.h>
 #include <windows.h>
 #include <wtf/HashMap.h>
 #include <wtf/Lock.h>
-#include <wtf/MainThread.h>
 #include <wtf/MathExtras.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/ThreadingPrimitives.h>
@@ -147,11 +148,15 @@ static unsigned __stdcall wtfThreadEntryPoint(void* data)
     return 0;
 }
 
-bool Thread::establishHandle(NewThreadContext& data, std::optional<size_t> stackSize, QOS, SchedulingPolicy)
+bool Thread::establishHandle(NewThreadContext& data, StackAllocationSpecification stackSpec, QOS, SchedulingPolicy)
 {
+    RELEASE_ASSERT(stackSpec.kind() != StackAllocationSpecification::Kind::SizeAndLocation && "Custom stacks not supported on windows");
     unsigned threadIdentifier = 0;
+    size_t stackSize = 0;
+    if (stackSpec.kind() == StackAllocationSpecification::Kind::SizeOnly)
+        stackSize = stackSpec.sizeBytes();
     unsigned initFlag = stackSize ? STACK_SIZE_PARAM_IS_A_RESERVATION : 0;
-    HANDLE threadHandle = reinterpret_cast<HANDLE>(_beginthreadex(nullptr, stackSize.value_or(0), wtfThreadEntryPoint, &data, initFlag, &threadIdentifier));
+    HANDLE threadHandle = reinterpret_cast<HANDLE>(_beginthreadex(nullptr, stackSize, wtfThreadEntryPoint, &data, initFlag, &threadIdentifier));
     if (!threadHandle) {
         LOG_ERROR("Failed to create thread at entry point %p with data %p: %ld", wtfThreadEntryPoint, &data, errno);
         return false;
@@ -259,12 +264,9 @@ void Thread::establishPlatformSpecificHandle(HANDLE handle, ThreadIdentifier thr
 struct Thread::ThreadHolder {
     ~ThreadHolder()
     {
-        // The thread_local object of the main thread is destructed
-        // after Windows terminates other threads. If the terminated
-        // thread was holding a mutex, trying to lock the mutex causes
-        // deadlock.
-        if (isMainThread())
+        if (pas_process_is_shutting_down())
             return;
+
         if (thread) {
             thread->m_clientData = nullptr;
             thread->specificStorage().destroySlots();

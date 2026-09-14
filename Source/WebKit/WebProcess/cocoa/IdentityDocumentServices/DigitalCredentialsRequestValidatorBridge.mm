@@ -23,9 +23,10 @@
  * THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#pragma once
 #import "config.h"
 #import "DigitalCredentialsRequestValidatorBridge.h"
+
+#if ENABLE(WEB_AUTHN)
 
 #import "Logging.h"
 #import "WKIdentityDocumentRawRequestValidator.h"
@@ -38,8 +39,10 @@
 #import <WebCore/ISO18013.h>
 #import <WebCore/SecurityOrigin.h>
 #import <WebCore/UnvalidatedDigitalCredentialRequest.h>
+#import <WebCore/X509SubjectKeyIdentifier.h>
 #import <WebKit/WKIdentityDocumentPresentmentMobileDocumentRequest.h>
 #import <wtf/cocoa/TypeCastsCocoa.h>
+#import <wtf/cocoa/VectorCocoa.h>
 #import "WebKitSwiftSoftLink.h"
 
 namespace WebKit {
@@ -108,6 +111,20 @@ static WebCore::ISO18013DocumentRequest buildDocumentRequest(WKIdentityDocumentP
         mappedDocumentRequest.namespaces.append(std::make_pair(WTF::move(mappedNamespaceKey), WTF::move(innerVector)));
     }
 
+    if (individualDocumentRequest.issuerIdentifiers && [individualDocumentRequest.issuerIdentifiers count] > 0) {
+        Vector<WebCore::X509SubjectKeyIdentifier> issuerIdentifiers;
+        issuerIdentifiers.reserveInitialCapacity([individualDocumentRequest.issuerIdentifiers count]);
+
+        for (NSData *data in individualDocumentRequest.issuerIdentifiers)
+            issuerIdentifiers.append(WebCore::X509SubjectKeyIdentifier { makeVector(data) });
+
+        if (!issuerIdentifiers.isEmpty()) {
+            if (!mappedDocumentRequest.requestInfo)
+                mappedDocumentRequest.requestInfo = WebCore::ISO18013DocumentRequestInfo { };
+            mappedDocumentRequest.requestInfo->issuerIdentifiers = WTF::move(issuerIdentifiers);
+        }
+    }
+
     return mappedDocumentRequest;
 }
 
@@ -174,18 +191,20 @@ Vector<WebCore::ValidatedMobileDocumentRequest> DigitalCredentials::validateRequ
             if ([debugDescription length])
                 errorMessage = makeString(errorMessage, " ("_s, String(debugDescription.get()), ")"_s);
 
-            const_cast<Document&>(document).addConsoleMessage(makeUnique<Inspector::ConsoleMessage>(
+            const_cast<Document &>(document).addConsoleMessage(makeUnique<Inspector::ConsoleMessage>(
                 MessageSource::JS,
                 MessageType::Log,
                 MessageLevel::Warning,
-                errorMessage
-            ));
+                errorMessage));
 
-            LOG(DigitalCredentials, "Validation failed for request: %@", error);
+            LOG(DigitalCredentials, "DigitalCredentials::validateRequests() - WebProcess: Validation failed for request: %@", error);
         }
     }
 
+    LOG(DigitalCredentials, "DigitalCredentials::validateRequests() - WebProcess: returning %zu validated requests", validatedRequests.size());
     return validatedRequests;
 }
 
-}
+} // namespace WebKit
+
+#endif // ENABLE(WEB_AUTHN)

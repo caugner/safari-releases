@@ -89,15 +89,13 @@ public:
     enum class Type : uint8_t { DedicatedWorker, ServiceWorker, SharedWorker };
     virtual Type type() const = 0;
 
-    const URL& url() const final { return m_url; }
-    const URL& cookieURL() const final { return url(); }
-    const URL& ownerURL() const { return m_ownerURL; }
+    const URL& url() const LIFETIME_BOUND final { return m_url; }
+    const URL& cookieURL() const LIFETIME_BOUND final { return url(); }
+    const URL& ownerURL() const LIFETIME_BOUND { return m_ownerURL; }
     String origin() const;
-    const String& inspectorIdentifier() const { return m_inspectorIdentifier; }
+    const String& inspectorIdentifier() const LIFETIME_BOUND { return m_inspectorIdentifier; }
 
     IDBClient::IDBConnectionProxy* idbConnectionProxy() final;
-    void replaceIDBConnectionProxy(RefPtr<IDBClient::IDBConnectionProxy>&&);
-    WEBCORE_EXPORT static void replaceIDBConnectionProxyOnAllWorkers(RefPtr<IDBClient::IDBConnectionProxy>&&);
     void suspend() final;
     void resume() final;
     GraphicsClient* graphicsClient() final;
@@ -123,11 +121,10 @@ public:
     WorkerLocation& location() const;
     void close();
 
-    virtual ExceptionOr<void> importScripts(const FixedVector<Variant<RefPtr<TrustedScriptURL>, String>>& urls);
+    virtual ExceptionOr<void> importScripts(const FixedVector<Variant<Ref<TrustedScriptURL>, String>>& urls);
     WorkerNavigator& navigator();
-    Ref<WorkerNavigator> protectedNavigator();
 
-    void setIsOnline(bool);
+    void NODELETE setIsOnline(bool);
     bool isOnline() const { return m_isOnline; }
 
     ExceptionOr<int> setTimeout(std::unique_ptr<ScheduledAction>, int timeout, FixedVector<JSC::Strong<JSC::Unknown>>&& arguments);
@@ -136,7 +133,7 @@ public:
     void clearInterval(int timeoutId);
 
     bool isSecureContext() const final;
-    bool crossOriginIsolated() const;
+    bool NODELETE crossOriginIsolated() const final;
 
     WorkerNavigator* optionalNavigator() const { return m_navigator.get(); }
     WorkerLocation* optionalLocation() const { return m_location.get(); }
@@ -146,8 +143,7 @@ public:
     SecurityOrigin& topOrigin() const final { return m_topOrigin.get(); }
 
     Crypto& crypto();
-    Performance& performance() const;
-    Ref<Performance> protectedPerformance() const;
+    Performance& NODELETE performance() const;
     ReportingScope& reportingScope() const { return m_reportingScope.get(); }
 
     void prepareForDestruction() override;
@@ -163,7 +159,7 @@ public:
     RefPtr<FontLoadRequest> fontLoadRequest(const String& url, bool isSVG, bool isInitiatingElementInUserAgentShadowTree, LoadedFromOpaqueSource) final;
     void beginLoadingFontSoon(FontLoadRequest&) final;
 
-    const SettingsValues& settingsValues() const final { return m_settingsValues; }
+    const SettingsValues& settingsValues() const LIFETIME_BOUND final { return m_settingsValues; }
 
     FetchOptions::Credentials credentials() const { return m_credentials; }
 
@@ -171,12 +167,14 @@ public:
     static void releaseMemoryInWorkers(Synchronous);
     static void dumpGCHeapForWorkers();
 
-    void setMainScriptSourceProvider(ScriptBufferSourceProvider&);
+    void NODELETE setMainScriptSourceProvider(ScriptBufferSourceProvider&);
     void addImportedScriptSourceProvider(const URL&, ScriptBufferSourceProvider&);
 
     ClientOrigin clientOrigin() const { return { topOrigin().data(), securityOrigin()->data() }; }
 
-    WorkerClient* workerClient() { return m_workerClient.get(); }
+    WorkerClient* workerClient() LIFETIME_BOUND { return m_workerClient.get(); }
+
+    String agentClusterID() const final { return m_agentClusterID; }
 
     void reportErrorToWorkerObject(const String&);
 
@@ -199,13 +197,12 @@ private:
     void deleteJSCodeAndGC(Synchronous);
     void clearDecodedScriptData();
 
-    URL completeURL(const String&, ForceUTF8 = ForceUTF8::No) const final;
+    URL parseURL(const String&) const final;
     String userAgent(const URL&) const final;
 
     EventTarget* errorEventTarget() final;
     String resourceRequestIdentifier() const final { return m_inspectorIdentifier; }
-    SocketProvider* socketProvider() final;
-    RefPtr<SocketProvider> protectedSocketProvider();
+    SocketProvider* NODELETE socketProvider() final;
     RefPtr<RTCDataChannelRemoteHandlerConnection> createRTCDataChannelRemoteHandlerConnection() final;
 
     bool shouldBypassMainWorldContentSecurityPolicy() const final { return m_shouldBypassMainWorldContentSecurityPolicy; }
@@ -252,6 +249,7 @@ private:
     SettingsValues m_settingsValues;
     WorkerType m_workerType;
     FetchOptions::Credentials m_credentials;
+    String m_agentClusterID;
     const RefPtr<WorkerStorageConnection> m_storageConnection;
     RefPtr<WorkerFileSystemStorageConnection> m_fileSystemStorageConnection;
 };

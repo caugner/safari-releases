@@ -87,7 +87,7 @@ void HTMLFrameSetElement::collectPresentationalHintsForAttribute(const Qualified
 void HTMLFrameSetElement::attributeChanged(const QualifiedName& name, const AtomString& oldValue, const AtomString& newValue, AttributeModificationReason attributeModificationReason)
 {
     if (auto& eventName = HTMLBodyElement::eventNameForWindowEventHandlerAttribute(name); !eventName.isNull())
-        protectedDocument()->setWindowAttributeEventListener(eventName, name, newValue, mainThreadNormalWorldSingleton());
+        protect(document())->setWindowAttributeEventListener(eventName, name, newValue, mainThreadNormalWorldSingleton());
     else
         HTMLElement::attributeChanged(name, oldValue, newValue, attributeModificationReason);
 
@@ -146,9 +146,9 @@ void HTMLFrameSetElement::attributeChanged(const QualifiedName& name, const Atom
     }
 }
 
-RenderPtr<RenderElement> HTMLFrameSetElement::createElementRenderer(RenderStyle&& style, const RenderTreePosition&)
+RenderPtr<RenderElement> HTMLFrameSetElement::createElementRenderer(Style::ComputedStyle&& style, const RenderTreePosition&)
 {
-    if (style.hasContent())
+    if (style.content().isData())
         return RenderElement::createFor(*this, WTF::move(style));
     
     return createRenderer<RenderFrameSet>(*this, WTF::move(style));
@@ -200,15 +200,15 @@ void HTMLFrameSetElement::willRecalcStyle(OptionSet<Style::Change>)
         renderer->setNeedsLayout();
 }
 
-Node::InsertedIntoAncestorResult HTMLFrameSetElement::insertedIntoAncestor(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
+Node::NeedsPostConnectionSteps HTMLFrameSetElement::insertionSteps(InsertionType insertionType, ContainerNode& parentOfInsertedTree)
 {
-    HTMLElement::insertedIntoAncestor(insertionType, parentOfInsertedTree);
-    return InsertedIntoAncestorResult::Done;
+    HTMLElement::insertionSteps(insertionType, parentOfInsertedTree);
+    return NeedsPostConnectionSteps::No;
 }
 
-void HTMLFrameSetElement::removedFromAncestor(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
+void HTMLFrameSetElement::removingSteps(RemovalType removalType, ContainerNode& oldParentOfRemovedTree)
 {
-    HTMLElement::removedFromAncestor(removalType, oldParentOfRemovedTree);
+    HTMLElement::removingSteps(removalType, oldParentOfRemovedTree);
 }
 
 WindowProxy* HTMLFrameSetElement::namedItem(const AtomString& name)

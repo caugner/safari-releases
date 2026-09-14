@@ -14,23 +14,21 @@ Modules/webcodecs/WebCodecsBase.cpp
 Modules/webcodecs/WebCodecsVideoDecoder.cpp
 Modules/webcodecs/WebCodecsVideoEncoder.cpp
 Modules/webdatabase/DatabaseThread.cpp
-[ Mac ] accessibility/isolatedtree/AXIsolatedObject.cpp
 animation/KeyframeEffect.cpp
 contentextensions/ContentExtensionsBackend.cpp
 crypto/SubtleCrypto.cpp
+css/CSSPrimitiveValue.cpp
 css/CSSValue.cpp
 css/StyleRule.cpp
-dom/ContentVisibilityDocumentState.cpp
+css/values/CSSValueTypes+DeprecatedCSSOMValueCreation.h
 dom/CustomElementDefaultARIA.cpp
 dom/RejectedPromiseTracker.cpp
-html/FormAssociatedCustomElement.cpp
-inspector/InspectorOverlay.cpp
 inspector/agents/page/PageDOMDebuggerAgent.cpp
 loader/NetscapePlugInStreamLoader.cpp
+[ iOS ] loader/ios/LegacyPreviewLoader.mm
 page/IntelligenceTextEffectsSupport.cpp
 page/ShareDataReader.cpp
 page/cocoa/ResourceUsageOverlayCocoa.mm
-[ iOS ] page/ios/FrameIOS.mm
 page/writing-tools/WritingToolsController.mm
 [ iOS ] platform/PreviewConverter.cpp
 platform/ScrollableArea.cpp
@@ -38,16 +36,12 @@ platform/cocoa/NetworkExtensionContentFilter.mm
 platform/graphics/avfoundation/InbandTextTrackPrivateAVF.cpp
 platform/graphics/avfoundation/objc/CDMInstanceFairPlayStreamingAVFObjC.mm
 platform/graphics/avfoundation/objc/InbandChapterTrackPrivateAVFObjC.mm
-[ iOS ] platform/graphics/avfoundation/objc/MediaPlayerPrivateAVFoundationObjC.mm
 platform/graphics/cocoa/VideoMediaSampleRenderer.mm
-[ iOS ] platform/ios/DragImageIOS.mm
 platform/mediarecorder/MediaRecorderPrivateEncoder.cpp
 platform/mediastream/RealtimeVideoCaptureSource.cpp
 platform/mediastream/cocoa/IncomingAudioMediaStreamTrackRendererUnit.cpp
-[ iOS ] platform/mediastream/ios/ReplayKitCaptureSource.mm
-[ iOS ] platform/mediastream/mac/CoreAudioCaptureUnit.cpp
-platform/mediastream/mac/RealtimeIncomingVideoSourceCocoa.mm
-platform/mediastream/mac/RealtimeOutgoingAudioSourceCocoa.cpp
+platform/mediastream/cocoa/RealtimeIncomingVideoSourceCocoa.mm
+platform/mediastream/cocoa/RealtimeOutgoingAudioSourceCocoa.cpp
 rendering/BackgroundPainter.cpp
 rendering/BorderPainter.cpp
 rendering/RenderBox.cpp
@@ -65,9 +59,11 @@ style/Styleable.cpp
 style/computed/data/StyleCustomPropertyData.cpp
 style/values/StyleValueTypes.h
 style/values/backgrounds/StyleFillLayers.h
+style/values/filter-effects/StyleFilterInterpolation.h
+style/values/grid/StyleGridTrackBreadth.cpp
 style/values/images/StyleGradient.cpp
-style/values/primitives/StylePrimitiveKeyword+CSSValueCreation.h
-style/values/primitives/StylePrimitiveKeyword+Serialization.h
+style/values/primitives/StyleKeyword+CSSValueCreation.h
+style/values/primitives/StyleKeyword+Serialization.h
 [ Mac ] testing/MockMediaSessionCoordinator.cpp
 workers/WorkerMessagingProxy.cpp
 workers/WorkerOrWorkletThread.cpp

@@ -27,6 +27,7 @@
 
 #pragma once
 
+#include "AXLoggerBase.h"
 #include "AccessibilityRenderObject.h"
 #include <wtf/WeakPtr.h>
 
@@ -54,6 +55,7 @@ private:
     String description() const final;
     String helpText() const final;
     void accessibilityText(Vector<AccessibilityText>&) const final;
+    void alternativeText(Vector<AccessibilityText>&) const final;
     AccessibilityRole determineAccessibilityRole() override;
     bool inheritsPresentationalRole() const final;
     bool computeIsIgnored() const final;
@@ -62,8 +64,14 @@ private:
 
     // Returns true if the SVG element associated with this object has a <title> or <desc> child.
     bool hasTitleOrDescriptionChild() const;
-    template <typename ChildrenType>
-    Element* childElementWithMatchingLanguage(ChildrenType&) const;
+
+    struct MatchingLanguageChildren {
+        RefPtr<Element> title;
+        RefPtr<Element> desc;
+    };
+    MatchingLanguageChildren matchingTitleAndDescChildren() const;
+    String descriptionFromTitleChild(Element* titleChild) const;
+    String helpTextFromChildren(Element* titleChild, Element* descChild, const String& descriptionText) const;
 
     // Set for remote SVG resources, on the root.
     WeakPtr<AccessibilityRenderObject> m_parent;
@@ -71,7 +79,7 @@ private:
 
 inline void AccessibilitySVGObject::setParent(AccessibilityRenderObject* parent)
 {
-    ASSERT(m_isSVGRoot);
+    AX_ASSERT(m_isSVGRoot);
     m_parent = parent;
 }
 

@@ -25,6 +25,9 @@
 
 #pragma once
 
+// FIXME: Remove the `__has_feature(modules)` condition when possible.
+#if !__has_feature(modules)
+
 #include <wtf/Platform.h>
 
 #if USE(AVFOUNDATION)
@@ -36,8 +39,10 @@
 namespace PAL {
 
 PAL_EXPORT CMTime toCMTime(const MediaTime&);
-PAL_EXPORT MediaTime toMediaTime(const CMTime&);
+PAL_EXPORT MediaTime NODELETE toMediaTime(const CMTime&);
 
 }
 
 #endif
+
+#endif // !__has_feature(modules)

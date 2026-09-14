@@ -34,7 +34,8 @@ import re
 import socket
 import sys
 
-from Shared.steps import ShellMixin, SetBuildSummary
+from Shared.steps import ShellMixin, SetBuildSummary, InstallSwiftToolchain, InstallMetalToolchain, SWIFT_TOOLCHAIN_NAME, SWIFT_TOOLCHAIN_BUNDLE_IDENTIFIER, USER_TOOLCHAINS_DIR
+from Shared import generate_s3_url
 
 if sys.version_info < (3, 9):  # noqa: UP036
     print('ERROR: Minimum supported Python version for this code is Python 3.9')
@@ -63,6 +64,7 @@ MSG_FOR_EXCESSIVE_LOGS = f'Stopped due to excessive logging, limit: {THRESHOLD_F
 HASH_LENGTH_TO_DISPLAY = 8
 SCAN_BUILD_OUTPUT_DIR = 'scan-build-output'
 SAFER_CPP_ARCHIVE_DIR = 'smart-pointer-result-archive'
+SWIFT_DIR = 'swift-project/swift'
 
 DNS_NAME = CURRENT_HOSTNAME
 if DNS_NAME in BUILD_WEBKIT_HOSTNAMES:
@@ -178,7 +180,7 @@ class ConfigureBuild(buildstep.BuildStep, AddToLogMixin):
     description = ["configuring build"]
     descriptionDone = ["configured build"]
 
-    def __init__(self, platform, configuration, architecture, buildOnly, additionalArguments, device_model, triggers, *args, **kwargs):
+    def __init__(self, platform, configuration, architecture, buildOnly, additionalArguments, device_model, triggers, deployment_target=None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.platform = platform
         if platform != 'jsc-only':
@@ -190,6 +192,7 @@ class ConfigureBuild(buildstep.BuildStep, AddToLogMixin):
         self.additionalArguments = additionalArguments
         self.device_model = device_model
         self.triggers = triggers
+        self.deployment_target = deployment_target
 
     @defer.inlineCallbacks
     def run(self):
@@ -202,6 +205,8 @@ class ConfigureBuild(buildstep.BuildStep, AddToLogMixin):
         self.setProperty("additionalArguments", self.additionalArguments)
         self.setProperty("device_model", self.device_model)
         self.setProperty("triggers", self.triggers)
+        if self.deployment_target:
+            self.setProperty("deployment_target", self.deployment_target)
         yield self._addToLog('stdio', 'Set build properties')
         return defer.returnValue(SUCCESS)
 
@@ -397,6 +402,7 @@ class CompileWebKit(shell.Compile, CustomFlagsMixin, ShellMixin, AddToLogMixin):
             if architecture:
                 build_command += ['--architecture', f'"{architecture}"']
             build_command += ['WK_VALIDATE_DEPENDENCIES=YES']
+            build_command += ['WK_ENABLE_SLOW_BUILD_VERIFICATION=YES']
             if buildOnly:
                 # For build-only bots, the expectation is that tests will be run on separate machines,
                 # so we need to package debug info as dSYMs. Only generating line tables makes
@@ -404,6 +410,9 @@ class CompileWebKit(shell.Compile, CustomFlagsMixin, ShellMixin, AddToLogMixin):
                 # Some projects (namely lldbWebKitTester) require full debug info, and may override this.
                 build_command += ['DEBUG_INFORMATION_FORMAT=dwarf-with-dsym']
                 build_command += ['CLANG_DEBUG_INFORMATION_LEVEL=\\$\\(WK_OVERRIDE_DEBUG_INFORMATION_LEVEL:default=line-tables-only\\)']
+            deployment_target = self.getProperty('deployment_target')
+            if deployment_target and platform == 'mac':
+                build_command += [f'MACOSX_DEPLOYMENT_TARGET={deployment_target}']
 
         build_command += self.customBuildFlag(platform, self.getProperty('fullPlatform'))
 
@@ -740,7 +749,7 @@ class RunJavaScriptCoreTests(TestWithFailureCount, CustomFlagsMixin, ShellMixin)
 
     def __init__(self, *args, **kwargs):
         kwargs['logEnviron'] = False
-        kwargs['timeout'] = 20 * 60 * 60
+        kwargs['timeout'] = 20 * 60
         if 'sigtermTime' not in kwargs:
             kwargs['sigtermTime'] = 10
         super().__init__(*args, **kwargs)
@@ -824,14 +833,18 @@ class RunTest262Tests(TestWithFailureCount, CustomFlagsMixin, ShellMixin):
     command = ["perl", "Tools/Scripts/test262-runner", "--verbose", WithProperties("--%(configuration)s")]
     test_summary_re = re.compile(r'^\! NEW FAIL')
 
+    def __init__(self, *args, **kwargs):
+        kwargs['timeout'] = 60 * 60
+        super().__init__(*args, **kwargs)
+
     def run(self):
+        self.appendCustomBuildFlags(self.getProperty('platform'), self.getProperty('fullPlatform'))
         filter_command = ' '.join(self.command) + ' 2>&1 | python3 Tools/Scripts/filter-test-logs test262'
         self.command = self.shell_command(filter_command)
 
         self.log_observer = ParseByLineLogObserver(self.parseOutputLine)
         self.addLogObserver('stdio', self.log_observer)
         self.failedTestCount = 0
-        self.appendCustomBuildFlags(self.getProperty('platform'), self.getProperty('fullPlatform'))
 
         steps_to_add = [
             GenerateS3URL(
@@ -917,7 +930,7 @@ class RunWebKitTests(shell.Test, CustomFlagsMixin, ShellMixin):
 
         # Up the timeout limit for site isolation queues to 300
         # FIXME: We should remove the need for these timeouts altogether. (webkit.org/b/303404)
-        if additionalArguments and '--site-isolation' in additionalArguments:
+        if additionalArguments and '--site-isolation-enabled-by-default' in additionalArguments:
             idx = self.command.index('--exit-after-n-crashes-or-timeouts')
             self.command[idx + 1] = '300'
 
@@ -1039,7 +1052,7 @@ class RunWorldLeaksTests(RunWebKitTests):
 
 class RunAPITests(TestWithFailureCount, CustomFlagsMixin, ShellMixin):
     name = "run-api-tests"
-    VALID_ADDITIONAL_ARGUMENTS_LIST = ["--remote-layer-tree", "--use-gpu-process", "--child-processes", "--site-isolation", "--wpe-legacy-api"]
+    VALID_ADDITIONAL_ARGUMENTS_LIST = ["--remote-layer-tree", "--use-gpu-process", "--child-processes", "--site-isolation-enabled-by-default", "--wpe-legacy-api"]
     description = ["api tests running"]
     descriptionDone = ["api-tests"]
     jsonFileName = "api_test_results.json"
@@ -1059,13 +1072,13 @@ class RunAPITests(TestWithFailureCount, CustomFlagsMixin, ShellMixin):
         "--report", RESULTS_WEBKIT_URL,
     ]
     failedTestsFormatString = "%d api test%s failed or timed out"
-    test_summary_re = re.compile(r'Ran (?P<ran>\d+) tests of (?P<total>\d+) with (?P<passed>\d+) successful')
+    test_summary_re = re.compile(r'Ran (?P<ran>\d+) tests of (?P<total>\d+) with (?P<passed>\d+) successful(?: \((?P<expected>\d+) expected failures?\))?')
     cancelled_due_to_huge_logs = False
     line_count = 0
 
     def __init__(self, *args, **kwargs):
         kwargs['logEnviron'] = False
-        kwargs['timeout'] = 3 * 60 * 60
+        kwargs['timeout'] = 20 * 60
         super().__init__(*args, **kwargs)
 
     def _is_valid_additional_argument(self, argument):
@@ -1090,14 +1103,20 @@ class RunAPITests(TestWithFailureCount, CustomFlagsMixin, ShellMixin):
         if platform in ['gtk', 'wpe']:
             self.command = ['python3', f'Tools/Scripts/run-{platform}-tests',
                             f'--{self.getProperty("configuration")}',
-                            f'--json-output={self.jsonFileName}']
+                            f'--json-output={self.jsonFileName}',
+                            f'--buildbot-master={DNS_NAME}',
+                            f'--builder-name={self.getProperty("buildername")}',
+                            f'--build-number={self.getProperty("buildnumber")}',
+                            f'--buildbot-worker={self.getProperty("workername")}',
+                            f'--report={RESULTS_WEBKIT_URL}',
+                            ]
         else:
             self.appendCustomTestingFlags(platform, self.getProperty('device_model'))
         additionalArguments = self.getProperty("additionalArguments")
         for additionalArgument in additionalArguments or []:
             if self._is_valid_additional_argument(additionalArgument):
                 self.command += [additionalArgument]
-        self.command = self.shell_command(' '.join(self.command) + ' > logs.txt 2>&1 ; ret=$? ; grep "Ran " logs.txt ; exit $ret')
+        self.command = self.shell_command(' '.join(self.command) + ' 2>&1 | python3 Tools/Scripts/filter-test-logs api')
 
         rc = super().run()
 
@@ -1126,7 +1145,8 @@ class RunAPITests(TestWithFailureCount, CustomFlagsMixin, ShellMixin):
 
         match = self.test_summary_re.match(line)
         if match:
-            self.failedTestCount = int(match.group('ran')) - int(match.group('passed'))
+            expected = int(match.group('expected')) if match.group('expected') else 0
+            self.failedTestCount = int(match.group('ran')) - int(match.group('passed')) - expected
 
     def handleExcessiveLogging(self):
         build_url = f'{self.master.config.buildbotURL}#/builders/{self.build._builderid}/builds/{self.build.number}'
@@ -1371,13 +1391,17 @@ class RunWebDriverTests(shell.Test, CustomFlagsMixin, ShellMixin):
         logText = self.log_observer.getStdout()
 
         self.failuresCount = 0
+        self.timeoutCount = 0
         self.newPassesCount = 0
-        foundItems = re.findall(r"^Unexpected .+ \((\d+)\)", logText, re.MULTILINE)
-        if foundItems:
-            self.failuresCount = int(foundItems[0])
-        foundItems = re.findall(r"^Expected to .+, but passed \((\d+)\)", logText, re.MULTILINE)
-        if foundItems:
-            self.newPassesCount = int(foundItems[0])
+        foundFailures = re.findall(r"Unexpected failures \((\d+)\)", logText, re.MULTILINE)
+        if foundFailures:
+            self.failuresCount = int(foundFailures[0])
+        foundTimeouts = re.findall(r"Unexpected timeouts \((\d+)\)", logText, re.MULTILINE)
+        if foundTimeouts:
+            self.timeoutCount = int(foundTimeouts[0])
+        foundNewPasses = re.findall(r"Expected to .+, but passed \((\d+)\)", logText, re.MULTILINE)
+        if foundNewPasses:
+            self.newPassesCount = int(foundNewPasses[0])
 
         steps_to_add = [
             GenerateS3URL(
@@ -1402,19 +1426,36 @@ class RunWebDriverTests(shell.Test, CustomFlagsMixin, ShellMixin):
         else:
             defer.returnValue(SUCCESS)
 
-    def getText(self, cmd, results):
-        return self.getText2(cmd, results)
-
-    def getText2(self, cmd, results):
-        if results != SUCCESS and (self.failuresCount or self.newPassesCount):
-            lines = []
+    def getResultSummary(self):
+        if self.results != SUCCESS:
+            summaries = []
+            summary = None
+            shouldReportBuild = False
             if self.failuresCount:
-                lines.append("%d failures" % self.failuresCount)
+                suffix = "" if self.failuresCount == 1 else "s"
+                summaries.append(f"{self.failuresCount} failure{suffix}")
+                shouldReportBuild = True
+            if self.timeoutCount:
+                suffix = "" if self.timeoutCount == 1 else "s"
+                summaries.append(f"{self.timeoutCount} timeout{suffix}")
+                shouldReportBuild = True
             if self.newPassesCount:
-                lines.append("%d new passes" % self.newPassesCount)
-            return ["%s %s" % (self.name, ", ".join(lines))]
+                suffix = "" if self.newPassesCount == 1 else "es"
+                summaries.append(f"{self.newPassesCount} new pass{suffix}")
 
-        return [self.name]
+            if len(summaries) >= 2:
+                last = summaries.pop()
+                summary = ', '.join(summaries) + ' and ' + last
+            elif summaries:
+                summary = summaries[0]
+
+            if summary:
+                result = {'step': summary}
+                if shouldReportBuild:
+                    result['build'] = summary
+
+                return result
+        return super().getResultSummary()
 
 
 class RunWebKit1Tests(RunWebKitTests):
@@ -1452,6 +1493,9 @@ class RunAndUploadPerfTests(shell.Test):
 
     def run(self):
         additionalArguments = self.getProperty("additionalArguments")
+        platform = self.getProperty('platform')
+        if platform in ['gtk', 'wpe']:
+            self.command += ['--display-server=wayland']
         if additionalArguments:
             self.command += additionalArguments
         return super().run()
@@ -1590,56 +1634,42 @@ class UploadFileToS3(shell.ShellCommand):
         return super().getResultSummary()
 
 
-class GenerateS3URL(master.MasterShellCommand):
+class GenerateS3URL(buildstep.BuildStep, AddToLogMixin):
     name = 'generate-s3-url'
     descriptionDone = ['Generated S3 URL']
     haltOnFailure = False
     flunkOnFailure = False
 
     def __init__(self, identifier, extension='zip', content_type=None, minified=False, additions=None, **kwargs):
+        super().__init__(**kwargs)
         self.identifier = identifier
         self.extension = extension
+        self.content_type = content_type
         self.minified = minified
         self.additions = additions
-        kwargs['command'] = [
-            'python3', '../Shared/generate-s3-url',
-            '--revision', WithProperties('%(archive_revision)s'),
-            '--identifier', self.identifier,
-        ]
-        if extension:
-            kwargs['command'] += ['--extension', extension]
-        if content_type:
-            kwargs['command'] += ['--content-type', content_type]
-        if minified:
-            kwargs['command'] += ['--minified']
-        if additions:
-            kwargs['command'] += ['--additions', additions]
-        super().__init__(logEnviron=False, **kwargs)
 
     @defer.inlineCallbacks
     def run(self):
-        self.log_observer = logobserver.BufferLogObserver(wantStderr=True)
-        self.addLogObserver('stdio', self.log_observer)
-
-        rc = yield super().run()
-
         self.build.s3url = ''
         if not getattr(self.build, 's3_archives', None):
             self.build.s3_archives = []
 
-        log_text = self.log_observer.getStdout() + self.log_observer.getStderr()
-        match = re.search(r'S3 URL: (?P<url>[^\s]+)', log_text)
-        # Sample log: S3 URL: https://s3-us-west-2.amazonaws.com/archives.webkit.org/ios-simulator-12-x86_64-release/123456.zip
+        archive_revision = self.getProperty('archive_revision')
+        bucket = S3_BUCKET_MINIFIED if self.minified else S3_BUCKET
+        try:
+            url = generate_s3_url.generateS3URL(
+                bucket, self.identifier, archive_revision,
+                additions=self.additions,
+                extension=self.extension,
+                content_type=self.content_type,
+            )
+        except Exception as e:
+            yield self._addToLog('stdio', f'Failed to generate S3 URL: {type(e).__name__}\n')
+            return defer.returnValue(FAILURE)
 
-        build_url = f'{self.master.config.buildbotURL}#/builders/{self.build._builderid}/builds/{self.build.number}'
-        if match:
-            self.build.s3url = match.group('url')
-            bucket_url = S3_BUCKET_MINIFIED if self.minified else S3_BUCKET
-            self.build.s3_archives.append(S3URL + f"{bucket_url}/{self.identifier}/{self.getProperty('archive_revision')}{f'-{self.additions}' if self.additions else ''}.{self.extension}")
-            defer.returnValue(rc)
-        else:
-            print(f'build: {build_url}, logs for GenerateS3URL:\n{log_text}')
-            defer.returnValue(FAILURE)
+        self.build.s3url = url
+        self.build.s3_archives.append(S3URL + f"{bucket}/{self.identifier}/{archive_revision}{f'-{self.additions}' if self.additions else ''}.{self.extension}")
+        return defer.returnValue(SUCCESS)
 
     def hideStepIf(self, results, step):
         return results == SUCCESS
@@ -1684,9 +1714,11 @@ class ScanBuild(steps.ShellSequence, ShellMixin):
     @defer.inlineCallbacks
     def run(self):
         self.commands = []
-        build_command = f"Tools/Scripts/build-and-analyze --output-dir {os.path.join(self.getProperty('builddir'), f'build/{SCAN_BUILD_OUTPUT_DIR}')} --configuration {self.build.getProperty('configuration')} "
-        build_command += f"--only-smart-pointers --analyzer-path={os.path.join(self.getProperty('builddir'), 'llvm-project/build/bin/clang')} "
-        build_command += '--scan-build-path=../llvm-project/clang/tools/scan-build/bin/scan-build --sdkroot=macosx --preprocessor-additions=CLANG_WEBKIT_BRANCH=1 '
+
+        build_command = f"Tools/Scripts/build-and-analyze --output-dir {os.path.join(self.getProperty('builddir'), f'build/{SCAN_BUILD_OUTPUT_DIR}')} --configuration {self.build.getProperty('configuration')} --only-smart-pointers "
+        sdkroot = 'iphonesimulator' if self.getProperty('platform', '').lower() == 'ios' else 'macosx'
+        build_command += f'--toolchains={SWIFT_TOOLCHAIN_BUNDLE_IDENTIFIER} --swift-conditions=SWIFT_WEBKIT_TOOLCHAIN '
+        build_command += f'--scan-build-path=../llvm-project/clang/tools/scan-build/bin/scan-build --sdkroot={sdkroot} '
         build_command += '2>&1 | python3 Tools/Scripts/filter-test-logs scan-build --output build-log.txt'
 
         for command in [
@@ -2056,7 +2088,7 @@ class PrintConfiguration(steps.ShellSequence, ShellMixin):
         elif platform in ('gtk', 'wpe', 'jsc-only'):
             command_list.extend(self.command_list_linux)
             if platform in ('gtk', 'wpe'):
-                command_list.append(['if test -f /etc/build-info; then cat /etc/build-info; else cat /etc/os-release; fi'])
+                command_list.append(self.shell_command('if test -f /etc/build-info; then cat /etc/build-info; else cat /etc/os-release; fi'))
 
         for command in command_list:
             self.commands.append(util.ShellArg(command=command, logname='stdio'))
@@ -2266,8 +2298,104 @@ class RebootWithUpdatedCrossTargetImage(shell.ShellCommand):
         defer.returnValue(rc)
 
 
-class SetO3OptimizationLevel(shell.ShellCommand):
-    command = ["Tools/Scripts/set-webkit-configuration", "--force-optimization-level=O3"]
-    name = "set-o3-optimization-level"
-    description = ["set O3 optimization level"]
-    descriptionDone = ["set O3 optimization level"]
+class BuildSwift(steps.ShellSequence, ShellMixin):
+    name = 'build-swift'
+    flunkOnFailure = True
+
+    def __init__(self, **kwargs):
+        super().__init__(logEnviron=False, workdir=SWIFT_DIR, **kwargs)
+        self.commands = []
+
+    @defer.inlineCallbacks
+    def run(self):
+        builddir = self.getProperty('builddir')
+        swift_install_dir = f'{builddir}/{SWIFT_DIR}/swift-nightly-install'
+        swift_symroot_dir = f'{builddir}/{SWIFT_DIR}/swift-nightly-symroot'
+
+        build_script_args = [
+            'utils/build-script',
+            '--swift-install-components=autolink-driver;back-deployment;compiler;clang-resource-dir-symlink;libexec;stdlib;sdk-overlay;static-mirror-lib;toolchain-tools;license;sourcekit-xpc-service;sourcekit-inproc;swift-remote-mirror;swift-remote-mirror-headers',
+            '--llvm-install-components=llvm-ar;llvm-nm;llvm-ranlib;llvm-cov;llvm-profdata;llvm-objdump;llvm-objcopy;llvm-symbolizer;IndexStore;clang;clang-resource-headers;builtins;runtimes;clangd;libclang;dsymutil;LTO;clang-features-file;lld',
+            '--ios',
+            '--release',
+            '--no-assertions',
+            '--compiler-vendor=apple',
+            '--infer-cross-compile-hosts-on-darwin',
+            '--build-ninja',
+            '--skip-build-benchmarks',
+            '--skip-tvos',
+            '--skip-watchos',
+            '--skip-xros',
+            '--build-subdir=buildbot_osx',
+            '--install-llvm',
+            '--install-swift',
+            f'--install-destdir={swift_install_dir}',
+            f'--install-prefix=/Library/Developer/Toolchains/{SWIFT_TOOLCHAIN_NAME}.xctoolchain/usr',
+            '--darwin-install-extract-symbols',
+            f'--install-symroot={swift_symroot_dir}',
+            f'--installable-package={swift_install_dir}/{SWIFT_TOOLCHAIN_NAME}-osx.tar.gz',
+            f'--symbols-package={swift_install_dir}/{SWIFT_TOOLCHAIN_NAME}-osx-symbols.tar.gz',
+            f'--darwin-toolchain-bundle-identifier={SWIFT_TOOLCHAIN_BUNDLE_IDENTIFIER}',
+            '--darwin-toolchain-display-name=WebKit Swift Toolchain',
+            '--darwin-toolchain-display-name-short=WebKit Swift',
+            f'--darwin-toolchain-name={SWIFT_TOOLCHAIN_NAME}',
+            '--darwin-toolchain-version=6.0.0',
+            '--darwin-toolchain-alias=webkit',
+            '--darwin-toolchain-require-use-os-runtime=0',
+            '--swift-testing=1',
+            '--install-swift-testing=1',
+            '--swift-testing-macros=1',
+            '--install-swift-testing-macros=1',
+            '--swift-driver=1',
+            '--install-swift-driver=1',
+        ]
+
+        filter_command = ' '.join(quote(str(c)) for c in build_script_args) + f" 2>&1 | python3 {builddir}/build/Tools/Scripts/filter-test-logs swift --output {builddir}/build/swift-build-log.txt"
+
+        self.commands = [
+            util.ShellArg(command=self.shell_command('rm -rf ../build'), logname='stdio', haltOnFailure=False),
+            util.ShellArg(command=self.shell_command('rm -rf "$(getconf DARWIN_USER_CACHE_DIR)org.llvm.clang"'), logname='stdio', haltOnFailure=False),
+            util.ShellArg(command=self.shell_command('rm -rf /Users/buildbot/Library/Developer/Xcode/DerivedData'), logname='stdio'),
+            util.ShellArg(command=self.shell_command(filter_command), logname='stdio', haltOnFailure=True),
+        ]
+
+        rc = yield super().run()
+
+        steps_to_add = [
+            GenerateS3URL(
+                f"{self.getProperty('fullPlatform')}-{self.getProperty('archForUpload')}-{self.getProperty('configuration')}-{self.name}",
+                extension='txt',
+                content_type='text/plain',
+                additions=f'{self.build.number}',
+            ),
+            UploadFileToS3(
+                'swift-build-log.txt',
+                links={self.name: 'Swift build log'},
+                content_type='text/plain',
+            )
+        ]
+
+        if rc != SUCCESS:
+            if self.getProperty('current_swift_tag', '') and self.getProperty('has_swift_toolchain', False):
+                return WARNINGS
+            self.build.buildFinished(['Failed to set up swift, retrying update'], RETRY)
+        else:
+            self.setProperty('swift_toolchain_rebuilt', True)
+            self.setProperty('is_clean', True)
+            steps_to_add += [InstallSwiftToolchain(), CleanBuildIfScheduled()]
+
+        self.build.addStepsAfterCurrentStep(steps_to_add)
+
+        return defer.returnValue(rc)
+
+    def getResultSummary(self):
+        if self.results == SKIPPED:
+            return {'step': 'Swift toolchain already exists'}
+        elif self.results == WARNINGS:
+            return {'step': 'Failed to update swift, using previous checkout'}
+        elif self.results != SUCCESS:
+            return {'step': 'Failed to build Swift'}
+        return {'step': 'Successfully built Swift'}
+
+    def doStepIf(self, step):
+        return self.getProperty('canonical_swift_tag') and self.getProperty('current_swift_tag', '') != self.getProperty('canonical_swift_tag')

@@ -45,7 +45,7 @@ namespace WebCore {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(AudioParam);
 
-static void replaceNaNValues(std::span<float> values, float defaultValue)
+static void NODELETE replaceNaNValues(std::span<float> values, float defaultValue)
 {
     for (auto& value : values) {
         if (std::isnan(value))
@@ -119,11 +119,6 @@ ExceptionOr<void> AudioParam::setAutomationRate(AutomationRate automationRate)
 
     m_automationRate = automationRate;
     return { };
-}
-
-float AudioParam::smoothedValue()
-{
-    return m_smoothedValue;
 }
 
 bool AudioParam::smooth()
@@ -383,7 +378,7 @@ void AudioParam::disconnect(AudioNodeOutput* output)
     if (!output)
         return;
 
-    INFO_LOG(LOGIDENTIFIER, output->node()->nodeType());
+    INFO_LOG_IF(!context()->isAudioThread(), LOGIDENTIFIER, output->node()->nodeType());
 
     if (removeOutput((*output)))
         output->removeParam(this);

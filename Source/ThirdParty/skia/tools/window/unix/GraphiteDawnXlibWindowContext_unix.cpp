@@ -6,13 +6,13 @@
  */
 // Important to put this first because webgpu_cpp.h and X.h don't get along.
 // Include these first, before X11 defines None, Success, Status etc.
-#include "dawn/native/DawnNative.h"  // NO_G3_REWRITE
-#include "webgpu/webgpu_cpp.h"       // NO_G3_REWRITE
+#include "dawn/native/DawnNative.h"
+#include "webgpu/webgpu_cpp.h"
 
 #include "tools/window/unix/GraphiteDawnXlibWindowContext_unix.h"
-
 #include "tools/window/GraphiteDawnWindowContext.h"
 #include "tools/window/unix/XlibWindowInfo.h"
+#include "include/private/base/SkLog.h"
 
 using skwindow::XlibWindowInfo;
 using skwindow::DisplayParams;
@@ -22,9 +22,9 @@ namespace {
 
 wgpu::BackendType ToDawnBackendType(sk_app::Window::BackendType backendType) {
     switch (backendType) {
-        case sk_app::Window::kGraphiteDawnVulkan_BackendType:
+        case sk_app::Window::BackendType::kGraphiteDawnVulkan:
             return wgpu::BackendType::Vulkan;
-        case sk_app::Window::kGraphiteDawnOpenGLES_BackendType:
+        case sk_app::Window::BackendType::kGraphiteDawnOpenGLES:
             return wgpu::BackendType::OpenGLES;
         default:
             SkASSERT(false);
@@ -33,7 +33,7 @@ wgpu::BackendType ToDawnBackendType(sk_app::Window::BackendType backendType) {
 }
 
 wgpu::TextureFormat GetPreferredFormat(sk_app::Window::BackendType backendType) {
-    if (backendType == sk_app::Window::kGraphiteDawnOpenGLES_BackendType) {
+    if (backendType == sk_app::Window::BackendType::kGraphiteDawnOpenGLES) {
         return wgpu::TextureFormat::RGBA8Unorm;
     }
     return wgpu::TextureFormat::BGRA8Unorm;
@@ -82,7 +82,7 @@ bool GraphiteDawnXlibWindowContext_unix::onInitializeContext() {
 
     auto device = this->createDevice(fBackendType);
     if (!device) {
-        SkASSERT(device);
+        SKIA_LOG_F("Graphite Dawn Xlib Window device %d not created", (int)fBackendType);
         return false;
     }
 

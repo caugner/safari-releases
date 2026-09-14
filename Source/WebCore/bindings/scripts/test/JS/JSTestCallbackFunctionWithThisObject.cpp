@@ -22,6 +22,7 @@
 #include "JSTestCallbackFunctionWithThisObject.h"
 
 #include "ContextDestructionObserverInlines.h"
+#include "JSDOMBindingFacade.h"
 #include "JSDOMConvertBase.h"
 #include "JSDOMConvertInterface.h"
 #include "JSDOMConvertSequences.h"
@@ -30,6 +31,7 @@
 #include "JSTestNode.h"
 #include "ScriptExecutionContext.h"
 #include <JavaScriptCore/JSArray.h>
+#include <JavaScriptCore/MarkedVector.h>
 
 
 namespace WebCore {
@@ -77,7 +79,8 @@ CallbackResult<typename IDLUndefined::CallbackReturnType> JSTestCallbackFunction
     m_data->invokeCallback(thisValue, args, JSCallbackData::CallbackType::Function, Identifier(), returnedException);
     if (returnedException) {
         UNUSED_PARAM(lexicalGlobalObject);
-        reportException(m_data->callback()->globalObject(), returnedException);
+        auto* callbackRealm = m_data->callback()->realmMayBeNull();
+        reportException(callbackRealm ? callbackRealm : m_data->globalObject(), returnedException);
         return CallbackResultType::ExceptionThrown;
      }
 
@@ -112,22 +115,22 @@ CallbackResult<typename IDLUndefined::CallbackReturnType> JSTestCallbackFunction
     return { };
 }
 
-void JSTestCallbackFunctionWithThisObject::visitJSFunction(JSC::AbstractSlotVisitor& visitor)
+void JSTestCallbackFunctionWithThisObject::visitJSFunctionInGCThread(JSC::AbstractSlotVisitor& visitor)
 {
-    m_data->visitJSFunction(visitor);
+    m_data->visitJSFunctionInGCThread(visitor);
 }
 
-void JSTestCallbackFunctionWithThisObject::visitJSFunction(JSC::SlotVisitor& visitor)
+void JSTestCallbackFunctionWithThisObject::visitJSFunctionInGCThread(JSC::SlotVisitor& visitor)
 {
-    m_data->visitJSFunction(visitor);
+    m_data->visitJSFunctionInGCThread(visitor);
 }
 
 JSC::JSValue toJS(TestCallbackFunctionWithThisObject& impl)
 {
-    if (!static_cast<JSTestCallbackFunctionWithThisObject&>(impl).callbackData())
-        return jsNull();
+    if (auto* callbackData = downcast<JSTestCallbackFunctionWithThisObject>(impl).callbackData())
+        return callbackData->callback();
+    return jsNull();
 
-    return static_cast<JSTestCallbackFunctionWithThisObject&>(impl).callbackData()->callback();
 }
 
 ScriptExecutionContext* JSTestCallbackFunctionWithThisObject::scriptExecutionContext() const

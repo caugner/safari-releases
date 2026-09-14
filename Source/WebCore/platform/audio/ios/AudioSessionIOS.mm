@@ -84,11 +84,13 @@
     if (!_callback)
         return;
 
+    // FIXME: Migrate to AVAudioSessionDidBecomeInactiveNotification and AVAudioSessionResumptionRecommendationNotification (rdar://168264893).
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     NSUInteger type = [[[notification userInfo] objectForKey:AVAudioSessionInterruptionTypeKey] unsignedIntegerValue];
     auto flags = (type == AVAudioSessionInterruptionTypeEnded && [[[notification userInfo] objectForKey:AVAudioSessionInterruptionOptionKey] unsignedIntegerValue] == AVAudioSessionInterruptionOptionShouldResume) ? WebCore::AudioSession::MayResume::Yes : WebCore::AudioSession::MayResume::No;
 
     callOnWebThreadOrDispatchAsyncOnMainThread([protectedSelf = retainPtr(self), type, flags]() mutable {
-        auto* callback = protectedSelf->_callback;
+        RefPtr callback = protectedSelf->_callback;
         if (!callback)
             return;
 
@@ -97,12 +99,13 @@
         else
             callback->endInterruption(flags);
     });
+    ALLOW_DEPRECATED_DECLARATIONS_END
 }
 
 - (void)sessionMediaServicesWereReset:(NSNotification *)notification
 {
     if (_callback)
-        _callback->sessionMediaServicesWereReset();
+        protect(_callback)->sessionMediaServicesWereReset();
 }
 @end
 

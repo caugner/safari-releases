@@ -28,6 +28,7 @@
 #include <wtf/Platform.h>
 #include <wtf/Ref.h>
 #include <wtf/RefCounted.h>
+#include <wtf/ThreadSafeWeakPtr.h>
 #include <wtf/WeakPtr.h>
 #include <wtf/text/WTFString.h>
 
@@ -54,6 +55,7 @@ public:
     virtual void updateExternalTexture(CVPixelBufferRef) = 0;
 #endif
     virtual bool isRemoteExternalTextureProxy() const { return false; }
+    virtual bool isExternalTextureImpl() const { return false; }
 
 protected:
     ExternalTexture() = default;

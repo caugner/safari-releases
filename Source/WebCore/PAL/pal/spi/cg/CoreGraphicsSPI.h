@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2014-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -25,7 +25,7 @@
 
 #pragma once
 
-#import <wtf/Compiler.h>
+#include <wtf/Compiler.h>
 #include <wtf/Platform.h>
 
 DECLARE_SYSTEM_HEADER
@@ -55,6 +55,7 @@ DECLARE_SYSTEM_HEADER
 #include <CoreGraphics/CGPathPrivate.h>
 #include <CoreGraphics/CGShadingPrivate.h>
 #include <CoreGraphics/CGStylePrivate.h>
+#include <CoreGraphics/CGToneMappingPrivate.h>
 #include <CoreGraphics/CoreGraphicsPrivate.h>
 
 #if PLATFORM(MAC)
@@ -85,6 +86,7 @@ typedef CF_ENUM (int32_t, CGContextDelegateCallbackName)
     deDrawGlyphs = 8,
     deBeginLayer = 17,
     deEndLayer = 18,
+    deGetColorSpace = 30,
 };
 
 typedef const struct CGColorTransform* CGColorTransformRef;
@@ -229,6 +231,9 @@ typedef CF_ENUM (int32_t, CGStyleType)
 #endif
 };
 
+extern const const CFStringRef kCGConstrainedDynamicRange;
+extern const const CFStringRef kCGContentEDRStrength;
+
 #if PLATFORM(MAC)
 
 typedef CF_ENUM(uint32_t, CGSNotificationType) {
@@ -334,7 +339,6 @@ void CGContextSetBaseCTM(CGContextRef, CGAffineTransform);
 void CGContextSetCTM(CGContextRef, CGAffineTransform);
 void CGContextSetCompositeOperation(CGContextRef, CGCompositeOperation);
 void CGContextSetShouldAntialiasFonts(CGContextRef, bool shouldAntialiasFonts);
-void CGContextResetClip(CGContextRef);
 CGContextType CGContextGetType(CGContextRef);
 
 CFStringRef CGFontCopyFamilyName(CGFontRef);
@@ -386,6 +390,7 @@ size_t CGIOSurfaceContextGetBitmapInfo(CGContextRef);
 void CGIOSurfaceContextSetDisplayMask(CGContextRef, uint32_t mask);
 IOSurfaceRef CGIOSurfaceContextGetSurface(CGContextRef);
 void CGIOSurfaceContextInvalidateSurface(CGContextRef);
+void CGIOSurfaceContextFlushQueue(CGContextRef);
 #endif // HAVE(IOSURFACE)
 
 #if PLATFORM(COCOA)
@@ -396,8 +401,7 @@ typedef bool (^CGPDFAnnotationDrawCallbackType)(CGContextRef context, CGPDFPageR
 void CGContextDrawPDFPageWithAnnotations(CGContextRef, CGPDFPageRef, CGPDFAnnotationDrawCallbackType);
 void CGContextDrawPathDirect(CGContextRef, CGPathDrawingMode, CGPathRef, const CGRect* boundingBox);
 
-CGColorSpaceRef CGContextCopyDeviceColorSpace(CGContextRef);
-CFPropertyListRef CGColorSpaceCopyPropertyList(CGColorSpaceRef);
+CGColorSpaceRef CGContextGetColorSpace(CGContextRef);
 CGError CGSNewRegionWithRect(const CGRect*, CGRegionRef*);
 CGError CGSPackagesEnableConnectionOcclusionNotifications(CGSConnectionID, bool flag, bool* outCurrentVisibilityState);
 CGError CGSPackagesEnableConnectionWindowModificationNotifications(CGSConnectionID, bool flag, bool* outConnectionIsCurrentlyIdle);
@@ -413,10 +417,14 @@ void CGContextSetStyle(CGContextRef, CGStyleRef);
 void CGContextDrawConicGradient(CGContextRef, CGGradientRef, CGPoint center, CGFloat angle);
 void CGPathAddUnevenCornersRoundedRect(CGMutablePathRef, const CGAffineTransform *, CGRect, const CGSize corners[4]);
 bool CGFontRenderingGetFontSmoothingDisabled(void);
-CGShadingRef CGShadingCreateConic(CGColorSpaceRef, CGPoint center, CGFloat angle, CGFunctionRef);
 
 CGGradientRef CGGradientCreateWithColorComponentsAndOptions(CGColorSpaceRef, const CGFloat*, const CGFloat*, size_t, CFDictionaryRef);
 CGGradientRef CGGradientCreateWithColorsAndOptions(CGColorSpaceRef, CFArrayRef, const CGFloat*, CFDictionaryRef);
+
+#if HAVE(CGPATTERN_CREATE_WITH_IMAGE_TRANSFORM_STEP)
+CGPatternRef CGPatternCreateWithImageTransformStep(CGImageRef, CGAffineTransform,
+    CGFloat xStep, CGFloat yStep, CGPatternTiling);
+#endif
 
 extern const CFStringRef kCGGradientInterpolatesPremultiplied;
 
@@ -464,6 +472,12 @@ CGError CGSSetDenyWindowServerConnections(bool);
 CG_EXTERN void CGEnterLockdownModeForPDF();
 CG_LOCAL bool CGIsInLockdownModeForPDF();
 CG_EXTERN void CGEnterLockdownModeForFonts();
+#endif
+
+#if HAVE(CGCONTEXT_STROKE_ARC)
+void CGContextStrokeArc(CGContextRef cg_nullable,
+    CGFloat x, CGFloat y, CGFloat radius, CGFloat startAngle, CGFloat endAngle,
+    bool clockwise);
 #endif
 
 extern CGDataProviderRef __nullable CGDataProviderCreateWithCopyOfData(const void *, size_t);

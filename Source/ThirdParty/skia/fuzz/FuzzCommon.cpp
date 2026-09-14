@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Google Inc.
+ * Copyright 2018 Google LLC
  *
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
@@ -228,7 +228,7 @@ void FuzzNicePath(Fuzz* fuzz, SkPathBuilder* path, int maxOps) {
                 break;
             case 31:
                 fuzz_nice_float(fuzz, &a, &b);
-                path->setLastPt(a, b);
+                path->setLastPoint({a, b});
                 break;
             default:
                 SkASSERT(false);

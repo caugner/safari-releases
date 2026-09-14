@@ -29,7 +29,6 @@
 #if PLATFORM(MAC)
 
 #import "Blob.h"
-#import "CSSPrimitiveValueMappings.h"
 #import "CSSValuePool.h"
 #import "Color.h"
 #import "ColorCocoa.h"
@@ -56,6 +55,7 @@
 #import "RenderBlock.h"
 #import "RenderImage.h"
 #import "SharedBuffer.h"
+#import "StyleKeyword+Mappings.h"
 #import "WebContentReader.h"
 #import "WebNSAttributedStringExtras.h"
 #import "markup.h"
@@ -84,7 +84,7 @@ void Editor::pasteWithPasteboard(Pasteboard* pasteboard, OptionSet<PasteOption> 
     if (fragment && shouldInsertFragment(*fragment, range, EditorInsertAction::Pasted))
         pasteAsFragment(fragment.releaseNonNull(), canSmartReplaceWithPasteboard(*pasteboard), false, options.contains(PasteOption::IgnoreMailBlockquote) ? MailBlockquoteHandling::IgnoreBlockquote : MailBlockquoteHandling::RespectBlockquote );
     
-    if (auto* client = this->client())
+    if (CheckedPtr client = this->client())
         client->setInsertionPasteboard(String());
 }
 
@@ -204,7 +204,7 @@ static void getImage(Element& imageElement, RefPtr<Image>& image, CachedImage*& 
     if (!renderImage)
         return;
 
-    CachedResourceHandle tentativeCachedImage = renderImage->cachedImage();
+    RefPtr tentativeCachedImage = renderImage->cachedImage();
     if (!tentativeCachedImage || tentativeCachedImage->errorOccurred())
         return;
 

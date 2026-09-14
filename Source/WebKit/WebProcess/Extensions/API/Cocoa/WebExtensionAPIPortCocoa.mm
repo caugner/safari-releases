@@ -41,13 +41,16 @@
 #import "WebExtensionContextMessages.h"
 #import "WebExtensionControllerProxy.h"
 #import "WebExtensionUtilities.h"
+#import "WebFrame.h"
 #import "WebProcess.h"
+#import <WebCore/LocalFrameInlines.h>
+#import <WebCore/UserGestureIndicator.h>
 
 namespace WebKit {
 
 using PortChannelPortMap = HashMap<WebExtensionPortChannelIdentifier, HashSet<WeakRef<WebExtensionAPIPort>>>;
 
-static PortChannelPortMap& webExtensionPorts()
+static PortChannelPortMap& NODELETE webExtensionPorts()
 {
     static MainRunLoopNeverDestroyed<PortChannelPortMap> ports;
     return ports;
@@ -140,7 +143,8 @@ void WebExtensionAPIPort::postMessage(WebFrame& frame, const String& message, NS
 
     RELEASE_LOG_DEBUG(Extensions, "Sent port message for channel %{public}llu from %{public}@ world", channelIdentifier().toUInt64(), toDebugString(contentWorldType()).createNSString().get());
 
-    WebProcess::singleton().send(Messages::WebExtensionContext::PortPostMessage(contentWorldType(), targetContentWorldType(), owningPageProxyIdentifier(), channelIdentifier(), message), extensionContext().identifier());
+    bool userGesture = WebCore::UserGestureIndicator::processingUserGesture();
+    WebProcess::singleton().send(Messages::WebExtensionContext::PortPostMessage(contentWorldType(), targetContentWorldType(), owningPageProxyIdentifier(), channelIdentifier(), message, userGesture), extensionContext().identifier());
 }
 
 void WebExtensionAPIPort::disconnect()
@@ -150,7 +154,7 @@ void WebExtensionAPIPort::disconnect()
     fireDisconnectEventIfNeeded();
 }
 
-void WebExtensionAPIPort::fireMessageEventIfNeeded(id message)
+void WebExtensionAPIPort::fireMessageEventIfNeeded(id message, bool userGesture)
 {
     if (isDisconnected() || isQuarantined() || !m_onMessage || m_onMessage->listeners().isEmpty())
         return;
@@ -162,6 +166,13 @@ void WebExtensionAPIPort::fireMessageEventIfNeeded(id message)
 
     for (RefPtr listener : listenersCopy) {
         auto globalContext = listener->globalContext();
+
+        std::optional<WebCore::UserGestureIndicator> gestureIndicator;
+        if (userGesture) {
+            RefPtr frame = toWebFrame(globalContext);
+            RefPtr coreFrame = frame ? frame->coreLocalFrame() : nullptr;
+            gestureIndicator.emplace(WebCore::IsProcessingUserGesture::Yes, coreFrame ? coreFrame->document() : nullptr);
+        }
 
         listener->call(
             toJSValueRef(globalContext, message),
@@ -221,7 +232,7 @@ WebExtensionAPIEvent& WebExtensionAPIPort::onDisconnect()
     return *m_onDisconnect;
 }
 
-void WebExtensionContextProxy::dispatchPortMessageEvent(std::optional<WebPageProxyIdentifier> sendingPageProxyIdentifier, WebExtensionPortChannelIdentifier channelIdentifier, const String& messageJSON)
+void WebExtensionContextProxy::dispatchPortMessageEvent(std::optional<WebPageProxyIdentifier> sendingPageProxyIdentifier, WebExtensionPortChannelIdentifier channelIdentifier, const String& messageJSON, bool userGesture)
 {
     auto ports = WebExtensionAPIPort::get(channelIdentifier);
     if (ports.isEmpty())
@@ -234,7 +245,7 @@ void WebExtensionContextProxy::dispatchPortMessageEvent(std::optional<WebPagePro
         if (sendingPageProxyIdentifier && sendingPageProxyIdentifier == port->owningPageProxyIdentifier())
             continue;
 
-        port->fireMessageEventIfNeeded(message);
+        port->fireMessageEventIfNeeded(message, userGesture);
     }
 }
 

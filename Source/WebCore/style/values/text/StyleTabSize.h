@@ -24,8 +24,7 @@
 
 #pragma once
 
-#include <WebCore/StyleLengthWrapper.h>
-#include <WebCore/StyleValueTypes.h>
+#include <WebCore/StylePrimitiveNumeric.h>
 
 namespace WebCore {
 
@@ -92,7 +91,7 @@ template<> struct CSSValueConversion<TabSize> { auto operator()(BuilderState&, c
 // MARK: - Blending
 
 template<> struct Blending<TabSize> {
-    auto canBlend(const TabSize&, const TabSize&) -> bool;
+    bool NODELETE canBlend(const TabSize&, const TabSize&);
     auto blend(const TabSize&, const TabSize&, const BlendingContext&) -> TabSize;
 };
 

@@ -56,7 +56,7 @@ using namespace HTMLNames;
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(RenderVideo);
 
-RenderVideo::RenderVideo(HTMLVideoElement& element, RenderStyle&& style)
+RenderVideo::RenderVideo(HTMLVideoElement& element, Style::ComputedStyle&& style)
     : RenderMedia(Type::Video, element, WTF::move(style))
 {
     setIntrinsicSize(calculateIntrinsicSize());
@@ -70,7 +70,7 @@ void RenderVideo::willBeDestroyed()
 {
     visibleInViewportStateChanged();
 
-    if (RefPtr player = protectedVideoElement()->player())
+    if (RefPtr player = videoElement().player())
         player->renderVideoWillBeDestroyed();
 
     RenderMedia::willBeDestroyed();
@@ -78,7 +78,7 @@ void RenderVideo::willBeDestroyed()
 
 void RenderVideo::visibleInViewportStateChanged()
 {
-    protectedVideoElement()->isVisibleInViewportChanged();
+    protect(videoElement())->isVisibleInViewportChanged();
 }
 
 IntSize RenderVideo::defaultSize()
@@ -92,7 +92,7 @@ IntSize RenderVideo::defaultSize()
 
 void RenderVideo::intrinsicSizeChanged()
 {
-    if (protectedVideoElement()->shouldDisplayPosterImage())
+    if (protect(videoElement())->shouldDisplayPosterImage())
         RenderMedia::intrinsicSizeChanged();
     if (updateIntrinsicSize())
         invalidateLineLayout();
@@ -106,14 +106,14 @@ bool RenderVideo::updateIntrinsicSize()
         return false;
 
     // Treat the media player's natural size as visually non-empty.
-    if (protectedVideoElement()->readyState() >= HTMLMediaElementEnums::HAVE_METADATA)
+    if (protect(videoElement())->readyState() >= HTMLMediaElementEnums::HAVE_METADATA)
         incrementVisuallyNonEmptyPixelCountIfNeeded(roundedIntSize(size));
 
     if (size == intrinsicSize())
         return false;
 
     setIntrinsicSize(size);
-    setNeedsPreferredWidthsUpdate();
+    invalidateContentLogicalWidths();
     setNeedsLayout();
     return true;
 }
@@ -187,7 +187,7 @@ void RenderVideo::imageChanged(WrappedImagePtr newImage, const IntRect* rect)
     // Cache the image intrinsic size so we can continue to use it to draw the image correctly
     // even if we know the video intrinsic size but aren't able to draw video frames yet
     // (we don't want to scale the poster to the video size without keeping aspect ratio).
-    if (protectedVideoElement()->shouldDisplayPosterImage())
+    if (protect(videoElement())->shouldDisplayPosterImage())
         m_cachedImageSize = intrinsicSize();
 
     // The intrinsic size is now that of the image, but in case we already had the
@@ -224,12 +224,12 @@ IntRect RenderVideo::videoBoxInRootView() const
 
 bool RenderVideo::shouldDisplayVideo() const
 {
-    return !protectedVideoElement()->shouldDisplayPosterImage();
+    return !protect(videoElement())->shouldDisplayPosterImage();
 }
 
 bool RenderVideo::failedToLoadPosterImage() const
 {
-    return checkedImageResource()->errorOccurred();
+    return protect(imageResource())->errorOccurred();
 }
 
 void RenderVideo::paintReplaced(PaintInfo& paintInfo, const LayoutPoint& paintOffset)
@@ -261,7 +261,7 @@ void RenderVideo::paintReplaced(PaintInfo& paintInfo, const LayoutPoint& paintOf
     if (paintInfo.phase == PaintPhase::Foreground) {
         page->addRelevantRepaintedObject(*this, rect);
         if (displayingPoster && !context.paintingDisabled())
-            protectedDocument()->didPaintImage(videoElement.get(), cachedImage(), videoBoxRect);
+            protect(document())->didPaintImage(videoElement.get(), protect(cachedImage()), videoBoxRect);
     }
 
     LayoutRect contentRect = contentBoxRect();
@@ -310,21 +310,16 @@ void RenderVideo::layout()
     updatePlayer();
 }
 
-void RenderVideo::styleDidChange(Style::Difference difference, const RenderStyle* oldStyle)
+void RenderVideo::styleDidChange(Style::Difference difference, const Style::ComputedStyle* oldStyle)
 {
     RenderMedia::styleDidChange(difference, oldStyle);
-    if (!oldStyle || style().objectFit() != oldStyle->objectFit())
+    if (oldStyle && style().objectFit() != oldStyle->objectFit())
         setNeedsLayout();
 }
 
-HTMLVideoElement& RenderVideo::videoElement() const
+HTMLVideoElement& NODELETE RenderVideo::videoElement() const
 {
     return downcast<HTMLVideoElement>(RenderMedia::mediaElement());
-}
-
-Ref<HTMLVideoElement> RenderVideo::protectedVideoElement() const
-{
-    return videoElement();
 }
 
 void RenderVideo::updateFromElement()
@@ -354,9 +349,9 @@ bool RenderVideo::updatePlayer()
     return intrinsicSizeChanged;
 }
 
-LayoutUnit RenderVideo::computeReplacedLogicalWidth(ShouldComputePreferred shouldComputePreferred) const
+LayoutUnit RenderVideo::computeReplacedLogicalWidth(IsComputingIntrinsicSize isComputingIntrinsicSize) const
 {
-    return computeReplacedLogicalWidthRespectingMinMaxWidth(RenderReplaced::computeReplacedLogicalWidth(shouldComputePreferred), shouldComputePreferred);
+    return computeReplacedLogicalWidthRespectingMinMaxWidth(RenderReplaced::computeReplacedLogicalWidth(isComputingIntrinsicSize), isComputingIntrinsicSize);
 }
 
 LayoutUnit RenderVideo::minimumReplacedHeight() const 
@@ -366,17 +361,17 @@ LayoutUnit RenderVideo::minimumReplacedHeight() const
 
 bool RenderVideo::supportsAcceleratedRendering() const
 {
-    return protectedVideoElement()->supportsAcceleratedRendering();
+    return protect(videoElement())->supportsAcceleratedRendering();
 }
 
 void RenderVideo::acceleratedRenderingStateChanged()
 {
-    protectedVideoElement()->acceleratedRenderingStateChanged();
+    protect(videoElement())->acceleratedRenderingStateChanged();
 }
 
 bool RenderVideo::requiresImmediateCompositing() const
 {
-    RefPtr player = protectedVideoElement()->player();
+    RefPtr player = videoElement().player();
     return player && player->requiresImmediateCompositing();
 }
 
@@ -397,7 +392,7 @@ bool RenderVideo::foregroundIsKnownToBeOpaqueInRect(const LayoutRect& localRect,
 
 bool RenderVideo::hasVideoMetadata() const
 {
-    if (RefPtr player = protectedVideoElement()->player())
+    if (RefPtr player = videoElement().player())
         return player->readyState() >= MediaPlayerEnums::ReadyState::HaveMetadata;
     return false;
 }
@@ -409,7 +404,7 @@ bool RenderVideo::hasPosterFrameSize() const
     // so that contain: inline-size could affect the intrinsic size, which should be 0 x block-size.
     if (shouldApplyInlineSizeContainment())
         isEmpty = isHorizontalWritingMode() ? !m_cachedImageSize.height() : !m_cachedImageSize.width();
-    return protectedVideoElement()->shouldDisplayPosterImage() && !isEmpty && !checkedImageResource()->errorOccurred();
+    return protect(videoElement())->shouldDisplayPosterImage() && !isEmpty && !protect(imageResource())->errorOccurred();
 }
 
 bool RenderVideo::hasDefaultObjectSize() const

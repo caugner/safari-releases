@@ -94,8 +94,10 @@ static bool platformSupportsMetal()
 #if PLATFORM(MAC) || PLATFORM(MACCATALYST)
     // Old Macs, such as MacBookPro11,4 cannot use WebGL via Metal.
     // This check can be removed once they are no longer supported.
+    ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     if (![device supportsFamily:MTLGPUFamilyMac2])
         return false;
+    ALLOW_DEPRECATED_DECLARATIONS_END
 #endif
     return true;
 }
@@ -192,21 +194,6 @@ GraphicsContextGLCocoa::~GraphicsContextGLCocoa()
 IOSurface* GraphicsContextGLCocoa::displayBufferSurface()
 {
     return displayBuffer().surface();
-}
-
-std::tuple<GCGLenum, GCGLenum> GraphicsContextGLCocoa::externalImageTextureBindingPoint()
-{
-    if (m_drawingBufferTextureTarget == -1)
-        EGL_GetConfigAttrib(platformDisplay(), platformConfig(), EGL_BIND_TO_TEXTURE_TARGET_ANGLE, &m_drawingBufferTextureTarget);
-
-    switch (m_drawingBufferTextureTarget) {
-    case EGL_TEXTURE_2D:
-        return std::make_tuple(TEXTURE_2D, TEXTURE_BINDING_2D);
-    case EGL_TEXTURE_RECTANGLE_ANGLE:
-        return std::make_tuple(TEXTURE_RECTANGLE_ARB, TEXTURE_BINDING_RECTANGLE_ARB);
-    }
-    ASSERT_WITH_MESSAGE(false, "Invalid enum returned from EGL_GetConfigAttrib");
-    return std::make_tuple(0, 0);
 }
 
 bool GraphicsContextGLCocoa::platformInitializeContext()
@@ -354,7 +341,6 @@ GraphicsContextGLANGLE::~GraphicsContextGLANGLE()
         EGL_DestroyContext(m_displayObj, m_contextObj);
     }
     ASSERT(currentContext != this);
-    m_drawingBufferTextureTarget = -1;
 }
 
 bool GraphicsContextGLANGLE::makeContextCurrent()
@@ -447,7 +433,7 @@ bool GraphicsContextGLCocoa::bindNextDrawingBuffer()
             EGL_WIDTH, size.width(),
             EGL_HEIGHT, size.height(),
             EGL_IOSURFACE_PLANE_ANGLE, 0,
-            EGL_TEXTURE_TARGET, EGLDrawingBufferTextureTargetForDrawingTarget(drawingBufferTextureTarget()),
+            EGL_TEXTURE_TARGET, EGL_TEXTURE_2D,
             EGL_TEXTURE_INTERNAL_FORMAT_ANGLE, usingAlpha ? GL_BGRA_EXT : GL_RGB,
             EGL_TEXTURE_FORMAT, EGL_TEXTURE_RGBA,
             EGL_TEXTURE_TYPE_ANGLE, GL_UNSIGNED_BYTE,
@@ -461,9 +447,8 @@ bool GraphicsContextGLCocoa::bindNextDrawingBuffer()
         buffer = IOSurfacePbuffer { WTF::move(surface), pbuffer };
     }
 
-    auto [textureTarget, textureBinding] = drawingBufferTextureBindingPoint();
-    ScopedRestoreTextureBinding restoreBinding(textureBinding, textureTarget, textureTarget != TEXTURE_RECTANGLE_ARB);
-    GL_BindTexture(textureTarget, m_texture);
+    ScopedRestoreTextureBinding restoreBinding(TEXTURE_BINDING_2D, TEXTURE_2D);
+    GL_BindTexture(TEXTURE_2D, m_texture);
     if (!EGL_BindTexImage(m_displayObj, buffer.pbuffer(), EGL_BACK_BUFFER)) {
         EGL_DestroySurface(m_displayObj, buffer.pbuffer());
         buffer = { };
@@ -493,7 +478,7 @@ bool GraphicsContextGLANGLE::makeCurrent(GCGLDisplay display, GCGLContext contex
 
 void* GraphicsContextGLCocoa::createPbufferAndAttachIOSurface(GCGLenum target, PbufferAttachmentUsage usage, GCGLenum internalFormat, GCGLsizei width, GCGLsizei height, GCGLenum type, IOSurfaceRef surface, GCGLuint plane)
 {
-    if (target != GraphicsContextGLANGLE::drawingBufferTextureTarget()) {
+    if (target != GraphicsContextGL::TEXTURE_2D) {
         LOG(WebGL, "Unknown texture target %d.", static_cast<int>(target));
         return nullptr;
     }
@@ -543,11 +528,6 @@ GCGLExternalImage GraphicsContextGLCocoa::createExternalImage(ExternalImageSourc
         return tex;
     },
     [&](EGLImageSourceMTLSharedTextureHandle&& sharedTexture) -> RetainPtr<id> {
-#if PLATFORM(IOS_FAMILY_SIMULATOR)
-        UNUSED_VARIABLE(sharedTexture);
-        ASSERT_NOT_REACHED();
-        return nullptr;
-#else
         auto handle = adoptNS([[MTLSharedTextureHandle alloc] initWithMachPort:sharedTexture.handle.sendRight()]);
         if (!handle)
             return nullptr;
@@ -561,7 +541,6 @@ GCGLExternalImage GraphicsContextGLCocoa::createExternalImage(ExternalImageSourc
         RetainPtr<id> texture = adoptNS([mtlDevice newSharedTextureWithHandle:handle.get()]);
         return texture;
         // FIXME: Does the texture have the correct usage mode?
-#endif
     });
 
     if (!texture) {
@@ -572,12 +551,8 @@ GCGLExternalImage GraphicsContextGLCocoa::createExternalImage(ExternalImageSourc
     // Create an EGLImage out of the MTLTexture
     Vector<EGLint, 6> attributes;
     attributes.appendList({ EGL_METAL_TEXTURE_ARRAY_SLICE_ANGLE, layer });
-#if !PLATFORM(IOS_FAMILY_SIMULATOR)
     if (internalFormat)
         attributes.appendList({ EGL_TEXTURE_INTERNAL_FORMAT_ANGLE, static_cast<EGLint>(internalFormat) });
-#else
-    UNUSED_VARIABLE(internalFormat);
-#endif
     attributes.appendList({ EGL_NONE, EGL_NONE });
     auto eglImage = EGL_CreateImageKHR(platformDisplay(), EGL_NO_CONTEXT, EGL_METAL_TEXTURE_ANGLE, reinterpret_cast<EGLClientBuffer>(texture.get()), attributes.span().data());
     if (!eglImage) {
@@ -772,15 +747,14 @@ RefPtr<PixelBuffer> GraphicsContextGLCocoa::readCompositedResults()
     // out of an IOSurface in such a way that drawing the NativeImage would be guaranteed leave
     // the IOSurface be unrefenced after the draw call finishes.
     ScopedTexture texture;
-    auto [textureTarget, textureBinding] = drawingBufferTextureBindingPoint();
-    ScopedRestoreTextureBinding restoreBinding(textureBinding, textureTarget, textureTarget != TEXTURE_RECTANGLE_ARB);
-    GL_BindTexture(textureTarget, texture);
+    ScopedRestoreTextureBinding restoreBinding(TEXTURE_BINDING_2D, TEXTURE_2D);
+    GL_BindTexture(TEXTURE_2D, texture);
     if (!EGL_BindTexImage(m_displayObj, buffer.pbuffer(), EGL_BACK_BUFFER))
         return nullptr;
-    GL_TexParameteri(textureTarget, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    GL_TexParameteri(TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     ScopedFramebuffer fbo;
     ScopedRestoreReadFramebufferBinding fboBinding(m_isForWebGL2, m_state.boundReadFBO, fbo);
-    GL_FramebufferTexture2D(fboBinding.framebufferTarget(), GL_COLOR_ATTACHMENT0, textureTarget, texture, 0);
+    GL_FramebufferTexture2D(fboBinding.framebufferTarget(), GL_COLOR_ATTACHMENT0, TEXTURE_2D, texture, 0);
     ASSERT(GL_CheckFramebufferStatus(fboBinding.framebufferTarget()) == GL_FRAMEBUFFER_COMPLETE);
 
     auto result = readPixelsForPaintResults();
@@ -805,7 +779,7 @@ RefPtr<VideoFrame> GraphicsContextGLCocoa::surfaceBufferToVideoFrame(SurfaceBuff
     if (!source || source.size() != getInternalFramebufferSize())
         return nullptr;
     // We will mirror and rotate the buffer explicitly. Thus the source being used is always a new one.
-    auto pixelBuffer = createCVPixelBuffer(source.surface()->protectedSurface().get());
+    auto pixelBuffer = createCVPixelBuffer(protect(source.surface()->surface()).get());
     if (!pixelBuffer)
         return nullptr;
     // Mirror and rotate the pixel buffer explicitly, as WebRTC encoders cannot mirror.

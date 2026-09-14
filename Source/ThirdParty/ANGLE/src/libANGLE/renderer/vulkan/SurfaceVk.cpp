@@ -613,7 +613,7 @@ void SurfaceVk::destroy(const egl::Display *display)
 
 angle::Result SurfaceVk::getAttachmentRenderTarget(const gl::Context *context,
                                                    GLenum binding,
-                                                   const gl::ImageIndex &imageIndex,
+                                                   const gl::OwnImageIndex &ownImageIndex,
                                                    GLsizei samples,
                                                    FramebufferAttachmentRenderTarget **rtOut)
 {
@@ -840,8 +840,10 @@ EGLint OffscreenSurfaceVk::getSwapBehavior() const
 
 angle::Result OffscreenSurfaceVk::initializeContents(const gl::Context *context,
                                                      GLenum binding,
-                                                     const gl::ImageIndex &imageIndex)
+                                                     const gl::OwnImageIndex &ownImageIndex)
 {
+    const gl::ImageIndex imageIndex = ownImageIndex.getUntranslated();
+
     ContextVk *contextVk = vk::GetImpl(context);
 
     switch (binding)
@@ -1490,7 +1492,7 @@ angle::Result WindowSurfaceVk::initializeImpl(DisplayVk *displayVk, bool *anyMat
 
 angle::Result WindowSurfaceVk::getAttachmentRenderTarget(const gl::Context *context,
                                                          GLenum binding,
-                                                         const gl::ImageIndex &imageIndex,
+                                                         const gl::OwnImageIndex &ownImageIndex,
                                                          GLsizei samples,
                                                          FramebufferAttachmentRenderTarget **rtOut)
 {
@@ -1501,7 +1503,7 @@ angle::Result WindowSurfaceVk::getAttachmentRenderTarget(const gl::Context *cont
         ANGLE_VK_TRACE_EVENT_AND_MARKER(contextVk, "First Swap Image Use");
         ANGLE_TRY(doDeferredAcquireNextImage(contextVk));
     }
-    return SurfaceVk::getAttachmentRenderTarget(context, binding, imageIndex, samples, rtOut);
+    return SurfaceVk::getAttachmentRenderTarget(context, binding, ownImageIndex, samples, rtOut);
 }
 
 angle::Result WindowSurfaceVk::collectOldSwapchain(vk::ErrorContext *context,
@@ -3593,8 +3595,10 @@ angle::Result WindowSurfaceVk::getCurrentFramebuffer(ContextVk *contextVk,
 
 angle::Result WindowSurfaceVk::initializeContents(const gl::Context *context,
                                                   GLenum binding,
-                                                  const gl::ImageIndex &imageIndex)
+                                                  const gl::OwnImageIndex &ownImageIndex)
 {
+    const gl::ImageIndex imageIndex = ownImageIndex.getUntranslated();
+
     ContextVk *contextVk = vk::GetImpl(context);
 
     if (mAcquireOperation.state != ImageAcquireState::Ready)
@@ -3902,19 +3906,13 @@ egl::Error WindowSurfaceVk::getCompressionRate(const egl::Display *display,
         }
     }
 
-    VkImageSubresource2EXT imageSubresource2      = {};
-    imageSubresource2.sType                       = VK_STRUCTURE_TYPE_IMAGE_SUBRESOURCE_2_EXT;
-    imageSubresource2.imageSubresource.aspectMask = mSwapchainImages[0].image->getAspectFlags();
     VkImageCompressionPropertiesEXT compressionProperties = {};
     compressionProperties.sType = VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_PROPERTIES_EXT;
-
-    VkSubresourceLayout2EXT subresourceLayout = {};
+    VkSubresourceLayout2 subresourceLayout    = {};
     subresourceLayout.sType                   = VK_STRUCTURE_TYPE_SUBRESOURCE_LAYOUT_2_EXT;
     subresourceLayout.pNext                   = &compressionProperties;
 
-    vkGetImageSubresourceLayout2EXT(displayVk->getDevice(),
-                                    mSwapchainImages[0].image->getImage().getHandle(),
-                                    &imageSubresource2, &subresourceLayout);
+    mSwapchainImages[0].image->getImageSubresourceLayout(renderer, &subresourceLayout);
 
     std::vector<EGLint> eglFixedRates = vk_gl::ConvertCompressionFlagsToEGLFixedRate(
         compressionProperties.imageCompressionFixedRateFlags, 1);

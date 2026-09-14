@@ -34,13 +34,14 @@
 #include <WebCore/ImageBuffer.h>
 #include <WebCore/IntSize.h>
 #include <WebCore/LocalFrame.h>
+#include <WebCore/LocalFrameView.h>
 #include <WebCore/NativeImage.h>
 #include <WebCore/PlatformScreen.h>
-#include <WebCore/RenderElementStyleInlines.h>
 #include <WebCore/RenderImage.h>
-#include <WebCore/RenderObjectInlines.h>
+#include <WebCore/RenderObjectDocument.h>
 #include <WebCore/RenderVideo.h>
 #include <WebCore/ShareableBitmap.h>
+#include <wtf/NativePromise.h>
 
 namespace WebKit {
 using namespace WebCore;
@@ -48,8 +49,8 @@ using namespace WebCore;
 RefPtr<ShareableBitmap> createShareableBitmap(RenderImage& renderImage, CreateShareableBitmapFromImageOptions&& options)
 {
     Ref frame = renderImage.frame();
-    auto colorSpaceForBitmap = screenColorSpace(frame->protectedMainFrame()->protectedVirtualView().get());
-    if (!renderImage.isRenderMedia() && !renderImage.opacity() && options.useSnapshotForTransparentImages == UseSnapshotForTransparentImages::Yes) {
+    auto colorSpaceForBitmap = screenColorSpace(protect(protect(frame->mainFrame())->virtualView()).get());
+    if (!renderImage.isRenderMedia() && !opacity(renderImage) && options.useSnapshotForTransparentImages == UseSnapshotForTransparentImages::Yes) {
         auto snapshotRect = renderImage.absoluteBoundingBoxRect();
         if (snapshotRect.isEmpty())
             return { };
@@ -76,30 +77,11 @@ RefPtr<ShareableBitmap> createShareableBitmap(RenderImage& renderImage, CreateSh
     }
 
 #if ENABLE(VIDEO)
-    if (auto* renderVideo = dynamicDowncast<RenderVideo>(renderImage)) {
-        Ref video = renderVideo->videoElement();
-        auto image = video->nativeImageForCurrentTime();
-        if (!image)
-            return { };
-
-        auto imageSize = image->size();
-        if (imageSize.isEmpty() || imageSize.width() <= 1 || imageSize.height() <= 1)
-            return { };
-
-        auto bitmap = ShareableBitmap::create({ imageSize, WTF::move(colorSpaceForBitmap) });
-        if (!bitmap)
-            return { };
-
-        auto context = bitmap->createGraphicsContext();
-        if (!context)
-            return { };
-
-        context->drawNativeImage(*image, FloatRect { { }, imageSize }, FloatRect { { }, imageSize });
-        return bitmap;
-    }
+    if (auto* renderVideo = dynamicDowncast<RenderVideo>(renderImage))
+        return protect(renderVideo->videoElement())->bitmapImageForCurrentTimeSync();
 #endif // ENABLE(VIDEO)
 
-    auto* cachedImage = renderImage.cachedImage();
+    RefPtr cachedImage = renderImage.cachedImage();
     if (!cachedImage || cachedImage->errorOccurred())
         return { };
 
@@ -127,6 +109,17 @@ RefPtr<ShareableBitmap> createShareableBitmap(RenderImage& renderImage, CreateSh
 
     graphicsContext->drawImage(*image, FloatRect(0, 0, bitmapSize.width(), bitmapSize.height()), { renderImage.imageOrientation() });
     return sharedBitmap;
+}
+
+Ref<NativePromise<Ref<WebCore::ShareableBitmap>, void>> createShareableBitmapAsync(WebCore::RenderImage& renderImage, CreateShareableBitmapFromImageOptions&& options)
+{
+#if ENABLE(VIDEO)
+    if (auto* renderVideo = dynamicDowncast<RenderVideo>(renderImage))
+        return protect(renderVideo->videoElement())->bitmapImageForCurrentTime();
+#endif
+    if (RefPtr shareableBitmap = createShareableBitmap(renderImage, WTF::move(options)))
+        return NativePromise<Ref<WebCore::ShareableBitmap>, void>::createAndResolve(shareableBitmap.releaseNonNull());
+    return NativePromise<Ref<WebCore::ShareableBitmap>, void>::createAndReject();
 }
 
 }

@@ -27,6 +27,7 @@
 #import "CommandBuffer.h"
 
 #import "APIConversions.h"
+#import "Instance.h"
 #import <wtf/TZoneMallocInlines.h>
 
 namespace WebGPU {
@@ -52,13 +53,13 @@ void CommandBuffer::retainTimestampsForOneUpdateLoop()
 {
     // Workaround for rdar://143905417
     if (RefPtr commandEncoder = m_commandEncoder)
-        m_device->protectedQueue()->retainTimestampsForOneUpdate(commandEncoder->timestampBuffers());
+        m_device->getQueue()->retainTimestampsForOneUpdate(commandEncoder->timestampBuffers());
 }
 
 CommandBuffer::~CommandBuffer()
 {
     retainTimestampsForOneUpdateLoop();
-    m_device->protectedQueue()->removeMTLCommandBuffer(m_commandBuffer);
+    m_device->getQueue()->removeMTLCommandBuffer(m_commandBuffer);
     m_commandBuffer = nil;
     m_cachedCommandBuffer = nil;
 }
@@ -74,7 +75,7 @@ void CommandBuffer::makeInvalid(NSString* lastError)
         return;
 
     m_lastErrorString = lastError;
-    m_device->protectedQueue()->removeMTLCommandBuffer(m_commandBuffer);
+    m_device->getQueue()->removeMTLCommandBuffer(m_commandBuffer);
     retainTimestampsForOneUpdateLoop();
     m_commandBuffer = nil;
     m_cachedCommandBuffer = nil;
@@ -117,9 +118,14 @@ void CommandBuffer::makeInvalidDueToCommit(NSString* lastError)
         [m_commandBuffer encodeSignalEvent:m_sharedEvent value:m_sharedEventSignalValue];
 
     m_cachedCommandBuffer = m_commandBuffer;
-    [m_commandBuffer addCompletedHandler:[protectedThis = Ref { *this }](id<MTLCommandBuffer>) {
+    if (RefPtr instance = m_device->instance())
+        instance->retainCommandBuffer(*this, m_commandBuffer);
+    [m_commandBuffer addCompletedHandler:[protectedThis = protect(*this)](id<MTLCommandBuffer>) {
         protectedThis->m_commandBufferComplete.signal();
-        protectedThis->m_device->protectedQueue()->scheduleWork([protectedThis]() mutable {
+        protectedThis->m_device->getQueue()->scheduleWork([weakThis = ThreadSafeWeakPtr { protectedThis.get() }]() mutable {
+            RefPtr protectedThis { weakThis.get() };
+            if (!protectedThis)
+                return;
             protectedThis->m_cachedCommandBuffer = nil;
             if (RefPtr commandEncoder = protectedThis->m_commandEncoder)
                 commandEncoder->clearTracking();
@@ -150,7 +156,7 @@ bool CommandBuffer::waitForCompletion()
 
 #pragma mark WGPU Stubs
 
-void wgpuCommandBufferReference(WGPUCommandBuffer commandBuffer)
+void NODELETE wgpuCommandBufferReference(WGPUCommandBuffer commandBuffer)
 {
     WebGPU::fromAPI(commandBuffer).ref();
 }
@@ -162,5 +168,5 @@ void wgpuCommandBufferRelease(WGPUCommandBuffer commandBuffer)
 
 void wgpuCommandBufferSetLabel(WGPUCommandBuffer commandBuffer, const char* label)
 {
-    WebGPU::protectedFromAPI(commandBuffer)->setLabel(WebGPU::fromAPI(label));
+    protect(WebGPU::fromAPI(commandBuffer))->setLabel(WebGPU::fromAPI(label));
 }

@@ -48,7 +48,7 @@ void AcceleratedTimelinesUpdater::scrollTimelineDidChange(ScrollTimeline& timeli
 
 void AcceleratedTimelinesUpdater::processTimelinesSeenDuringEffectStacksUpdate(HashSet<Ref<AcceleratedTimeline>>&& timelinesInUpdate)
 {
-    for (auto& timeline : timelinesInUpdate) {
+    for (Ref timeline : timelinesInUpdate) {
         auto& timelineIdentifier = timeline->identifier();
         auto setResult = m_timelines.set(timelineIdentifier, timeline.ptr());
         if (setResult.isNewEntry)
@@ -72,7 +72,7 @@ AcceleratedTimelinesUpdate AcceleratedTimelinesUpdater::takeTimelinesUpdate()
     // Finally, process all timelines that were marked as requiring an update, either
     // marking them as modified or destroyed if they no longer are accelerated.
     auto scrollTimelinesPendingUpdate = std::exchange(m_scrollTimelinesPendingUpdate, { });
-    for (auto& scrollTimeline : scrollTimelinesPendingUpdate) {
+    for (Ref scrollTimeline : scrollTimelinesPendingUpdate) {
         auto timelineIdentifier = scrollTimeline->acceleratedTimelineIdentifier();
         auto acceleratedTimeline = m_timelines.getOptional(timelineIdentifier);
         if (acceleratedTimeline && scrollTimeline->canBeAccelerated()) {

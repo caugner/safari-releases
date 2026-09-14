@@ -43,6 +43,7 @@
 #include <wtf/ASCIICType.h>
 #include <wtf/Scope.h>
 #include <wtf/dtoa.h>
+#include <wtf/glib/GUniquePtr.h>
 #include <wtf/glib/WTFGType.h>
 #include <wtf/text/CString.h>
 #include <wtf/text/StringView.h>
@@ -51,6 +52,16 @@
 /**
  * WPEDisplayDRM:
  *
+ * A [class@WPEPlatform.Display] implementation for DRM/KMS.
+ *
+ * [class@DisplayDRM] is the built-in [class@WPEPlatform.Display]
+ * implementation that drives the screen directly through DRM/KMS, without a
+ * windowing system. Use [ctor@DisplayDRM.new] to create a new instance and
+ * [method@DisplayDRM.connect] to connect to a particular DRM device by name.
+ * [method@DisplayDRM.get_device] gives access to the underlying `gbm_device`,
+ * while [method@DisplayDRM.supports_atomic] and
+ * [method@DisplayDRM.supports_modifiers] report the capabilities of the
+ * device.
  */
 struct _WPEDisplayDRMPrivate {
     std::unique_ptr<WPE::DRM::Session> session;
@@ -370,7 +381,7 @@ static gboolean wpeDisplayDRMSetup(WPEDisplayDRM* displayDRM, const char* device
     std::optional<double> scaleFromEnvironment;
     if (const auto scaleString = StringView::fromLatin1(getenv("WPE_DRM_SCALE"))) {
         RELEASE_ASSERT(scaleString.is8Bit());
-        auto trimmedScaleString = scaleString.trim(isASCIIWhitespace<Latin1Character>);
+        auto trimmedScaleString = scaleString.trim(isASCIIWhitespace);
         size_t parsedLength = 0;
         auto scale = parseDouble(trimmedScaleString, parsedLength);
         if (parsedLength == trimmedScaleString.length() && scaleIsInBounds(scale))
@@ -432,14 +443,19 @@ static WPEView* wpeDisplayDRMCreateView(WPEDisplay* display)
 {
     auto* displayDRM = WPE_DISPLAY_DRM(display);
     auto* view = WPE_VIEW(g_object_new(WPE_TYPE_VIEW_DRM, "display", display, nullptr));
-
-    if (wpe_settings_get_boolean(wpe_display_get_settings(display), WPE_SETTING_CREATE_VIEWS_WITH_A_TOPLEVEL, nullptr)) {
-        GRefPtr<WPEToplevel> toplevel = adoptGRef(wpe_toplevel_drm_new(displayDRM));
-        wpe_view_set_toplevel(view, toplevel.get());
-    }
-
     displayDRM->priv->seat->setView(view);
     return view;
+}
+
+static WPEToplevel* wpeDisplayDRMCreateToplevel(WPEDisplay* display, guint)
+{
+    // DRM doesn't support multiple toplevels.
+    GUniquePtr<GList> toplevels(wpe_toplevel_list());
+    for (auto* iter = toplevels.get(); iter; iter = g_list_next(iter)) {
+        if (WPE_IS_TOPLEVEL_DRM(iter->data))
+            return nullptr;
+    }
+    return WPE_TOPLEVEL(g_object_new(WPE_TYPE_TOPLEVEL_DRM, "display", display, nullptr));
 }
 
 static WPEBufferFormats* wpeDisplayDRMGetPreferredBufferFormats(WPEDisplay* display)
@@ -487,6 +503,7 @@ static void wpe_display_drm_class_init(WPEDisplayDRMClass* displayDRMClass)
     WPEDisplayClass* displayClass = WPE_DISPLAY_CLASS(displayDRMClass);
     displayClass->connect = wpeDisplayDRMConnect;
     displayClass->create_view = wpeDisplayDRMCreateView;
+    displayClass->create_toplevel = wpeDisplayDRMCreateToplevel;
     displayClass->get_preferred_buffer_formats = wpeDisplayDRMGetPreferredBufferFormats;
     displayClass->get_n_screens = wpeDisplayDRMGetNScreens;
     displayClass->get_screen = wpeDisplayDRMGetScreen;

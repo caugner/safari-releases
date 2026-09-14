@@ -66,7 +66,7 @@ public:
     void ref() const final;
     void deref() const final;
 
-    static NavigationState* fromWebPage(WebPageProxy&);
+    static NavigationState* NODELETE fromWebPage(WebPageProxy&);
 
     UniqueRef<API::NavigationClient> createNavigationClient();
     UniqueRef<API::HistoryClient> createHistoryClient();
@@ -106,7 +106,6 @@ private:
         ~NavigationClient();
 
     private:
-        RefPtr<NavigationState> protectedNavigationState() const { return m_navigationState.get(); }
 
         void didStartProvisionalNavigation(WebPageProxy&, const WebCore::ResourceRequest&, API::Navigation*, API::Object*) override;
         void didStartProvisionalLoadForFrame(WebPageProxy&, WebCore::ResourceRequest&&, FrameInfoData&&) override;

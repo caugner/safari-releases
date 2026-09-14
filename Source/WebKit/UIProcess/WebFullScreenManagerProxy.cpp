@@ -82,13 +82,13 @@ WebFullScreenManagerProxy::WebFullScreenManagerProxy(WebPageProxy& page, WebFull
     , m_logIdentifier(page.logIdentifier())
 #endif
 {
-    page.protectedLegacyMainFrameProcess()->addMessageReceiver(Messages::WebFullScreenManagerProxy::messageReceiverName(), page.webPageIDInMainFrameProcess(), *this);
+    protect(page.legacyMainFrameProcess())->addMessageReceiver(Messages::WebFullScreenManagerProxy::messageReceiverName(), page.webPageIDInMainFrameProcess(), *this);
 }
 
 WebFullScreenManagerProxy::~WebFullScreenManagerProxy()
 {
     if (RefPtr page = m_page.get())
-        page->protectedLegacyMainFrameProcess()->removeMessageReceiver(Messages::WebFullScreenManagerProxy::messageReceiverName(), page->webPageIDInMainFrameProcess());
+        protect(page->legacyMainFrameProcess())->removeMessageReceiver(Messages::WebFullScreenManagerProxy::messageReceiverName(), page->webPageIDInMainFrameProcess());
     detachFromClient();
     callCloseCompletionHandlers();
 }
@@ -181,6 +181,16 @@ void WebFullScreenManagerProxy::close()
 void WebFullScreenManagerProxy::detachFromClient()
 {
     close();
+
+    // If we were in fullscreen, notify the client that fullscreen has exited,
+    // since the normal IPC round-trip through the web process won't complete
+    // after the page is closed.
+    if (m_fullscreenState != FullscreenState::NotInFullscreen) {
+        m_fullscreenState = FullscreenState::NotInFullscreen;
+        if (RefPtr page = m_page.get())
+            page->fullscreenClient().didExitFullscreen(page.get());
+    }
+
     m_client = nullptr;
 }
 
@@ -210,6 +220,7 @@ Awaitable<bool> WebFullScreenManagerProxy::enterFullScreen(IPC::Connection& conn
 #endif
 #if ENABLE(QUICKLOOK_FULLSCREEN)
     m_mediaDetails = WTF::move(mediaDetails);
+    m_launchInImmersive = mediaDetails.launchInImmersive;
 #endif // ENABLE(QUICKLOOK_FULLSCREEN)
 #endif // PLATFORM(IOS_FAMILY)
 
@@ -232,7 +243,7 @@ Awaitable<bool> WebFullScreenManagerProxy::enterFullScreen(IPC::Connection& conn
         enterFullScreenForOwnerElementsInOtherProcesses(frameID, WTF::move(completionHandler));
     } };
 
-    if (RefPtr page = m_page.get(); page && page->protectedPreferences()->siteIsolationEnabled())
+    if (RefPtr page = m_page.get(); page && protect(page->preferences())->siteIsolationEnabled())
         co_await page->nextPresentationUpdate();
 
     co_return true;

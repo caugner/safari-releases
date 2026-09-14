@@ -23,8 +23,7 @@
  */
 
 #include "config.h"
-#include "Shared/WebKit-Swift.h"
-
+#include "Shared/WebKit-Swift.h" // NOLINT
 #include "Decoder.h" // NOLINT
 #include "HandleMessage.h" // NOLINT
 #include "TestWithSwiftMessages.h" // NOLINT
@@ -37,7 +36,6 @@ namespace WebKit {
 
 void TestWithSwiftMessageForwarder::didReceiveMessage(IPC::Connection& connection, IPC::Decoder& decoder)
 {
-    Ref protectedThis { *this };
     auto target = getMessageTarget();
     if (!target) {
         FATAL("Something is keeping a reference to the message forwarder");
@@ -55,7 +53,6 @@ void TestWithSwiftMessageForwarder::didReceiveMessage(IPC::Connection& connectio
 
 void TestWithSwiftMessageForwarder::didReceiveSyncMessage(IPC::Connection& connection, IPC::Decoder& decoder, UniqueRef<IPC::Encoder>& replyEncoder)
 {
-    Ref protectedThis { *this };
     auto target = getMessageTarget();
     if (!target) {
         FATAL("Something is keeping a reference to the message forwarder");

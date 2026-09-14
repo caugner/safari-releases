@@ -37,7 +37,6 @@
 #import <WebCore/WebCoreThread.h>
 #endif
 
-using namespace WebCore;
 
 #if PLATFORM(IOS_FAMILY)
 static const CFStringRef WebDatabaseOriginWasAddedNotification = CFSTR("com.apple.MobileSafariSettings.WebDatabaseOriginWasAddedNotification");
@@ -99,26 +98,26 @@ WebDatabaseManagerClient::~WebDatabaseManagerClient()
 class DidModifyOriginData {
     WTF_MAKE_TZONE_ALLOCATED_INLINE(DidModifyOriginData);
 public:
-    static void dispatchToMainThread(WebDatabaseManagerClient& client, const SecurityOriginData& origin)
+    static void dispatchToMainThread(WebDatabaseManagerClient& client, const WebCore::SecurityOriginData& origin)
     {
         auto context = makeUnique<DidModifyOriginData>(client, origin);
         callOnMainThread([context = WTF::move(context)] {
-            context->client.dispatchDidModifyOrigin(context->origin);
+            Ref { context->client.get() }->dispatchDidModifyOrigin(context->origin);
         });
     }
 
-    DidModifyOriginData(WebDatabaseManagerClient& client, const SecurityOriginData& origin)
+    DidModifyOriginData(WebDatabaseManagerClient& client, const WebCore::SecurityOriginData& origin)
         : client(client)
         , origin(origin.isolatedCopy())
     {
     }
 
 private:
-    WebDatabaseManagerClient& client;
-    SecurityOriginData origin;
+    WeakRef<WebDatabaseManagerClient> client;
+    WebCore::SecurityOriginData origin;
 };
 
-void WebDatabaseManagerClient::dispatchDidModifyOrigin(const SecurityOriginData& origin)
+void WebDatabaseManagerClient::dispatchDidModifyOrigin(const WebCore::SecurityOriginData& origin)
 {
     if (!isMainThread()) {
         DidModifyOriginData::dispatchToMainThread(*this, origin);
@@ -130,7 +129,7 @@ void WebDatabaseManagerClient::dispatchDidModifyOrigin(const SecurityOriginData&
     [[NSNotificationCenter defaultCenter] postNotificationName:WebDatabaseDidModifyOriginNotification object:webSecurityOrigin.get()];
 }
 
-void WebDatabaseManagerClient::dispatchDidModifyDatabase(const SecurityOriginData& origin, const String& databaseIdentifier)
+void WebDatabaseManagerClient::dispatchDidModifyDatabase(const WebCore::SecurityOriginData& origin, const String& databaseIdentifier)
 {
     if (!isMainThread()) {
         DidModifyOriginData::dispatchToMainThread(*this, origin);
@@ -192,7 +191,7 @@ void WebDatabaseManagerClient::databaseWasDeleted()
         return;
     }
     
-    DatabaseTracker::singleton().removeDeletedOpenedDatabases();
+    WebCore::DatabaseTracker::singleton().removeDeletedOpenedDatabases();
 }
 
 void WebDatabaseManagerClient::databaseOriginWasDeleted()

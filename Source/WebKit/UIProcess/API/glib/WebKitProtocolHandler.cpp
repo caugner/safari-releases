@@ -55,10 +55,6 @@
 #include <sys/utsname.h>
 #endif
 
-#if USE(CAIRO)
-#include <cairo.h>
-#endif
-
 #if PLATFORM(GTK)
 #include "AcceleratedBackingStore.h"
 #include "Display.h"
@@ -106,7 +102,7 @@ void WebKitProtocolHandler::handleRequest(WebKitURISchemeRequest* request)
     URL requestURL = URL(String::fromLatin1(webkit_uri_scheme_request_get_uri(request)));
     if (requestURL.host() == "gpu"_s) {
         auto& page = webkitURISchemeRequestGetWebPage(request);
-        page.protectedLegacyMainFrameProcess()->sendWithAsyncReply(Messages::WebPage::GetRenderProcessInfo(), [this, request = GRefPtr<WebKitURISchemeRequest>(request)](RenderProcessInfo&& info) {
+        protect(page.legacyMainFrameProcess())->sendWithAsyncReply(Messages::WebPage::GetRenderProcessInfo(), [this, request = GRefPtr<WebKitURISchemeRequest>(request)](RenderProcessInfo&& info) {
             handleGPU(request.get(), WTF::move(info));
         }, page.webPageIDInMainFrameProcess());
         return;
@@ -141,7 +137,7 @@ static ASCIILiteral hardwareAccelerationPolicy(WebKitURISchemeRequest* request)
         return "always"_s;
 #if !USE(GTK4)
     case WEBKIT_HARDWARE_ACCELERATION_POLICY_ON_DEMAND:
-        return "on demand"_s;
+        break;
 #endif
     }
 #endif
@@ -157,14 +153,12 @@ static bool webGLEnabled(WebKitURISchemeRequest* request)
 }
 #endif
 
-#if USE(SKIA)
 static bool canvasAccelerationEnabled(WebKitURISchemeRequest* request)
 {
     auto* webView = webkit_uri_scheme_request_get_web_view(request);
     ASSERT(webView);
     return webkit_settings_get_enable_2d_canvas_acceleration(webkit_web_view_get_settings(webView));
 }
-#endif
 
 static bool uiProcessContextIsEGL()
 {
@@ -242,7 +236,7 @@ static String webkitDrmGetModifierName(uint64_t modifier)
     std::unique_ptr<char, decltype(free)*> modifierName(drmGetFormatModifierName(modifier), free);
     return makeString(String::fromUTF8(modifierVendor.get()), "_"_s, String::fromUTF8(modifierName.get()));
 #else
-    return { }
+    return { };
 #endif
 }
 
@@ -372,7 +366,6 @@ static String vblankMonitorType(const DisplayVBlankMonitor& monitor)
     return monitor.type() == DisplayVBlankMonitor::Type::Timer ? "Timer"_s : "DRM"_s;
 }
 
-#if USE(SKIA)
 static String threadedRenderingInfo(const RenderProcessInfo& info)
 {
     if (!info.cpuPaintingThreadsCount && !info.gpuPaintingThreadsCount)
@@ -384,7 +377,6 @@ static String threadedRenderingInfo(const RenderProcessInfo& info)
     ASSERT(info.gpuPaintingThreadsCount);
     return makeString("GPU ("_s, info.gpuPaintingThreadsCount, " threads)"_s);
 }
-#endif
 
 #if USE(LIBDRM)
 static String supportedBufferFormats(const RenderProcessInfo& info, JSON::Array& jsonArray)
@@ -631,10 +623,6 @@ void WebKitProtocolHandler::handleGPU(WebKitURISchemeRequest* request, RenderPro
     const char* desktopName = g_getenv("XDG_CURRENT_DESKTOP");
     addTableRow(versionObject, "Desktop"_s, (desktopName && *desktopName) ? String::fromUTF8(desktopName) : "Unknown"_s);
 
-#if USE(CAIRO)
-    addTableRow(versionObject, "Cairo version"_s, makeString(unsafeSpan(CAIRO_VERSION_STRING), " (build) "_s, unsafeSpan(cairo_version_string()), " (runtime)"_s));
-#endif
-
 #if USE(GSTREAMER)
     GUniquePtr<char> gstVersion(gst_version_string());
     addTableRow(versionObject, "GStreamer version"_s, makeString(GST_VERSION_MAJOR, '.', GST_VERSION_MINOR, '.', GST_VERSION_MICRO, " (build) "_s, unsafeSpan(gstVersion.get()), " (runtime)"_s));
@@ -642,8 +630,6 @@ void WebKitProtocolHandler::handleGPU(WebKitURISchemeRequest* request, RenderPro
 
 #if PLATFORM(GTK)
     addTableRow(versionObject, "GTK version"_s, makeString(GTK_MAJOR_VERSION, '.', GTK_MINOR_VERSION, '.', GTK_MICRO_VERSION, " (build) "_s, gtk_get_major_version(), '.', gtk_get_minor_version(), '.', gtk_get_micro_version(), " (runtime)"_s));
-
-    bool usingDMABufRenderer = AcceleratedBackingStore::checkRequirements();
 #endif
 
 #if PLATFORM(WPE)
@@ -687,7 +673,7 @@ void WebKitProtocolHandler::handleGPU(WebKitURISchemeRequest* request, RenderPro
     addTableRow(displayObject, "Bits per color component"_s, String::number(screenDepthPerComponent(nullptr)));
     addTableRow(displayObject, "Font Scaling DPI"_s, String::number(WebCore::fontDPI()));
 #if PLATFORM(GTK) || (PLATFORM(WPE) && ENABLE(WPE_PLATFORM))
-    addTableRow(displayObject, "Screen DPI"_s, String::number(screenDPI(displayID.value_or(primaryScreenDisplayID()))));
+    addTableRow(displayObject, "Screen DPI"_s, String::number(screenDPI(displayID.value_or(PlatformScreen::singleton()->primaryScreenDisplayID()))));
 #endif
 
     if (displayID) {
@@ -732,14 +718,14 @@ void WebKitProtocolHandler::handleGPU(WebKitURISchemeRequest* request, RenderPro
     addTableRow(hardwareAccelerationObject, "WebGL enabled"_s, webGLEnabled(request) ? "Yes"_s : "No"_s);
 #endif
 
-#if USE(SKIA)
     addTableRow(hardwareAccelerationObject, "2D canvas"_s, canvasAccelerationEnabled(request) ? "Accelerated"_s : "Unaccelerated"_s);
-#endif
 
     if (policy != "never"_s) {
-        addTableRow(hardwareAccelerationObject, "API"_s, String::fromUTF8(openGLAPI()));
+        bool hasEGLContext = uiProcessContextIsEGL() && eglGetCurrentContext() != EGL_NO_CONTEXT;
+
+        addTableRow(hardwareAccelerationObject, "API"_s, hasEGLContext ? String::fromUTF8(openGLAPI()) : "Not available"_s);
 #if PLATFORM(GTK)
-        bool showBuffersInfo = usingDMABufRenderer;
+        bool showBuffersInfo = true;
 #elif PLATFORM(WPE) && ENABLE(WPE_PLATFORM)
         bool showBuffersInfo = usingWPEPlatformAPI;
 #else
@@ -761,8 +747,12 @@ void WebKitProtocolHandler::handleGPU(WebKitURISchemeRequest* request, RenderPro
 
         addTableRow(hardwareAccelerationObject, "Native interface"_s, uiProcessContextIsEGL() ? "EGL"_s : "None"_s);
 
-        if (uiProcessContextIsEGL() && eglGetCurrentContext() != EGL_NO_CONTEXT)
+        if (hasEGLContext)
             addEGLInfo(hardwareAccelerationObject);
+    } else {
+#if PLATFORM(GTK)
+        addTableRow(hardwareAccelerationObject, "Buffer format"_s, renderBufferDescription(request));
+#endif
     }
 
     stopTable();
@@ -777,10 +767,14 @@ void WebKitProtocolHandler::handleGPU(WebKitURISchemeRequest* request, RenderPro
         if (!info.drmVersion.isEmpty())
             addTableRow(hardwareAccelerationObject, "DRM version"_s, info.drmVersion);
 
-#if USE(SKIA)
+#if USE(GBM)
+        if (!info.dmabufExportStrategy.isEmpty())
+            addTableRow(hardwareAccelerationObject, "DMA-BUF export strategy"_s, info.dmabufExportStrategy);
+        addTableRow(hardwareAccelerationObject, "DMA-BUF memory-mapped GPU buffers"_s, info.memoryMappedGPUBufferSupported ? "Yes"_s : "No"_s);
+#endif
+
         addTableRow(hardwareAccelerationObject, "Threaded rendering"_s, threadedRenderingInfo(info));
         addTableRow(hardwareAccelerationObject, "MSAA"_s, info.msaaSampleCount ? makeString(info.msaaSampleCount, " samples"_s) : String("Disabled"_s));
-#endif
 
 #if USE(LIBDRM)
         if (!info.supportedBufferFormats.isEmpty()) {
@@ -806,7 +800,7 @@ void WebKitProtocolHandler::handleGPU(WebKitURISchemeRequest* request, RenderPro
     auto infoAsString = jsonObject->toJSONString();
     htmlBuilder.append("<script>function copyAsJSON() { "
         "var textArea = document.createElement('textarea');"
-        "textArea.value = JSON.stringify("_s, infoAsString, "null, 4);"_s,
+        "textArea.value = JSON.stringify("_s, infoAsString, ", null, 4);"_s,
         "document.body.appendChild(textArea);"
         "textArea.focus();"
         "textArea.select();"

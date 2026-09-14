@@ -26,11 +26,13 @@
 #import "config.h"
 #import "IOSurface.h"
 
+#import "ColorSpaceCG.h"
 #import "DestinationColorSpace.h"
 #import "HostWindow.h"
 #import "IOSurfacePool.h"
 #import "ImageBufferBackend.h"
 #import "Logging.h"
+#import "NativeImage.h"
 #import "PlatformScreen.h"
 #import "ProcessCapabilities.h"
 #import "ProcessIdentity.h"
@@ -38,7 +40,6 @@
 #import <pal/spi/cf/CoreVideoSPI.h>
 #import <pal/spi/cg/CoreGraphicsSPI.h>
 #import <wtf/Assertions.h>
-#import <wtf/CheckedArithmetic.h>
 #import <wtf/EnumTraits.h>
 #import <wtf/MachSendRight.h>
 #import <wtf/MathExtras.h>
@@ -93,7 +94,7 @@ std::unique_ptr<IOSurface> IOSurface::create(IOSurfacePool* pool, IntSize size, 
         if (auto cachedSurface = pool->takeSurface(size, colorSpace, pixelFormat, useLosslessCompression)) {
             LOG_WITH_STREAM(IOSurface, stream << "IOSurface::create took from pool: " << *cachedSurface);
             if (cachedSurface->name() != name) {
-                IOSurfaceSetValue(cachedSurface->protectedSurface().get(), kIOSurfaceName, surfaceNameToNSString(name).get());
+                IOSurfaceSetValue(protect(cachedSurface->surface()).get(), kIOSurfaceName, surfaceNameToNSString(name).get());
                 cachedSurface->setName(name);
             }
             return cachedSurface;
@@ -117,58 +118,6 @@ std::unique_ptr<IOSurface> IOSurface::createFromSendRight(const MachSendRight&& 
 
     auto surface = adoptCF(IOSurfaceLookupFromMachPort(sendRight.sendRight()));
     return IOSurface::createFromSurface(surface.get(), { });
-}
-
-template <unsigned bytesPerElement>
-static std::unique_ptr<IOSurface> validateAndCreateFromUntrustedSurface(IOSurfaceRef surface)
-{
-    static_assert(bytesPerElement > 0);
-    auto width = IOSurfaceGetWidth(surface);
-    auto height = IOSurfaceGetHeight(surface);
-    auto bytesPerRow = IOSurfaceGetBytesPerRow(surface);
-    if (!width || !height || !bytesPerRow)
-        return nullptr;
-    auto maxSize = IOSurface::maximumSize();
-    if (width > size_t(maxSize.width()) || height > size_t(maxSize.height()))
-        return nullptr;
-    auto rowBytes = CheckedSize { width } * bytesPerElement;
-    if (rowBytes.hasOverflowed() || rowBytes.value() > bytesPerRow)
-        return nullptr;
-    auto totalBytes = CheckedSize { bytesPerRow } * height;
-    auto allocSize = IOSurfaceGetAllocSize(surface);
-    if (totalBytes.hasOverflowed() || totalBytes.value() > allocSize)
-        return nullptr;
-
-    return IOSurface::createFromSurface(surface, { });
-}
-
-std::unique_ptr<IOSurface> IOSurface::createFromUntrustedUncompressedWebKitSendRight(const MachSendRight&& sendRight)
-{
-    ASSERT(ProcessCapabilities::canUseAcceleratedBuffers());
-
-    auto surface = adoptCF(IOSurfaceLookupFromMachPort(sendRight.sendRight()));
-    if (!surface)
-        return nullptr;
-
-    unsigned pixelFormat = IOSurfaceGetPixelFormat(surface.get());
-    switch (pixelFormat) {
-    case kCVPixelFormatType_32BGRA:
-    case kCVPixelFormatType_32RGBA:
-#if ENABLE(PIXEL_FORMAT_RGB10)
-    case kCVPixelFormatType_30RGBLEPackedWideGamut:
-#endif
-        return validateAndCreateFromUntrustedSurface<4>(surface.get());
-
-#if ENABLE(PIXEL_FORMAT_RGBA16F)
-    case kCVPixelFormatType_64RGBAHalf:
-        return validateAndCreateFromUntrustedSurface<8>(surface.get());
-#endif
-
-    default:
-        break;
-    }
-
-    return { };
 }
 
 std::unique_ptr<IOSurface> IOSurface::createFromSurface(IOSurfaceRef surface, std::optional<DestinationColorSpace>&& colorSpace)
@@ -203,7 +152,7 @@ void IOSurface::moveToPool(std::unique_ptr<IOSurface>&& surface, IOSurfacePool* 
 
 // MARK: -
 
-static OSType coreVideoFormatFromIOSurfaceFormat(IOSurface::Format format, UseLosslessCompression useLosslessCompression)
+static OSType NODELETE coreVideoFormatFromIOSurfaceFormat(IOSurface::Format format, UseLosslessCompression useLosslessCompression)
 {
     switch (format) {
     case IOSurface::Format::BGRX:
@@ -260,7 +209,7 @@ static RetainPtr<IOSurfaceRef> createSurfaceViaCoreVideo(IntSize size, IOSurface
     CVPixelBufferRef rawPixelBuffer = nullptr;
     CVReturn status = CVPixelBufferCreate(kCFAllocatorDefault, size.width(), size.height(), coreVideoFormat, (CFDictionaryRef)additionalProperties.get(), &rawPixelBuffer);
     if (status != kCVReturnSuccess) {
-        RELEASE_LOG_ERROR(Layers, "IOSurface creation via CVPixelBufferCreate failed for size: (%d %d) and format: (%d) - error %d", size.width(), size.height(), enumToUnderlyingType(format), status);
+        RELEASE_LOG_ERROR(Layers, "IOSurface creation via CVPixelBufferCreate failed for size: (%d %d) and format: (%d) - error %d", size.width(), size.height(), std::to_underlying(format), status);
         return nullptr;
     }
 
@@ -425,7 +374,7 @@ IOSurface::IOSurface(IntSize size, const DestinationColorSpace& colorSpace, IOSu
         setColorSpaceProperty();
         m_totalBytes = IOSurfaceGetAllocSize(m_surface.get());
     } else
-        RELEASE_LOG_ERROR(Layers, "IOSurface creation failed for size: (%d %d) and format: (%d)", size.width(), size.height(), enumToUnderlyingType(format));
+        RELEASE_LOG_ERROR(Layers, "IOSurface creation failed for size: (%d %d) and format: (%d)", size.width(), size.height(), std::to_underlying(format));
 }
 
 static std::optional<IOSurface::UsedFormat> formatFromSurface(IOSurfaceRef surface)
@@ -484,7 +433,7 @@ IOSurface::IOSurface(IOSurfaceRef surface, std::optional<DestinationColorSpace>&
 
 IOSurface::~IOSurface() = default;
 
-static constexpr IntSize fallbackMaxSurfaceDimension()
+static constexpr IntSize NODELETE fallbackMaxSurfaceDimension()
 {
     // Match limits imposed by Core Animation. FIXME: should have API for this <rdar://problem/25454148>
 #if PLATFORM(WATCHOS)
@@ -499,7 +448,7 @@ static constexpr IntSize fallbackMaxSurfaceDimension()
 
 static IntSize computeMaximumSurfaceSize()
 {
-    auto maxSize = IntSize { clampToInteger(IOSurfaceGetPropertyMaximum(kIOSurfaceWidth)), clampToInteger(IOSurfaceGetPropertyMaximum(kIOSurfaceHeight)) };
+    auto maxSize = IntSize { clampTo<int>(IOSurfaceGetPropertyMaximum(kIOSurfaceWidth)), clampTo<int>(IOSurfaceGetPropertyMaximum(kIOSurfaceHeight)) };
 
     // On iOS, there's an additional 8K clamp in CA (rdar://101936907).
     // On some macOS VMs, IOSurfaceGetPropertyMaximum() returns INT_MAX (rdar://113661708).
@@ -511,7 +460,7 @@ static IntSize computeMaximumSurfaceSize()
     return maxSize;
 }
 
-static WTF::Atomic<IntSize>& surfaceMaximumSize()
+static WTF::Atomic<IntSize>& NODELETE surfaceMaximumSize()
 {
     static WTF::Atomic<IntSize> maximumSize;
     return maximumSize;
@@ -534,7 +483,7 @@ IntSize IOSurface::maximumSize()
     return size;
 }
 
-static WTF::Atomic<size_t>& surfaceBytesPerRowAlignment()
+static WTF::Atomic<size_t>& NODELETE surfaceBytesPerRowAlignment()
 {
     static WTF::Atomic<size_t> alignment = 0;
     return alignment;
@@ -583,7 +532,7 @@ RetainPtr<id> IOSurface::asCAIOSurfaceLayerContents() const
         if (m_contentEDRHeadroom && *m_contentEDRHeadroom != 1 && PAL::canLoad_QuartzCore_CAIOSurfaceReloadColorAttributes())
             CAIOSurfaceReloadColorAttributes(result.get());
 #endif
-        return bridge_id_cast(result);
+        return bridge_id_cast(WTF::move(result));
     }
     return asLayerContents();
 }
@@ -592,6 +541,27 @@ RetainPtr<CGImageRef> IOSurface::createImage(CGContextRef context)
 {
     ASSERT(CGIOSurfaceContextGetSurface(context) == m_surface);
     return adoptCF(CGIOSurfaceContextCreateImage(context));
+}
+
+RefPtr<NativeImage> IOSurface::createNativeImage(ShouldForceOpaque shouldForceOpaque)
+{
+    std::optional<CGImageAlphaInfo> alphaInfo;
+#if ENABLE(PIXEL_FORMAT_RGBA16F)
+    // An RGBA16F surface always uses IOSurface::Format::RGBA16F regardless of whether
+    // its contents are opaque, so bitmapConfiguration() assumes premultiplied alpha.
+    // Callers presenting opaque contents must force the alpha channel to be ignored;
+    // otherwise (e.g. a premultiplied WebGPU canvas) the alpha must be preserved so
+    // the contents composite transparently.
+    if (shouldForceOpaque == ShouldForceOpaque::Yes && pixelFormat() == Format::RGBA16F)
+        alphaInfo = kCGImageAlphaNoneSkipLast;
+#else
+    UNUSED_PARAM(shouldForceOpaque);
+#endif
+    RetainPtr<CGContextRef> cgContext { createPlatformContext(0, alphaInfo) };
+    if (!cgContext)
+        return nullptr;
+
+    return NativeImage::create(createImage(cgContext.get()));
 }
 
 RetainPtr<CGImageRef> IOSurface::sinkIntoImage(std::unique_ptr<IOSurface> surface, RetainPtr<CGContextRef> context)
@@ -659,7 +629,7 @@ RetainPtr<CGContextRef> IOSurface::createCompatibleBitmap(unsigned width, unsign
     auto bytesPerRow = roundUpToMultipleOfNonPowerOfTwo(bytesPerRowAlignment(), width * (bitsPerPixel / 8));
 
     ensureColorSpace();
-    return adoptCF(CGBitmapContextCreate(NULL, width, height, configuration.bitsPerComponent, bytesPerRow, m_colorSpace->protectedPlatformColorSpace().get(), configuration.bitmapInfo));
+    return adoptCF(CGBitmapContextCreate(NULL, width, height, configuration.bitsPerComponent, bytesPerRow, protect(m_colorSpace->platformColorSpace()).get(), configuration.bitmapInfo));
 }
 
 RetainPtr<CGContextRef> IOSurface::createPlatformContext(PlatformDisplayID displayID, std::optional<CGImageAlphaInfo> overrideAlphaInfo)
@@ -670,7 +640,7 @@ RetainPtr<CGContextRef> IOSurface::createPlatformContext(PlatformDisplayID displ
     auto bitsPerPixel = configuration.bitsPerComponent * 4;
 
     ensureColorSpace();
-    auto cgContext = adoptCF(CGIOSurfaceContextCreate(m_surface.get(), m_size.width(), m_size.height(), configuration.bitsPerComponent, bitsPerPixel, m_colorSpace->protectedPlatformColorSpace().get(), configuration.bitmapInfo));
+    auto cgContext = adoptCF(CGIOSurfaceContextCreate(m_surface.get(), m_size.width(), m_size.height(), configuration.bitsPerComponent, bitsPerPixel, protect(m_colorSpace->platformColorSpace()).get(), configuration.bitmapInfo));
 
 #if PLATFORM(MAC)
     if (auto displayMask = primaryOpenGLDisplayMask()) {
@@ -698,7 +668,7 @@ std::optional<IOSurface::LockAndContext> IOSurface::createBitmapPlatformContext(
     auto configuration = bitmapConfiguration();
     auto size = this->size();
 
-    auto context = adoptCF(CGBitmapContextCreate(locker->surfaceBaseAddress(), size.width(), size.height(), configuration.bitsPerComponent, bytesPerRow(), colorSpace().protectedPlatformColorSpace().get(), configuration.bitmapInfo));
+    auto context = adoptCF(CGBitmapContextCreate(locker->surfaceBaseAddress(), size.width(), size.height(), configuration.bitsPerComponent, bytesPerRow(), protect(colorSpace().platformColorSpace()).get(), configuration.bitmapInfo));
     if (!context) {
         RELEASE_LOG_ERROR(IOSurface, "IOSurface::createBitmapPlatformContext: Failed to create bitmap context for IOSurface %x (size %d x %d), bitsPerComponent %lu, bytesPerRow %lu", surfaceID(), size.width(), size.height(), configuration.bitsPerComponent, bytesPerRow());
         return std::nullopt;
@@ -853,7 +823,7 @@ void IOSurface::setOwnershipIdentity(IOSurfaceRef surface, const ProcessIdentity
 void IOSurface::setColorSpaceProperty()
 {
     ASSERT(m_colorSpace);
-    auto colorSpaceProperties = adoptCF(CGColorSpaceCopyPropertyList(m_colorSpace->protectedPlatformColorSpace().get()));
+    auto colorSpaceProperties = adoptCF(CGColorSpaceCopyPropertyList(protect(m_colorSpace->platformColorSpace()).get()));
     IOSurfaceSetValue(m_surface.get(), kIOSurfaceColorSpace, colorSpaceProperties.get());
 }
 

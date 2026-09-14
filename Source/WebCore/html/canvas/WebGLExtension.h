@@ -124,7 +124,7 @@ public:
 
     // Only to be used by friend WebCoreOpaqueRoot root(const WebGLExtension<T>*) that cannot be a friend
     // due to C++ warning on some compilers.
-    T* opaqueRoot() const { return m_context.load(); }
+    T* opaqueRoot() const LIFETIME_BOUND { return m_context.load(); }
 
 protected:
     WebGLExtension(T& context, WebGLExtensionName name)
@@ -139,5 +139,10 @@ private:
 };
 
 } // namespace WebCore
+
+#define SPECIALIZE_TYPE_TRAITS_WEBGL_EXTENSION(ExtensionClass) \
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::ExtensionClass) \
+    static bool isType(const WebCore::WebGLExtensionBase& extension) { return extension.name() == WebCore::WebGLExtensionName::ExtensionClass; } \
+SPECIALIZE_TYPE_TRAITS_END()
 
 #endif

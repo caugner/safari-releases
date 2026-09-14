@@ -67,7 +67,7 @@ void CryptoAlgorithmECDSA::sign(const CryptoAlgorithmParameters& parameters, Ref
         });
 }
 
-void CryptoAlgorithmECDSA::verify(const CryptoAlgorithmParameters& parameters, Ref<CryptoKey>&& key, Vector<uint8_t>&& signature, Vector<uint8_t>&& data, BoolCallback&& callback, ExceptionCallback&& exceptionCallback, ScriptExecutionContext& context, WorkQueue& workQueue)
+void CryptoAlgorithmECDSA::doVerify(const CryptoAlgorithmParameters& parameters, Ref<CryptoKey>&& key, Vector<uint8_t>&& signature, Vector<uint8_t>&& data, BoolCallback&& callback, ExceptionCallback&& exceptionCallback, ScriptExecutionContext& context, WorkQueue& workQueue)
 {
     if (key->type() != CryptoKeyType::Public) {
         exceptionCallback(ExceptionCode::InvalidAccessError);
@@ -102,7 +102,6 @@ void CryptoAlgorithmECDSA::generateKey(const CryptoAlgorithmParameters& paramete
 
 void CryptoAlgorithmECDSA::importKey(CryptoKeyFormat format, KeyData&& data, const CryptoAlgorithmParameters& parameters, bool extractable, CryptoKeyUsageBitmap usages, KeyCallback&& callback, ExceptionCallback&& exceptionCallback)
 {
-    using namespace CryptoAlgorithmECDSAInternal;
     const auto& ecParameters = downcast<CryptoAlgorithmEcKeyParams>(parameters);
 
     RefPtr<CryptoKeyEC> result;
@@ -120,12 +119,12 @@ void CryptoAlgorithmECDSA::importKey(CryptoKeyFormat format, KeyData&& data, con
         }
 
         bool isMatched = false;
-        if (key.crv == P256)
-            isMatched = key.alg.isNull() || key.alg == ALG256;
-        if (key.crv == P384)
-            isMatched = key.alg.isNull() || key.alg == ALG384;
-        if (key.crv == P521)
-            isMatched = key.alg.isNull() || key.alg == ALG512;
+        if (key.crv == CryptoAlgorithmECDSAInternal::P256)
+            isMatched = key.alg.isNull() || key.alg == CryptoAlgorithmECDSAInternal::ALG256;
+        if (key.crv == CryptoAlgorithmECDSAInternal::P384)
+            isMatched = key.alg.isNull() || key.alg == CryptoAlgorithmECDSAInternal::ALG384;
+        if (key.crv == CryptoAlgorithmECDSAInternal::P521)
+            isMatched = key.alg.isNull() || key.alg == CryptoAlgorithmECDSAInternal::ALG512;
         if (!isMatched) {
             exceptionCallback(ExceptionCode::DataError);
             return;

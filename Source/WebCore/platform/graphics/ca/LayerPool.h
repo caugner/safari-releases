@@ -47,9 +47,9 @@ public:
     WEBCORE_EXPORT LayerPool();
     WEBCORE_EXPORT ~LayerPool();
 
-    static HashSet<CheckedPtr<LayerPool>>& allLayerPools();
+    static HashSet<CheckedPtr<LayerPool>>& NODELETE allLayerPools();
     
-    void addLayer(const RefPtr<PlatformCALayer>&);
+    void addLayer(PlatformCALayer&);
     RefPtr<PlatformCALayer> takeLayerWithSize(const IntSize&);
 
     void drain();
@@ -58,7 +58,7 @@ public:
     unsigned capacity() const { return m_maxBytesForPool; }
 
 private:
-    typedef Deque<RefPtr<PlatformCALayer>> LayerList;
+    typedef Deque<Ref<PlatformCALayer>> LayerList;
 
     unsigned decayedCapacity() const;
 

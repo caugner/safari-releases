@@ -29,6 +29,7 @@
 
 #include "GameControllerHapticEngines.h"
 #include <WebCore/PlatformGamepad.h>
+#include <WebCore/SharedGamepadValue.h>
 #include <wtf/RetainPtr.h>
 #include <wtf/TZoneMalloc.h>
 
@@ -53,8 +54,8 @@ public:
     GameControllerGamepad(GCController *, unsigned index);
     ~GameControllerGamepad();
 
-    const Vector<SharedGamepadValue>& axisValues() const final { return m_axisValues; }
-    const Vector<SharedGamepadValue>& buttonValues() const final { return m_buttonValues; }
+    const Vector<SharedGamepadValue>& axisValues() const LIFETIME_BOUND final { return m_axisValues; }
+    const Vector<SharedGamepadValue>& buttonValues() const LIFETIME_BOUND final { return m_buttonValues; }
     void playEffect(GamepadHapticEffectType, const GamepadEffectParameters&, CompletionHandler<void(bool)>&&) final;
     void stopEffects(CompletionHandler<void()>&&) final;
 
@@ -68,7 +69,6 @@ private:
 
 #if HAVE(WIDE_GAMECONTROLLER_SUPPORT)
     GameControllerHapticEngines& ensureHapticEngines();
-    Ref<GameControllerHapticEngines> ensureProtectedHapticEngines() { return ensureHapticEngines(); }
 #endif
 
     const RetainPtr<GCController> m_gcController;

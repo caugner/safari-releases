@@ -33,6 +33,7 @@
 #import "Logging.h"
 #import "MessageSenderInlines.h"
 #import "PlaybackSessionManager.h"
+#import "TextRecognitionRequest.h"
 #import "TextTrackRepresentationCocoa.h"
 #import "VideoPresentationManagerMessages.h"
 #import "VideoPresentationManagerProxyMessages.h"
@@ -42,17 +43,20 @@
 #import <WebCore/Chrome.h>
 #import <WebCore/Color.h>
 #import <WebCore/DocumentFullscreen.h>
+#import <WebCore/DocumentPage.h>
+#import <WebCore/DocumentQuirks.h>
+#import <WebCore/DocumentView.h>
 #import <WebCore/Event.h>
 #import <WebCore/EventNames.h>
 #import <WebCore/HTMLVideoElement.h>
 #import <WebCore/HostingContext.h>
 #import <WebCore/LocalFrameView.h>
+#import <WebCore/Page.h>
 #import <WebCore/PictureInPictureSupport.h>
 #import <WebCore/PlatformCALayer.h>
 #import <WebCore/Quirks.h>
 #import <WebCore/RenderLayer.h>
 #import <WebCore/RenderLayerBacking.h>
-#import <WebCore/RenderObjectInlines.h>
 #import <WebCore/RenderVideoInlines.h>
 #import <WebCore/RenderView.h>
 #import <WebCore/Settings.h>
@@ -77,10 +81,10 @@ static FloatRect inlineVideoFrame(HTMLVideoElement& element)
     if (!renderer)
         return { };
 
-    if (renderer->hasLayer() && renderer->checkedEnclosingLayer()->isComposited()) {
+    if (renderer->hasLayer() && renderer->enclosingLayer()->isComposited()) {
         FloatQuad contentsBox = static_cast<FloatRect>(renderer->enclosingLayer()->backing()->contentsBox());
-        contentsBox = renderer->localToAbsoluteQuad(contentsBox);
-        return document->protectedView()->contentsToRootView(contentsBox.boundingBox());
+        contentsBox = renderer->localToContainerQuad(contentsBox, nullptr);
+        return protect(document->view())->contentsToRootView(contentsBox.boundingBox());
     }
 
     return renderer->videoBoxInRootView();
@@ -288,13 +292,13 @@ bool VideoPresentationManager::canEnterVideoFullscreen(HTMLVideoElement& videoEl
     ASSERT(mode != HTMLMediaElementEnums::VideoFullscreenModeNone);
 
 #if ENABLE(FULLSCREEN_API)
-    if (videoElement.protectedDocument()->protectedFullscreen()->isAnimatingFullscreen())
+    if (protect(protect(videoElement.document())->fullscreen())->isAnimatingFullscreen())
         return false;
 #endif
 
 #if PLATFORM(IOS) || PLATFORM(VISION)
     if (m_currentVideoFullscreenMode == mode)
-        return videoElement.protectedDocument()->quirks().allowLayeredFullscreenVideos();
+        return protect(videoElement.document())->quirks().allowLayeredFullscreenVideos();
 #endif
     return true;
 }
@@ -472,7 +476,7 @@ void VideoPresentationManager::enterVideoFullscreenForVideoElement(HTMLVideoElem
     auto setupFullscreen = [protectedThis = Ref { *this }, page = WeakPtr { m_page }, contextId = contextId, initialSize = initialSize, videoRect = videoRect, videoElement = WeakPtr { videoElement }, allowsPictureInPicture = allowsPictureInPicture, standby = standby, fullscreenMode = interface->fullscreenMode()] (HostingContext hostingContext, const FloatSize& size) {
         if (!page || !videoElement)
             return;
-        page->send(Messages::VideoPresentationManagerProxy::SetupFullscreenWithID(processQualify(contextId), hostingContext, videoRect, initialSize, size, page->deviceScaleFactor(), fullscreenMode, allowsPictureInPicture, standby, videoElement->protectedDocument()->quirks().blocksReturnToFullscreenFromPictureInPictureQuirk()));
+        page->send(Messages::VideoPresentationManagerProxy::SetupFullscreenWithID(processQualify(contextId), hostingContext, videoRect, initialSize, size, page->deviceScaleFactor(), fullscreenMode, allowsPictureInPicture, standby, protect(videoElement->document())->quirks().blocksReturnToFullscreenFromPictureInPictureQuirk()));
 
         if (RefPtr player = videoElement->player()) {
             if (auto identifier = player->identifier())
@@ -638,6 +642,11 @@ void VideoPresentationManager::requestFullscreenMode(WebCore::MediaPlayerClientI
 void VideoPresentationManager::fullscreenModeChanged(WebCore::MediaPlayerClientIdentifier contextId, WebCore::HTMLMediaElementEnums::VideoFullscreenMode videoFullscreenMode)
 {
     auto [model, interface] = ensureModelAndInterface(contextId);
+#if PLATFORM(IOS)
+    HTMLMediaElementEnums::VideoFullscreenMode oldMode = interface->fullscreenMode();
+    if (oldMode == HTMLMediaElementEnums::VideoFullscreenModeNone)
+        addClientForContext(contextId);
+#endif
     model->fullscreenModeChanged(videoFullscreenMode, VideoPresentationModel::ShouldNotifyMediaElement::Yes);
     interface->setFullscreenMode(videoFullscreenMode);
 }
@@ -736,8 +745,12 @@ void VideoPresentationManager::didEnterFullscreen(WebCore::MediaPlayerClientIden
 
     videoElement->didEnterFullscreenOrPictureInPicture(valueOrDefault(size));
 
-    if (interface->targetIsFullscreen() || interface->fullscreenStandby())
+    if (interface->targetIsFullscreen() || interface->fullscreenStandby()) {
+#if ENABLE(IMAGE_ANALYSIS) && PLATFORM(IOS_FAMILY)
+        m_playbackSessionManager->textRecognitionRequest().requestTextRecognitionFor(contextId);
+#endif
         return;
+    }
 
     // exit fullscreen now if it was previously requested during an animation.
     RunLoop::mainSingleton().dispatch([protectedThis = Ref { *this }, videoElement] {
@@ -792,6 +805,10 @@ void VideoPresentationManager::didExitFullscreen(WebCore::MediaPlayerClientIdent
     auto [model, interface] = ensureModelAndInterface(contextId);
 
 #if PLATFORM(IOS_FAMILY)
+#if ENABLE(IMAGE_ANALYSIS)
+    m_playbackSessionManager->textRecognitionRequest().requestTextRecognitionFor(contextId);
+#endif
+
     RunLoop::mainSingleton().dispatch([protectedThis = Ref { *this }, contextId] {
         if (RefPtr page = protectedThis->m_page.get())
             page->send(Messages::VideoPresentationManagerProxy::CleanupFullscreen(processQualify(contextId)));
@@ -906,7 +923,7 @@ void VideoPresentationManager::setCurrentVideoFullscreenMode(VideoPresentationIn
 
 void VideoPresentationManager::setVideoLayerFrameFenced(WebCore::MediaPlayerClientIdentifier contextId, WebCore::FloatRect bounds, WTF::MachSendRightAnnotated&& sendRightAnnotated)
 {
-    RELEASE_LOG_FORWARDABLE(Media, VIDEOPRESENTATIONMANAGER_SETVIDEOLAYERFRAMEFENCED, contextId.toUInt64(), sendRightAnnotated.sendRight.sendRight(), static_cast<uint64_t>(sendRightAnnotated.data.size()));
+    RELEASE_LOG_FORWARDABLE(Media, VideoPresentationManagerSetVideoLayerFrameFenced, contextId.toUInt64(), sendRightAnnotated.sendRight.sendRight(), static_cast<uint64_t>(sendRightAnnotated.data.size()));
 
     auto [model, interface] = ensureModelAndInterface(contextId);
 

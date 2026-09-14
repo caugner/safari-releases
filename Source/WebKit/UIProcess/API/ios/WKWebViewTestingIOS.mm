@@ -196,12 +196,11 @@ static void dumpSeparatedLayerProperties(TextStream&, CALayer *) { }
 
 static String allowListedClassToString(UIView *view)
 {
-    static constexpr SortedArraySet allowedClasses { std::to_array<ComparableASCIILiteral>({
+    static constexpr SortedArraySet allowedClasses { WTF::toArray<ComparableASCIILiteral>({
         "UIView"_s,
         "WKBackdropView"_s,
         "WKCompositingView"_s,
         "WKContentView"_s,
-        "WKModelView"_s,
         "WKScrollView"_s,
         "WKSeparatedImageView"_s,
         "WKSeparatedModelView"_s,
@@ -223,7 +222,7 @@ static String allowListedClassToString(UIView *view)
 #if HAVE(CORE_ANIMATION_SEPARATED_LAYERS)
 static bool shouldDumpSeparatedDetails(UIView *view)
 {
-    static constexpr SortedArraySet deniedClasses { std::to_array<ComparableASCIILiteral>({
+    static constexpr SortedArraySet deniedClasses { WTF::toArray<ComparableASCIILiteral>({
         "WKCompositingView"_s,
         "WKSeparatedImageView"_s,
     }) };
@@ -252,7 +251,7 @@ static void dumpUIView(TextStream& ts, UIView *view, bool traverse)
 #if ENABLE(OVERLAY_REGIONS_IN_EVENT_REGION)
     if ([view isKindOfClass:[WKBaseScrollView class]]) {
         ts.dumpProperty("scrolling behavior"_s, makeString([(WKBaseScrollView *)view _scrollingBehavior]));
-
+#if !ENABLE(OVERLAY_REGIONS_REMOTE_EFFECT)
         auto rects = [(WKBaseScrollView *)view overlayRegionsForTesting];
         auto overlaysAsStrings = adoptNS([[NSMutableArray alloc] initWithCapacity:rects.size()]);
         for (auto rect : rects)
@@ -261,12 +260,39 @@ static void dumpUIView(TextStream& ts, UIView *view, bool traverse)
         [overlaysAsStrings sortUsingSelector:@selector(localizedCaseInsensitiveCompare:)];
         for (NSString *overlayAsString in overlaysAsStrings.get())
             ts.dumpProperty("overlay region"_s, overlayAsString);
-
+#endif
         auto& associatedLayers = [(WKBaseScrollView *)view overlayRegionAssociatedLayersForTesting];
         auto associatedLayersCount = associatedLayers.size();
         if (associatedLayersCount > 0)
             ts.dumpProperty("associated layers"_s, associatedLayersCount);
     }
+
+#if ENABLE(OVERLAY_REGIONS_REMOTE_EFFECT)
+    NSArray<CARemoteEffect *> *effects = [view _remoteEffectsForKey:@"overlayRegion"];
+    if (effects && effects.count > 0) {
+        for (CARemoteEffect *effect in effects) {
+            NSDictionary *userInfo = [effect valueForKey:@"userInfo"];
+            NSArray *rects = userInfo[@"effectiveRects"];
+
+            if (!rects || !rects.count) {
+                // No effectiveRects means the effect uses layer bounds.
+                ts.dumpProperty("overlay region"_s, rectToString(view.bounds));
+            } else {
+                for (NSArray *rectArray in rects) {
+                    if (rectArray.count >= 4) {
+                        CGFloat x = [rectArray[0] doubleValue];
+                        CGFloat y = [rectArray[1] doubleValue];
+                        CGFloat width = [rectArray[2] doubleValue];
+                        CGFloat height = [rectArray[3] doubleValue];
+                        CGRect rect = CGRectMake(x, y, width, height);
+                        ts.dumpProperty("overlay region"_s, rectToString(rect));
+                    }
+                }
+            }
+        }
+    }
+#endif
+
 #endif
 
     ts.dumpProperty("layer bounds"_s, rectToString(view.layer.bounds));
@@ -316,7 +342,7 @@ static void dumpUIView(TextStream& ts, UIView *view, bool traverse)
 {
     if (!layerID)
         return nil;
-    RetainPtr view = downcast<WebKit::RemoteLayerTreeDrawingAreaProxyIOS>(_page->protectedDrawingArea())->viewWithLayerIDForTesting({ ObjectIdentifier<WebCore::PlatformLayerIdentifierType>(layerID), _page->legacyMainFrameProcess().coreProcessIdentifier() });
+    RetainPtr view = downcast<WebKit::RemoteLayerTreeDrawingAreaProxyIOS>(protect(_page->drawingArea()))->viewWithLayerIDForTesting({ ObjectIdentifier<WebCore::PlatformLayerIdentifierType>(layerID), _page->legacyMainFrameProcess().coreProcessIdentifier() });
     if (!view)
         return nil;
 
@@ -342,7 +368,7 @@ static void dumpUIView(TextStream& ts, UIView *view, bool traverse)
     if (ObjectIdentifier<WebCore::ProcessIdentifierType>::isValidIdentifier(processID) && ObjectIdentifier<WebCore::ScrollingNodeIDType>::isValidIdentifier(rawScrollingNodeID))
         scrollingNodeID = WebCore::ScrollingNodeID(ObjectIdentifier<WebCore::ScrollingNodeIDType>(rawScrollingNodeID), ObjectIdentifier<WebCore::ProcessIdentifierType>(processID));
 
-    if (_page->scrollingCoordinatorProxy()->rootScrollingNodeID() == scrollingNodeID) {
+    if (protect(_page->scrollingCoordinatorProxy())->rootScrollingNodeID() == scrollingNodeID) {
         TextStream ts(TextStream::LineMode::MultipleLine);
         {
             TextStream::GroupScope scope(ts);
@@ -412,6 +438,11 @@ static void dumpUIView(TextStream& ts, UIView *view, bool traverse)
     return [_contentView tapHighlightViewRect];
 }
 
+- (CGRect)_focusedElementInteractionRect
+{
+    return [_contentView focusedElementInformation].interactionRect;
+}
+
 - (UIGestureRecognizer *)_imageAnalysisGestureRecognizer
 {
     return [_contentView imageAnalysisGestureRecognizer];
@@ -446,7 +477,7 @@ static void dumpUIView(TextStream& ts, UIView *view, bool traverse)
 {
 #if USE(SYSTEM_PREVIEW)
     if (_page) {
-        if (auto* previewController = _page->systemPreviewController())
+        if (RefPtr previewController = _page->systemPreviewController())
             previewController->triggerSystemPreviewActionWithTargetForTesting(elementID, documentID, pageID);
     }
 #endif
@@ -515,6 +546,16 @@ static void dumpUIView(TextStream& ts, UIView *view, bool traverse)
 #else
     return @{ };
 #endif
+}
+
+- (BOOL)_hasPendingVisibleContentRectUpdateTimerForTesting
+{
+    return _pendingInteractiveObscuredInsetsChangeTimer && _pendingInteractiveObscuredInsetsChangeTimer->isActive();
+}
+
+- (CGRect)_fixedClippingViewBoundsForTesting
+{
+    return [_contentView _fixedClippingViewBoundsForTesting];
 }
 
 @end

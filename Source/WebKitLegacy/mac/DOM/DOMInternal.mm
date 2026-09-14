@@ -26,6 +26,7 @@
 #import "DOMInternal.h"
 
 #import "DOMNodeInternal.h"
+#import <WebCore/DOMWrapperWorld.h>
 #import <WebCore/Document.h>
 #import <WebCore/FrameDestructionObserverInlines.h>
 #import <WebCore/JSNode.h>
@@ -36,6 +37,7 @@
 #import <wtf/HashMap.h>
 #import <wtf/Lock.h>
 #import <wtf/NeverDestroyed.h>
+#import <wtf/cocoa/TypeCastsCocoa.h>
 
 #if PLATFORM(IOS_FAMILY)
 #define NEEDS_WRAPPER_CACHE_LOCK 1
@@ -48,7 +50,7 @@
 static Lock wrapperCacheLock;
 static HashMap<DOMObjectInternal*, NSObject *>& wrapperCache() WTF_REQUIRES_LOCK(wrapperCacheLock)
 #else
-static HashMap<DOMObjectInternal*, NSObject *>& wrapperCache()
+static HashMap<DOMObjectInternal*, NSObject *>& NODELETE wrapperCache()
 #endif
 {
     static NeverDestroyed<HashMap<DOMObjectInternal*, NSObject *>> map;
@@ -110,8 +112,8 @@ void removeDOMWrapper(DOMObjectInternal* impl)
     }
     
     // Extract the WebCore::Node from the ObjectiveC wrapper.
-    DOMNode *n = (DOMNode *)self;
-    WebCore::Node *nodeImpl = core(n);
+    RetainPtr n = dynamic_objc_cast<DOMNode>(self);
+    WebCore::Node *nodeImpl = core(n.get());
 
     // Dig up Interpreter and ExecState.
     auto* frame = nodeImpl->document().frame();
@@ -122,7 +124,7 @@ void removeDOMWrapper(DOMObjectInternal* impl)
     auto* globalObject = frame->script().globalObject(WebCore::mainThreadNormalWorldSingleton());
 
     // Get (or create) a cached JS object for the DOM node.
-    JSC::JSObject *scriptImp = asObject(WebCore::toJS(globalObject, globalObject, nodeImpl));
+    JSC::JSObject *scriptImp = asObject(WebCore::toJS(globalObject, globalObject, *nodeImpl));
 
     JSC::Bindings::RootObject* rootObject = frame->script().bindingRootObject();
 

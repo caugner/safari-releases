@@ -38,7 +38,7 @@ typedef RTCRtpTransceiverDirection RtpTransceiverDirection;
 // https://w3c.github.io/webrtc-pc/#dom-rtcdatachannelinit
 [
     Conditional=WEB_RTC,
-    EnabledBySetting=PeerConnectionEnabled
+    EnabledBySetting=PeerConnectionEnabled,
 ] dictionary RTCDataChannelInit {
     boolean ordered = true;
     [EnforceRange] unsigned short maxPacketLifeTime;
@@ -51,7 +51,7 @@ typedef RTCRtpTransceiverDirection RtpTransceiverDirection;
 
 [
     Conditional=WEB_RTC,
-    EnabledBySetting=PeerConnectionEnabled
+    EnabledBySetting=PeerConnectionEnabled,
 ] dictionary RTCCertificateParameters {
     DOMString name;
     DOMString hash;
@@ -66,7 +66,7 @@ typedef (object or DOMString) AlgorithmIdentifier;
 [
     Conditional=WEB_RTC,
     EnabledBySetting=PeerConnectionEnabled,
-    ImplementedAs=RTCRtpTransceiverInit
+    ImplementedAs=RTCRtpTransceiverInit,
 ] dictionary RTCRtpTransceiverInit {
     RtpTransceiverDirection direction = "sendrecv";
     sequence<MediaStream> streams = [];
@@ -80,13 +80,13 @@ typedef (object or DOMString) AlgorithmIdentifier;
     ExportMacro=WEBCORE_EXPORT,
     Exposed=Window
 ] interface RTCPeerConnection : EventTarget {
-    [CallWith=CurrentDocument] constructor(optional RTCConfiguration configuration);
+    [CallWith=CurrentDocument] constructor(optional RTCConfiguration configuration = {});
 
     // 4.3.2 Interface Definition
-    Promise<RTCSessionDescriptionInit> createOffer(optional RTCOfferOptions offerOptions);
-    Promise<RTCSessionDescriptionInit> createAnswer(optional RTCAnswerOptions answerOptions);
+    Promise<RTCSessionDescriptionInit> createOffer(optional RTCOfferOptions offerOptions = {});
+    Promise<RTCSessionDescriptionInit> createAnswer(optional RTCAnswerOptions answerOptions = {});
 
-    Promise<undefined> setLocalDescription(optional RTCLocalSessionDescriptionInit description);
+    Promise<undefined> setLocalDescription(optional RTCLocalSessionDescriptionInit description = {});
     readonly attribute RTCSessionDescription? localDescription;
     readonly attribute RTCSessionDescription? currentLocalDescription;
     readonly attribute RTCSessionDescription? pendingLocalDescription;
@@ -96,7 +96,7 @@ typedef (object or DOMString) AlgorithmIdentifier;
     readonly attribute RTCSessionDescription? currentRemoteDescription;
     readonly attribute RTCSessionDescription? pendingRemoteDescription;
 
-    Promise<undefined> addIceCandidate(optional (RTCIceCandidateInit or RTCIceCandidate) candidate);
+    Promise<undefined> addIceCandidate(optional (RTCIceCandidateInit or RTCIceCandidate) candidate = {});
 
     readonly attribute RTCSignalingState signalingState;
     readonly attribute RTCIceGatheringState iceGatheringState;
@@ -129,7 +129,7 @@ typedef (object or DOMString) AlgorithmIdentifier;
     RTCRtpSender addTrack(MediaStreamTrack track, MediaStream... streams);
     undefined removeTrack(RTCRtpSender sender);
 
-    RTCRtpTransceiver addTransceiver((MediaStreamTrack or DOMString) track, optional RTCRtpTransceiverInit init);
+    RTCRtpTransceiver addTransceiver((MediaStreamTrack or DOMString) track, optional RTCRtpTransceiverInit init = {});
 
     attribute EventHandler ontrack;
 

@@ -28,7 +28,7 @@
 #include <wtf/glib/GUniquePtr.h>
 #include <wtf/text/CString.h>
 
-#if USE(CAIRO) || PLATFORM(GTK)
+#if PLATFORM(GTK)
 #include <cairo.h>
 #endif
 
@@ -202,7 +202,7 @@ public:
     {
         // Don't make warnings fatal when creating the backend, since atk produces warnings when a11y bus is not running.
         removeLogFatalFlag(G_LOG_LEVEL_WARNING);
-        auto* headlessBackend = new WPEToolingBackends::HeadlessViewBackend(800, 600);
+        auto* headlessBackend = new WPEToolingBackends::HeadlessViewBackend(1024, 768);
         addLogFatalFlag(G_LOG_LEVEL_WARNING);
         // Make the view initially hidden for consistency with GTK tests.
         wpe_view_backend_remove_activity_state(headlessBackend->backend(), wpe_view_activity_state_visible | wpe_view_activity_state_focused);
@@ -363,11 +363,11 @@ public:
     {
         switch (resourcesDir) {
         case WebKitGLibResources: {
-            GUniquePtr<char> resourcesDir(g_build_filename(WEBKIT_SRC_DIR, "Tools", "TestWebKitAPI", "Tests", "WebKitGLib", "resources", nullptr));
+            GUniquePtr<char> resourcesDir(g_build_filename(WEBKIT_SRC_DIR, "Tools", "TestWebKitAPI", "Resources", "glib", nullptr));
             return resourcesDir.get();
         }
         case WebKit2Resources: {
-            GUniquePtr<char> resourcesDir(g_build_filename(WEBKIT_SRC_DIR, "Tools", "TestWebKitAPI", "Tests", "WebKit", nullptr));
+            GUniquePtr<char> resourcesDir(g_build_filename(WEBKIT_SRC_DIR, "Tools", "TestWebKitAPI", "Resources", nullptr));
             return resourcesDir.get();
         }
         }
@@ -388,7 +388,7 @@ public:
         g_log_set_always_fatal(static_cast<GLogLevelFlags>(fatalMask));
     }
 
-#if USE(CAIRO) || PLATFORM(GTK)
+#if PLATFORM(GTK)
     static bool cairoSurfacesEqual(cairo_surface_t* s1, cairo_surface_t* s2)
     {
         return (cairo_image_surface_get_format(s1) == cairo_image_surface_get_format(s2)

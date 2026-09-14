@@ -35,6 +35,7 @@
 #import "SharedBuffer.h"
 #import <objc/runtime.h>
 #import <pal/spi/cocoa/NEFilterSourceSPI.h>
+#import <wtf/BlockPtr.h>
 #import <wtf/CompletionHandler.h>
 #import <wtf/CrossThreadCopier.h>
 #import <wtf/RunLoop.h>
@@ -42,6 +43,7 @@
 #import <wtf/TZoneMallocInlines.h>
 #import <wtf/URL.h>
 #import <wtf/cocoa/RuntimeApplicationChecksCocoa.h>
+#import <wtf/cocoa/TypeCastsCocoa.h>
 #import <wtf/threads/BinarySemaphore.h>
 
 static inline NSData *replacementDataFromDecisionInfo(NSDictionary *decisionInfo)
@@ -93,7 +95,7 @@ void NetworkExtensionContentFilter::willSendRequest(ResourceRequest& request, co
 
     BinarySemaphore semaphore;
     RetainPtr<NSString> modifiedRequestURLString;
-    [m_neFilterSource willSendRequest:request.protectedNSURLRequest(DoNotUpdateHTTPBody).get() decisionHandler:[this, &modifiedRequestURLString, &semaphore](NEFilterSourceStatus status, NSDictionary *decisionInfo) {
+    [m_neFilterSource willSendRequest:protect(request.nsURLRequest(DoNotUpdateHTTPBody)).get() decisionHandler:[this, &modifiedRequestURLString, &semaphore](NEFilterSourceStatus status, NSDictionary *decisionInfo) {
         modifiedRequestURLString = decisionInfo[NEFilterSourceOptionsRedirectURL];
         ASSERT(!modifiedRequestURLString || [modifiedRequestURLString isKindOfClass:[NSString class]]);
         handleDecision(status, replacementDataFromDecisionInfo(decisionInfo));
@@ -137,7 +139,7 @@ void NetworkExtensionContentFilter::willSendRequest(ResourceRequest&& request, c
         }
     }
 
-    RetainPtr nsRequest = request.protectedNSURLRequest(DoNotUpdateHTTPBody);
+    RetainPtr nsRequest = request.nsURLRequest(DoNotUpdateHTTPBody);
 
     auto blockPtr = makeBlockPtr([protectedThis = Ref { *this }, completionHandler = WTF::move(completionHandler)](NEFilterSourceStatus status, NSDictionary *decisionInfo) mutable {
         ASSERT(!RunLoop::isMain());
@@ -175,7 +177,7 @@ void NetworkExtensionContentFilter::responseReceived(const ResourceResponse& res
     }
 
     BinarySemaphore semaphore;
-    [m_neFilterSource receivedResponse:response.protectedNSURLResponse().get() decisionHandler:[this, &semaphore](NEFilterSourceStatus status, NSDictionary *decisionInfo) {
+    [m_neFilterSource receivedResponse:protect(response.nsURLResponse()).get() decisionHandler:[this, &semaphore](NEFilterSourceStatus status, NSDictionary *decisionInfo) {
         handleDecision(status, replacementDataFromDecisionInfo(decisionInfo));
         semaphore.signal();
     }];

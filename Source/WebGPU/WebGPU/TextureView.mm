@@ -170,7 +170,7 @@ bool TextureView::isValid() const
 
 void TextureView::destroy()
 {
-    m_texture = Ref { m_device }->placeholderTexture(format());
+    m_texture = protect(m_device)->placeholderTexture(format());
     if (!m_parentTexture->isCanvasBacking())
         m_device->makeSubmitInvalidClearingEncoders(m_commandEncoders);
 
@@ -194,7 +194,7 @@ id<MTLRasterizationRateMap> TextureView::rasterizationMapForSlice(uint32_t slice
 
 #pragma mark WGPU Stubs
 
-void wgpuTextureViewReference(WGPUTextureView textureView)
+void NODELETE wgpuTextureViewReference(WGPUTextureView textureView)
 {
     WebGPU::fromAPI(textureView).ref();
 }
@@ -206,5 +206,5 @@ void wgpuTextureViewRelease(WGPUTextureView textureView)
 
 void wgpuTextureViewSetLabel(WGPUTextureView textureView, const char* label)
 {
-    WebGPU::protectedFromAPI(textureView)->setLabel(WebGPU::fromAPI(label));
+    protect(WebGPU::fromAPI(textureView))->setLabel(WebGPU::fromAPI(label));
 }

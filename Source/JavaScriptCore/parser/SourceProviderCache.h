@@ -25,6 +25,7 @@
 
 #pragma once
 
+#include <JavaScriptCore/ImplementationVisibility.h>
 #include <JavaScriptCore/SourceProviderCacheItem.h>
 #include <wtf/HashMap.h>
 #include <wtf/RefCounted.h>
@@ -40,7 +41,7 @@ public:
 
     JS_EXPORT_PRIVATE void clear();
     void add(int sourcePosition, std::unique_ptr<SourceProviderCacheItem>);
-    const SourceProviderCacheItem* get(int sourcePosition) const { return m_map.get(sourcePosition); }
+    const SourceProviderCacheItem* get(int sourcePosition) const LIFETIME_BOUND { return m_map.get(sourcePosition); }
 
 private:
     UncheckedKeyHashMap<int, std::unique_ptr<SourceProviderCacheItem>, WTF::IntHash<int>, WTF::UnsignedWithZeroKeyHashTraits<int>> m_map;

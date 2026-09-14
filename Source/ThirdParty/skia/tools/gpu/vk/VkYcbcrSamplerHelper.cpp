@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 Google Inc.
+ * Copyright 2020 Google LLC
  *
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
@@ -213,7 +213,7 @@ skgpu::VulkanAlloc alloc;
     alloc.fSize = requirements.size;
 
     skgpu::graphite::VulkanTextureInfo imageInfo = {
-            static_cast<uint32_t>(vkImageInfo.samples),
+            vkImageInfo.samples,
             skgpu::Mipmapped::kNo,
             VK_IMAGE_CREATE_PROTECTED_BIT,
             vkImageInfo.format,

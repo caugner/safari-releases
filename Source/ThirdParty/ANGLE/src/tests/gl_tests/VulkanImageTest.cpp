@@ -6,10 +6,7 @@
 
 // VulkanImageTest.cpp : Tests of EGL_ANGLE_vulkan_image & GL_ANGLE_vulkan_image extensions.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-#    pragma allow_unsafe_buffers
-#endif
-
+#include "common/unsafe_buffers.h"
 #include "test_utils/ANGLETest.h"
 
 #include "common/debug.h"
@@ -89,13 +86,14 @@ bool VulkanMemoryTest::compatibleMemorySizesForDeviceOOMTest(VkPhysicalDevice ph
     uint32_t heapsWithoutLocalDeviceMemoryBit = 0;
     for (uint32_t i = 0; i < memoryProperties.memoryHeapCount; i++)
     {
-        if ((memoryProperties.memoryHeaps[i].flags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == 0)
+        if ((ANGLE_UNSAFE_TODO(memoryProperties.memoryHeaps[i]).flags &
+             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) == 0)
         {
             heapsWithoutLocalDeviceMemoryBit++;
         }
         else
         {
-            *totalDeviceMemorySizeOut += memoryProperties.memoryHeaps[i].size;
+            *totalDeviceMemorySizeOut += ANGLE_UNSAFE_TODO(memoryProperties.memoryHeaps[i]).size;
         }
     }
 
@@ -160,7 +158,7 @@ TEST_P(VulkanImageTest, DeviceVulkan)
         const char *const *extensions = reinterpret_cast<const char *const *>(result);
         EXPECT_NE(extensions, nullptr);
         int extension_count = 0;
-        while (extensions[extension_count])
+        while (ANGLE_UNSAFE_TODO(extensions[extension_count]))
         {
             extension_count++;
         }
@@ -173,7 +171,7 @@ TEST_P(VulkanImageTest, DeviceVulkan)
         const char *const *extensions = reinterpret_cast<const char *const *>(result);
         EXPECT_NE(extensions, nullptr);
         int extension_count = 0;
-        while (extensions[extension_count])
+        while (ANGLE_UNSAFE_TODO(extensions[extension_count]))
         {
             extension_count++;
         }
@@ -1027,7 +1025,7 @@ TEST_P(VulkanMemoryTest, AllocateBufferAfterFreeing2DGarbageWhenDeviceOOM)
 // Test importing VkImage with VK_FORMAT_R5G6B5_UNORM_PACK16 when ForceFallbackFormat is enabled.
 // This forces ANGLE to use a fallback format (RGBA8) for internal GLES RGB565 textures,
 // but the imported sibling must still use the actual RGB565 format.
-TEST_P(VulkanImageTest, ImportRGB565)
+TEST_P(VulkanRGB565Test, ImportRGB565)
 {
     EGLWindow *window  = getEGLWindow();
     EGLDisplay display = window->getDisplay();
@@ -1137,6 +1135,7 @@ ANGLE_INSTANTIATE_TEST_ES2_AND_ES3_AND(VulkanImageTest,
 ANGLE_INSTANTIATE_TEST_ES2_AND_ES3_AND(
     VulkanRGB565Test,
     ES3_VULKAN_SWIFTSHADER().enable(Feature::PreferBGR565ToRGB565),
+    ES3_VULKAN().enable(Feature::ForceFallbackFormat),
     ES3_VULKAN().enable(Feature::PreferBGR565ToRGB565).enable(Feature::ForceFallbackFormat));
 ANGLE_INSTANTIATE_TEST_ES3(VulkanMemoryTest);
 

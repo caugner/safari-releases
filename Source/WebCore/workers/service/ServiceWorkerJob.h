@@ -34,24 +34,23 @@
 #include <WebCore/WorkerScriptLoader.h>
 #include <WebCore/WorkerScriptLoaderClient.h>
 #include <wtf/CompletionHandler.h>
+#include <wtf/CurrentThread.h>
 #include <wtf/RefPtr.h>
 #include <wtf/RunLoop.h>
 #include <wtf/TZoneMalloc.h>
 #include <wtf/ThreadSafeRefCounted.h>
-#include <wtf/Threading.h>
 
 namespace WebCore {
 
 class DeferredPromise;
 class Exception;
 class ScriptExecutionContext;
-enum class ServiceWorkerJobType : uint8_t;
 struct ServiceWorkerRegistrationData;
 
 class ServiceWorkerJob final : public RefCounted<ServiceWorkerJob>, public WorkerScriptLoaderClient {
     WTF_MAKE_TZONE_ALLOCATED_EXPORT(ServiceWorkerJob, WEBCORE_EXPORT);
 public:
-    static Ref<ServiceWorkerJob> create(ServiceWorkerJobClient&, RefPtr<DeferredPromise>&&, ServiceWorkerJobData&&);
+    static Ref<ServiceWorkerJob> create(ServiceWorkerJobClient&, Ref<DeferredPromise>&&, ServiceWorkerJobData&&);
     WEBCORE_EXPORT ~ServiceWorkerJob();
 
     void ref() const final { RefCounted::ref(); }
@@ -65,22 +64,21 @@ public:
     using Identifier = ServiceWorkerJobIdentifier;
     Identifier identifier() const { return m_jobData.identifier().jobIdentifier; }
 
-    const ServiceWorkerJobData& data() const { return m_jobData; }
-    bool hasPromise() const { return !!m_promise; }
-    RefPtr<DeferredPromise> takePromise();
+    const ServiceWorkerJobData& data() const LIFETIME_BOUND { return m_jobData; }
+    Ref<DeferredPromise> NODELETE takePromise();
 
     void fetchScriptWithContext(ScriptExecutionContext&, FetchOptions::Cache);
 
-    const ServiceWorkerOrClientIdentifier& contextIdentifier() { return m_contextIdentifier; }
+    const ServiceWorkerOrClientIdentifier& contextIdentifier() LIFETIME_BOUND { return m_contextIdentifier; }
 
     bool cancelPendingLoad();
 
     WEBCORE_EXPORT static ResourceError validateServiceWorkerResponse(const ServiceWorkerJobData&, const ResourceResponse&);
 
-    bool isRegistering() const;
+    bool NODELETE isRegistering() const;
 
 private:
-    ServiceWorkerJob(ServiceWorkerJobClient&, RefPtr<DeferredPromise>&&, ServiceWorkerJobData&&);
+    ServiceWorkerJob(ServiceWorkerJobClient&, Ref<DeferredPromise>&&, ServiceWorkerJobData&&);
 
     // WorkerScriptLoaderClient
     void didReceiveResponse(ScriptExecutionContextIdentifier, std::optional<ResourceLoaderIdentifier>, const ResourceResponse&) final;
@@ -88,7 +86,7 @@ private:
 
     WeakPtr<ServiceWorkerJobClient> m_client;
     ServiceWorkerJobData m_jobData;
-    RefPtr<DeferredPromise> m_promise;
+    Ref<DeferredPromise> m_promise;
 
     bool m_completed { false };
 
@@ -96,7 +94,7 @@ private:
     RefPtr<WorkerScriptLoader> m_scriptLoader;
 
 #if ASSERT_ENABLED
-    const Ref<Thread> m_creationThread { Thread::currentSingleton() };
+    const uint32_t m_creationThreadID { currentThreadID() };
 #endif
 };
 

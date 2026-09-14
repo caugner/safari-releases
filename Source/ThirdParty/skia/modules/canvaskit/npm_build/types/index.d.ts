@@ -1924,6 +1924,10 @@ export interface FontMetrics {
     ascent: number;     // suggested space above the baseline. < 0
     descent: number;    // suggested space below the baseline. > 0
     leading: number;    // suggested spacing between descent of previous line and ascent of next line.
+    underlineThickness?: number; // underline thickness
+    underlinePosition?: number;  // distance from baseline to top of stroke, typically positive
+    strikeoutThickness?: number; // strikeout thickness
+    strikeoutPosition?: number;  // distance from baseline to bottom of stroke, typically negative
     bounds?: Rect;      // smallest rect containing all glyphs (relative to 0,0)
 }
 
@@ -4102,7 +4106,7 @@ export interface ShaderFactory {
 
     /**
      * Returns a shader that generates a linear gradient between the two specified points.
-     * See SkGradientShader.h for more.
+     * See SkGradient.h for more.
      * @param start
      * @param end
      * @param colors - colors to be distributed between start and end.
@@ -4122,7 +4126,7 @@ export interface ShaderFactory {
 
     /**
      * Returns a shader that generates a radial gradient given the center and radius.
-     * See SkGradientShader.h for more.
+     * See SkGradient.h for more.
      * @param center
      * @param radius
      * @param colors - colors to be distributed between the center and edge.
@@ -4139,7 +4143,7 @@ export interface ShaderFactory {
 
     /**
      * Returns a shader that generates a sweep gradient given a center.
-     * See SkGradientShader.h for more.
+     * See SkGradient.h for more.
      * @param cx
      * @param cy
      * @param colors - colors to be distributed around the center, within the provided angles.
@@ -4174,7 +4178,7 @@ export interface ShaderFactory {
 
     /**
      * Returns a shader that generates a conical gradient given two circles.
-     * See SkGradientShader.h for more.
+     * See SkGradient.h for more.
      * @param start
      * @param startRadius
      * @param end

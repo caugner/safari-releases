@@ -79,7 +79,8 @@ void GameControllerGamepad::setupElements()
     }
 
     RetainPtr<GCControllerButtonInput> homeButton = profile.get().buttons[GCInputButtonHome];
-    m_buttonValues.resize(homeButton ? numberOfStandardGamepadButtonsWithHomeButton : numberOfStandardGamepadButtonsWithoutHomeButton);
+    bool isExtended = m_gcController.get().extendedGamepad != nil;
+    m_buttonValues.resize((homeButton || isExtended) ? numberOfStandardGamepadButtonsWithHomeButton : numberOfStandardGamepadButtonsWithoutHomeButton);
 
     m_id = makeString(String(m_gcController.get().vendorName), m_gcController.get().extendedGamepad ? " Extended Gamepad"_s : " Gamepad"_s);
 
@@ -223,7 +224,7 @@ GameControllerHapticEngines& GameControllerGamepad::ensureHapticEngines()
 void GameControllerGamepad::playEffect(GamepadHapticEffectType type, const GamepadEffectParameters& parameters, CompletionHandler<void(bool)>&& completionHandler)
 {
 #if HAVE(WIDE_GAMECONTROLLER_SUPPORT)
-    ensureProtectedHapticEngines()->playEffect(type, parameters, WTF::move(completionHandler));
+    protect(ensureHapticEngines())->playEffect(type, parameters, WTF::move(completionHandler));
 #else
     UNUSED_PARAM(type);
     UNUSED_PARAM(parameters);

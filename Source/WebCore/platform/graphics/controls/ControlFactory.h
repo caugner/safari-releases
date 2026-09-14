@@ -46,13 +46,13 @@ class SearchFieldPart;
 class SearchFieldResultsPart;
 class SliderThumbPart;
 class SliderTrackPart;
-class SwitchThumbPart;
-class SwitchTrackPart;
+class SwitchPart;
 class TextAreaPart;
 class TextFieldPart;
 class ToggleButtonPart;
 
-class ControlFactory : public ThreadSafeRefCounted<ControlFactory> {
+// Ensure AppKit objects are always deallocated on the main thread.
+class ControlFactory : public ThreadSafeRefCounted<ControlFactory, WTF::DestructionThread::MainRunLoop> {
     WTF_MAKE_TZONE_ALLOCATED(ControlFactory);
 public:
     virtual ~ControlFactory() = default;
@@ -78,8 +78,7 @@ public:
     virtual std::unique_ptr<PlatformControl> createPlatformSearchFieldResults(SearchFieldResultsPart&) = 0;
     virtual std::unique_ptr<PlatformControl> createPlatformSliderThumb(SliderThumbPart&) = 0;
     virtual std::unique_ptr<PlatformControl> createPlatformSliderTrack(SliderTrackPart&) = 0;
-    virtual std::unique_ptr<PlatformControl> createPlatformSwitchThumb(SwitchThumbPart&) = 0;
-    virtual std::unique_ptr<PlatformControl> createPlatformSwitchTrack(SwitchTrackPart&) = 0;
+    virtual std::unique_ptr<PlatformControl> createPlatformSwitch(SwitchPart&) = 0;
     virtual std::unique_ptr<PlatformControl> createPlatformTextArea(TextAreaPart&) = 0;
     virtual std::unique_ptr<PlatformControl> createPlatformTextField(TextFieldPart&) = 0;
     virtual std::unique_ptr<PlatformControl> createPlatformToggleButton(ToggleButtonPart&) = 0;

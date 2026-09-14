@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021-2025 Apple Inc. All rights reserved.
+ * Copyright (C) 2021-2026 Apple Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -37,15 +37,6 @@ typedef void (^nw_webtransport_receive_error_handler_t)(uint64_t receive_error_c
 typedef void (^nw_webtransport_send_error_handler_t)(uint64_t send_error_code);
 typedef void (^nw_http_optional_string_accessor_t)(const char * _Nullable string);
 
-#if OS_OBJECT_USE_OBJC
-NW_OBJECT_DECL(nw_http_fields);
-NW_OBJECT_DECL_SUBCLASS(nw_http_response, nw_http_fields);
-#else
-struct nw_http_fields;
-typedef struct nw_http_fields *nw_http_fields_t;
-typedef nw_http_fields_t nw_http_response_t;
-#endif // OS_OBJECT_USE_OBJC
-
 #if USE(APPLE_INTERNAL_SDK)
 
 #import <nw/private.h>
@@ -63,6 +54,17 @@ typedef nw_http_fields_t nw_http_response_t;
 // Only needed for running tests.
 #import <NetworkExtension/NEPolicySession.h>
 #endif
+
+#else // !USE(APPLE_INTERNAL_SDK)
+
+#if OS_OBJECT_USE_OBJC
+NW_OBJECT_DECL(nw_http_fields);
+NW_OBJECT_DECL_SUBCLASS(nw_http_response, nw_http_fields);
+#else
+struct nw_http_fields;
+typedef struct nw_http_fields *nw_http_fields_t;
+typedef nw_http_fields_t nw_http_response_t;
+#endif // OS_OBJECT_USE_OBJC
 
 #endif // USE(APPLE_INTERNAL_SDK)
 
@@ -135,7 +137,11 @@ void nw_webtransport_metadata_set_remote_send_error_handler(nw_protocol_metadata
 void nw_connection_abort_reads(nw_connection_t, uint64_t);
 void nw_connection_abort_writes(nw_connection_t, uint64_t);
 
-void nw_http_fields_access_value_by_name(nw_http_fields_t, const char*, nw_http_optional_string_accessor_t);
+#ifndef NS_NOESCAPE
+#define NS_NOESCAPE
+#endif
+
+void nw_http_fields_access_value_by_name(nw_http_fields_t, const char*, NS_NOESCAPE nw_http_optional_string_accessor_t);
 
 WTF_EXTERN_C_END
 

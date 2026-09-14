@@ -74,19 +74,14 @@ LegacyPreviewLoader::LegacyPreviewLoader(ResourceLoader& loader, const ResourceR
     : m_converter { PreviewConverter::create(response, *this) }
     , m_client { makeClient(loader, m_converter->previewFileName(), m_converter->previewUTI()) }
     , m_resourceLoader { loader }
-    , m_shouldDecidePolicyBeforeLoading { loader.frame()->settings().shouldDecidePolicyBeforeLoadingQuickLookPreview() }
+    , m_shouldDecidePolicyBeforeLoading { protect(loader.frame())->settings().shouldDecidePolicyBeforeLoadingQuickLookPreview() }
 {
     ASSERT(PreviewConverter::supportsMIMEType(response.mimeType()));
-    protectedConverter()->addClient(*this);
+    protect(m_converter)->addClient(*this);
     LOG(Network, "LegacyPreviewLoader created with preview file name \"%s\".", m_converter->previewFileName().utf8().data());
 }
 
 LegacyPreviewLoader::~LegacyPreviewLoader() = default;
-
-RefPtr<PreviewConverter> LegacyPreviewLoader::protectedConverter() const
-{
-    return m_converter;
-}
 
 bool LegacyPreviewLoader::didReceiveData(const SharedBuffer& buffer)
 {
@@ -95,7 +90,7 @@ bool LegacyPreviewLoader::didReceiveData(const SharedBuffer& buffer)
 
     LOG(Network, "LegacyPreviewLoader appending buffer with size %ld.", buffer.size());
     m_originalData.append(buffer);
-    protectedConverter()->updateMainResource();
+    protect(m_converter)->updateMainResource();
     m_client->didReceiveData(buffer);
     return true;
 }
@@ -107,7 +102,7 @@ bool LegacyPreviewLoader::didFinishLoading()
 
     LOG(Network, "LegacyPreviewLoader finished appending data.");
     m_finishedLoadingDataIntoConverter = true;
-    protectedConverter()->finishUpdating();
+    protect(m_converter)->finishUpdating();
     m_client->didFinishLoading();
     return true;
 }
@@ -119,7 +114,7 @@ void LegacyPreviewLoader::didFail()
 
     LOG(Network, "LegacyPreviewLoader failed.");
     m_finishedLoadingDataIntoConverter = true;
-    protectedConverter()->failedUpdating();
+    protect(m_converter)->failedUpdating();
     m_client->didFail();
     m_converter = nullptr;
 }
@@ -135,7 +130,7 @@ void LegacyPreviewLoader::previewConverterDidStartConverting(PreviewConverter& c
 
     ASSERT(!m_hasProcessedResponse);
     m_originalData.reset();
-    resourceLoader->protectedDocumentLoader()->setPreviewConverter(std::exchange(m_converter, nullptr));
+    protect(resourceLoader->documentLoader())->setPreviewConverter(std::exchange(m_converter, nullptr));
     auto response { converter.previewResponse() };
 
     if (m_shouldDecidePolicyBeforeLoading) {
@@ -159,7 +154,7 @@ void LegacyPreviewLoader::previewConverterDidStartConverting(PreviewConverter& c
 
         if (!converter->previewData().isEmpty()) {
             auto bufferSize = converter->previewData().size();
-            resourceLoader->didReceiveBuffer(converter->previewData().copy(), bufferSize, DataPayloadBytes);
+            protect(resourceLoader)->didReceiveBuffer(converter->previewData().copy(), bufferSize, DataPayloadBytes);
         }
 
         if (resourceLoader->reachedTerminalState())

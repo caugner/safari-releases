@@ -26,8 +26,11 @@
 #pragma once
 
 #include <WebCore/FloatSize.h>
+
+#if ENABLE(QUICKLOOK_FULLSCREEN)
 #include <WebCore/ShareableBitmap.h>
 #include <WebCore/ShareableSpatialImage.h>
+#endif
 
 namespace WebKit {
 
@@ -40,6 +43,7 @@ struct FullScreenMediaDetails {
 #if ENABLE(QUICKLOOK_FULLSCREEN)
     using ImageData = Variant<std::monostate, WebCore::ShareableBitmap::Handle, WebCore::ShareableSpatialImage>;
     ImageData imageData;
+    bool launchInImmersive { false };
 #endif
 };
 

@@ -101,8 +101,7 @@ void EventDispatcher::addScrollingTreeForPage(WebPage& webPage)
     ASSERT(!m_scrollingTrees.contains(webPage.identifier()));
 
     Ref scrollingCoordinator = downcast<AsyncScrollingCoordinator>(*webPage.scrollingCoordinator());
-    RefPtr scrollingTree = dynamicDowncast<ThreadedScrollingTree>(scrollingCoordinator->scrollingTree());
-    ASSERT(scrollingTree);
+    Ref scrollingTree = downcast<ThreadedScrollingTree>(*scrollingCoordinator->scrollingTree());
     m_scrollingTrees.set(webPage.identifier(), WTF::move(scrollingTree));
 }
 
@@ -223,7 +222,9 @@ void EventDispatcher::gestureEvent(FrameIdentifier frameID, PageIdentifier pageI
 TouchEventData::TouchEventData(WebCore::FrameIdentifier frameID, const WebTouchEvent& event, CompletionHandler<void(bool, std::optional<RemoteWebTouchEvent>)>&& completionHandler)
     : frameID(frameID)
     , event(event)
-    , completionHandler(WTF::move(completionHandler)) { }
+{
+    completionHandlers.append(WTF::move(completionHandler));
+}
 
 TouchEventData::TouchEventData(TouchEventData&&) = default;
 
@@ -261,7 +262,10 @@ void EventDispatcher::touchEvent(PageIdentifier pageID, FrameIdentifier frameID,
                 auto touchEventWithCoalescedEvents = touchEvent;
                 touchEventWithCoalescedEvents.setCoalescedEvents(coalescedEvents);
 
-                queuedEvents->last() = { frameID, touchEventWithCoalescedEvents, WTF::move(completionHandler) };
+                // Preserve coalesced completion handlers so their state transitions are not lost.
+                queuedEvents->last().frameID = frameID;
+                queuedEvents->last().event = touchEventWithCoalescedEvents;
+                queuedEvents->last().completionHandlers.append(WTF::move(completionHandler));
             } else
                 queuedEvents->append({ frameID, touchEvent, WTF::move(completionHandler) });
         }
@@ -289,8 +293,10 @@ void EventDispatcher::dispatchTouchEvents()
         if (RefPtr webPage = WebProcess::singleton().webPage(slot.key))
             webPage->dispatchAsynchronousTouchEvents(WTF::move(slot.value));
         else {
-            for (auto& data : slot.value.get())
-                data.completionHandler(false, std::nullopt);
+            for (auto& data : slot.value.get()) {
+                for (auto& completionHandler : data.completionHandlers)
+                    completionHandler(false, std::nullopt);
+            }
             ASSERT_NOT_REACHED();
         }
     }
@@ -338,15 +344,15 @@ void EventDispatcher::dispatchGestureEvent(FrameIdentifier frameID, PageIdentifi
 
 void EventDispatcher::sendDidReceiveEvent(PageIdentifier pageID, WebEventType eventType, bool didHandleEvent)
 {
-    WebProcess::singleton().protectedParentProcessConnection()->send(Messages::WebPageProxy::DidReceiveEventIPC(eventType, didHandleEvent, std::nullopt), pageID);
+    protect(WebProcess::singleton().parentProcessConnection())->send(Messages::WebPageProxy::DidReceiveEventIPC(eventType, didHandleEvent, std::nullopt), pageID);
 }
 
 void EventDispatcher::notifyScrollingTreesDisplayDidRefresh(PlatformDisplayID displayID)
 {
 #if ENABLE(ASYNC_SCROLLING) && ENABLE(SCROLLING_THREAD)
     Locker locker { m_scrollingTreesLock };
-    for (auto keyValuePair : m_scrollingTrees)
-        Ref { *keyValuePair.value }->displayDidRefresh(displayID);
+    for (Ref scrollingTree : m_scrollingTrees.values())
+        scrollingTree->displayDidRefresh(displayID);
 #endif
 }
 
@@ -395,20 +401,20 @@ void EventDispatcher::handleSyntheticWheelEvent(WebCore::PageIdentifier pageIden
 
 void EventDispatcher::startDisplayDidRefreshCallbacks(WebCore::PlatformDisplayID displayID)
 {
-    WebProcess::singleton().protectedParentProcessConnection()->send(Messages::WebProcessProxy::StartDisplayLink(m_observerID, displayID, WebCore::FullSpeedFramesPerSecond), 0);
+    protect(WebProcess::singleton().parentProcessConnection())->send(Messages::WebProcessProxy::StartDisplayLink(m_observerID, displayID, WebCore::FullSpeedFramesPerSecond), 0);
 }
 
 void EventDispatcher::stopDisplayDidRefreshCallbacks(WebCore::PlatformDisplayID displayID)
 {
-    WebProcess::singleton().protectedParentProcessConnection()->send(Messages::WebProcessProxy::StopDisplayLink(m_observerID, displayID), 0);
+    protect(WebProcess::singleton().parentProcessConnection())->send(Messages::WebProcessProxy::StopDisplayLink(m_observerID, displayID), 0);
 }
 
 #if ENABLE(MOMENTUM_EVENT_DISPATCHER_TEMPORARY_LOGGING)
 void EventDispatcher::flushMomentumEventLoggingSoon()
 {
-    // FIXME: Nothing keeps this alive.
-    queue().dispatchAfter(1_s, [this] {
-        m_momentumEventDispatcher->flushLog();
+    queue().dispatchAfter(1_s, [weakThis = WeakPtr { *this }] {
+        if (RefPtr protectedThis = weakThis)
+            protectedThis->m_momentumEventDispatcher->flushLog();
     });
 }
 #endif

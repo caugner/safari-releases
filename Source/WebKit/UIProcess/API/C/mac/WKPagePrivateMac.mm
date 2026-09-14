@@ -40,149 +40,41 @@
 #import "WebProcessPool.h"
 #import <wtf/MainThread.h>
 
-@interface WKObservablePageState : NSObject <_WKObservablePageState> {
-    @package
-    RefPtr<WebKit::WebPageProxy> _page;
-    RefPtr<WebKit::PageLoadStateObserver> _observer;
-}
-
-@end
-
-static Ref<WebKit::WebPageProxy> protectedPage(WKObservablePageState *state)
-{
-    return *state->_page;
-}
-
-@implementation WKObservablePageState
-
-- (id)initWithPage:(RefPtr<WebKit::WebPageProxy>&&)page
-{
-    if (!(self = [super init]))
-        return nil;
-
-    _page = WTF::move(page);
-    Ref observer = WebKit::PageLoadStateObserver::create(self, @"URL");
-    _observer = observer.get();
-    protectedPage(self)->protectedPageLoadState()->addObserver(observer.get());
-
-    return self;
-}
-
-- (void)dealloc
-{
-    Ref { *_observer }->clearObject();
-
-    ensureOnMainRunLoop([page = WTF::move(_page), observer = std::exchange(_observer, nullptr)] {
-        page->protectedPageLoadState()->removeObserver(*observer);
-    });
-
-    [super dealloc];
-}
-
-- (BOOL)isLoading
-{
-    return protectedPage(self)->protectedPageLoadState()->isLoading();
-}
-
-- (NSString *)title
-{
-    return protectedPage(self)->protectedPageLoadState()->title().createNSString().autorelease();
-}
-
-- (NSURL *)URL
-{
-    return protectedPage(self)->protectedPageLoadState()->activeURL().createNSURL().autorelease();
-}
-
-- (BOOL)hasOnlySecureContent
-{
-    return protectedPage(self)->protectedPageLoadState()->hasOnlySecureContent();
-}
-
-- (BOOL)_webProcessIsResponsive
-{
-    return protectedPage(self)->protectedLegacyMainFrameProcess()->isResponsive();
-}
-
-- (double)estimatedProgress
-{
-    return protectedPage(self)->estimatedProgress();
-}
-
-- (NSURL *)unreachableURL
-{
-    return protectedPage(self)->pageLoadState().unreachableURL().createNSURL().autorelease();
-}
-
-- (SecTrustRef)serverTrust
-{
-    return protectedPage(self)->pageLoadState().certificateInfo().trust().get();
-}
-
-@end
-
-id <_WKObservablePageState> WKPageCreateObservableState(WKPageRef pageRef)
-{
-    SUPPRESS_RETAINPTR_CTOR_ADOPT return [[WKObservablePageState alloc] initWithPage:WebKit::toImpl(pageRef)];
-}
-
-_WKRemoteObjectRegistry *WKPageGetObjectRegistry(WKPageRef pageRef)
-{
-#if PLATFORM(MAC)
-    return WebKit::toProtectedImpl(pageRef)->remoteObjectRegistry();
-#else
-    return nil;
-#endif
-}
-
-bool WKPageIsURLKnownHSTSHost(WKPageRef page, WKURLRef url)
-{
-    return WebKit::toProtectedImpl(page)->configuration().protectedProcessPool()->isURLKnownHSTSHost(WebKit::toImpl(url)->string());
-}
-
-WKNavigation *WKPageLoadURLRequestReturningNavigation(WKPageRef pageRef, WKURLRequestRef urlRequestRef)
-{
-    auto resourceRequest = WebKit::toImpl(urlRequestRef)->resourceRequest();
-    return WebKit::wrapper(WebKit::toProtectedImpl(pageRef)->loadRequest(WTF::move(resourceRequest))).autorelease();
-}
-
 WKNavigation *WKPageLoadFileReturningNavigation(WKPageRef pageRef, WKURLRef fileURL, WKURLRef resourceDirectoryURL)
 {
-    return WebKit::wrapper(WebKit::toProtectedImpl(pageRef)->loadFile(WebKit::toWTFString(fileURL), WebKit::toWTFString(resourceDirectoryURL))).autorelease();
+    return WebKit::wrapper(protect(WebKit::toImpl(pageRef))->loadFile(WebKit::toWTFString(fileURL), WebKit::toWTFString(resourceDirectoryURL))).autorelease();
 }
 
 WKWebView *WKPageGetWebView(WKPageRef page)
 {
-    return page ? WebKit::toProtectedImpl(page)->cocoaView().autorelease() : nil;
+    return page ? protect(WebKit::toImpl(page))->cocoaView().autorelease() : nil;
 }
 
 #if PLATFORM(MAC)
+bool WKPageIsPlayingVideoInPictureInPicture(WKPageRef pageRef)
+{
+    return protect(WebKit::toImpl(pageRef))->isPlayingVideoInPictureInPicture();
+}
+
 bool WKPageIsPlayingVideoInEnhancedFullscreen(WKPageRef pageRef)
 {
-    return WebKit::toProtectedImpl(pageRef)->isPlayingVideoInEnhancedFullscreen();
+    return WKPageIsPlayingVideoInPictureInPicture(pageRef);
 }
 #endif
 
-void WKPageSetFullscreenDelegate(WKPageRef page, id <_WKFullscreenDelegate> delegate)
+NSDictionary *WKPageGetAccessibilityWebProcessDebugInfo(WKPageRef pageRef)
 {
-#if ENABLE(FULLSCREEN_API)
-    downcast<WebKit::FullscreenClient>(WebKit::toImpl(page)->fullscreenClient()).setDelegate(delegate);
-#endif
-}
-
-id <_WKFullscreenDelegate> WKPageGetFullscreenDelegate(WKPageRef page)
-{
-#if ENABLE(FULLSCREEN_API)
-    return downcast<WebKit::FullscreenClient>(WebKit::toImpl(page)->fullscreenClient()).delegate().autorelease();
+#if PLATFORM(MAC)
+    return protect(WebKit::toImpl(pageRef))->getAccessibilityWebProcessDebugInfo();
 #else
     return nil;
 #endif
 }
 
-NSDictionary *WKPageGetAccessibilityWebProcessDebugInfo(WKPageRef pageRef)
+NSArray *WKPageGetAccessibilityWebProcessDebugInfoForAllProcesses(WKPageRef pageRef)
 {
 #if PLATFORM(MAC)
-    return WebKit::toProtectedImpl(pageRef)->getAccessibilityWebProcessDebugInfo();
+    return protect(WebKit::toImpl(pageRef))->getAccessibilityWebProcessDebugInfoForAllProcesses();
 #else
     return nil;
 #endif
@@ -191,6 +83,6 @@ NSDictionary *WKPageGetAccessibilityWebProcessDebugInfo(WKPageRef pageRef)
 void WKPageAccessibilityClearIsolatedTree(WKPageRef pageRef)
 {
 #if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
-    WebKit::toProtectedImpl(pageRef)->clearAccessibilityIsolatedTree();
+    protect(WebKit::toImpl(pageRef))->clearAccessibilityIsolatedTree();
 #endif
 }

@@ -57,7 +57,7 @@ public:
 
     ExceptionOr<void> setValidity(ValidityStateFlags, String&& message, HTMLElement* validationAnchor);
     ExceptionOr<bool> willValidate() const;
-    ExceptionOr<RefPtr<ValidityState>> validity();
+    ExceptionOr<ValidityState&> validity();
     ExceptionOr<String> validationMessage() const;
     ExceptionOr<bool> reportValidity();
     ExceptionOr<bool> checkValidity();
@@ -81,7 +81,7 @@ private:
     {
     }
 
-    FormAssociatedCustomElement* elementAsFormAssociatedCustom() const;
+    FormAssociatedCustomElement* NODELETE elementAsFormAssociatedCustom() const;
 
     WeakPtr<HTMLElement, WeakPtrImplWithEventTargetData> m_element;
 };

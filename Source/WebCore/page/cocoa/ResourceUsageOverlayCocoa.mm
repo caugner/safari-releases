@@ -82,13 +82,13 @@ public:
         m_data.fill(0);
     }
 
-    void append(T v)
+    void NODELETE append(T v)
     {
         m_data[m_current] = WTF::move(v);
         incrementIndex(m_current);
     }
 
-    T& last()
+    T& NODELETE last()
     {
         unsigned index = m_current;
         decrementIndex(index);
@@ -105,13 +105,13 @@ public:
     }
 
 private:
-    static void incrementIndex(unsigned& index)
+    static void NODELETE incrementIndex(unsigned& index)
     {
         if (++index == size)
             index = 0;
     }
 
-    static void decrementIndex(unsigned& index)
+    static void NODELETE decrementIndex(unsigned& index)
     {
         if (index)
             --index;
@@ -232,7 +232,7 @@ void ResourceUsageOverlay::platformInitialize()
     [m_layer setBackgroundColor:createColor(0, 0, 0, 0.8).get()];
     [m_layer setBounds:CGRectMake(0, 0, normalWidth, normalHeight)];
 
-    overlay().layer().setContentsToPlatformLayer(m_layer.get(), GraphicsLayer::ContentsLayerPurpose::None);
+    protect(overlay())->layer().setContentsToPlatformLayer(m_layer.get(), GraphicsLayer::ContentsLayerPurpose::None);
 
     ResourceUsageThread::addObserver(this, All, [this] (const ResourceUsageData& data) {
         appendDataToHistory(data);

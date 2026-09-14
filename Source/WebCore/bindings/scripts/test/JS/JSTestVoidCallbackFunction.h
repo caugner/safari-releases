@@ -26,6 +26,7 @@
 #include "JSCallbackData.h"
 #include "TestVoidCallbackFunction.h"
 #include <wtf/Forward.h>
+#include <wtf/TypeCasts.h>
 
 namespace WebCore {
 
@@ -50,9 +51,11 @@ private:
 
     bool hasCallback() const final { return m_data && m_data->callback(); }
 
-    void visitJSFunction(JSC::AbstractSlotVisitor&) override;
+    bool isJSTestVoidCallbackFunction() const final { return true; }
 
-    void visitJSFunction(JSC::SlotVisitor&) override;
+    void visitJSFunctionInGCThread(JSC::AbstractSlotVisitor&) override;
+
+    void visitJSFunctionInGCThread(JSC::SlotVisitor&) override;
 
     JSCallbackData* m_data;
 };
@@ -64,5 +67,9 @@ template<> struct JSDOMCallbackConverterTraits<JSTestVoidCallbackFunction> {
     using Base = TestVoidCallbackFunction;
 };
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::JSTestVoidCallbackFunction)
+    static bool isType(const WebCore::TestVoidCallbackFunction& callback) { return callback.isJSTestVoidCallbackFunction(); }
+SPECIALIZE_TYPE_TRAITS_END()
 
 #endif // ENABLE(TEST_CONDITIONAL)

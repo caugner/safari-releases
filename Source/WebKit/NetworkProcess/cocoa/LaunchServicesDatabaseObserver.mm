@@ -26,6 +26,7 @@
 #import "config.h"
 #import "LaunchServicesDatabaseObserver.h"
 
+#import "Connection.h"
 #import "LaunchServicesDatabaseXPCConstants.h"
 #import <pal/spi/cocoa/LaunchServicesSPI.h>
 #import <wtf/BlockPtr.h>
@@ -38,12 +39,17 @@ namespace WebKit {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(LaunchServicesDatabaseObserver);
 
-LaunchServicesDatabaseObserver::LaunchServicesDatabaseObserver(NetworkProcess&)
+Ref<LaunchServicesDatabaseObserver> LaunchServicesDatabaseObserver::create()
+{
+    return adoptRef(*new LaunchServicesDatabaseObserver);
+}
+
+LaunchServicesDatabaseObserver::LaunchServicesDatabaseObserver()
 {
 #if HAVE(LSDATABASECONTEXT) && !HAVE(SYSTEM_CONTENT_LS_DATABASE)
     m_observer = [LSDatabaseContext.sharedDatabaseContext addDatabaseChangeObserver4WebKit:^(xpc_object_t change) {
         // FIXME: This is a false positive. <rdar://164843889>
-        SUPPRESS_RETAINPTR_CTOR_ADOPT auto message = adoptXPCObject(xpc_dictionary_create(nullptr, nullptr, 0));
+        SUPPRESS_RETAINPTR_CTOR_ADOPT auto message = adoptOSObject(xpc_dictionary_create(nullptr, nullptr, 0));
         xpc_dictionary_set_string(message.get(), XPCEndpoint::xpcMessageNameKey, LaunchServicesDatabaseXPCConstants::xpcUpdateLaunchServicesDatabaseMessageName);
         xpc_dictionary_set_value(message.get(), LaunchServicesDatabaseXPCConstants::xpcLaunchServicesDatabaseKey, change);
 
@@ -56,12 +62,7 @@ LaunchServicesDatabaseObserver::LaunchServicesDatabaseObserver(NetworkProcess&)
 #endif
 }
 
-ASCIILiteral LaunchServicesDatabaseObserver::supplementName()
-{
-    return "LaunchServicesDatabaseObserverSupplement"_s;
-}
-
-void LaunchServicesDatabaseObserver::startObserving(XPCObjectPtr<xpc_connection_t> connection)
+void LaunchServicesDatabaseObserver::startObserving(OSObjectPtr<xpc_connection_t> connection)
 {
     {
         Locker locker { m_connectionsLock };
@@ -73,7 +74,7 @@ void LaunchServicesDatabaseObserver::startObserving(XPCObjectPtr<xpc_connection_
         if (!object)
             return;
         // FIXME: This is a false positive. <rdar://164843889>
-        SUPPRESS_RETAINPTR_CTOR_ADOPT auto message = adoptXPCObject(xpc_dictionary_create(nullptr, nullptr, 0));
+        SUPPRESS_RETAINPTR_CTOR_ADOPT auto message = adoptOSObject(xpc_dictionary_create(nullptr, nullptr, 0));
         xpc_dictionary_set_string(message.get(), XPCEndpoint::xpcMessageNameKey, LaunchServicesDatabaseXPCConstants::xpcUpdateLaunchServicesDatabaseMessageName);
         xpc_dictionary_set_value(message.get(), LaunchServicesDatabaseXPCConstants::xpcLaunchServicesDatabaseKey, object);
 
@@ -83,7 +84,7 @@ void LaunchServicesDatabaseObserver::startObserving(XPCObjectPtr<xpc_connection_
 #elif HAVE(LSDATABASECONTEXT)
     RetainPtr<id> observer = [LSDatabaseContext.sharedDatabaseContext addDatabaseChangeObserver4WebKit:^(xpc_object_t change) {
         // FIXME: This is a false positive. <rdar://164843889>
-        SUPPRESS_RETAINPTR_CTOR_ADOPT auto message = adoptXPCObject(xpc_dictionary_create(nullptr, nullptr, 0));
+        SUPPRESS_RETAINPTR_CTOR_ADOPT auto message = adoptOSObject(xpc_dictionary_create(nullptr, nullptr, 0));
         xpc_dictionary_set_string(message.get(), XPCEndpoint::xpcMessageNameKey, LaunchServicesDatabaseXPCConstants::xpcUpdateLaunchServicesDatabaseMessageName);
         xpc_dictionary_set_value(message.get(), LaunchServicesDatabaseXPCConstants::xpcLaunchServicesDatabaseKey, change);
 
@@ -93,7 +94,7 @@ void LaunchServicesDatabaseObserver::startObserving(XPCObjectPtr<xpc_connection_
     [LSDatabaseContext.sharedDatabaseContext removeDatabaseChangeObserver4WebKit:observer.get()];
 #else
     // FIXME: This is a false positive. <rdar://164843889>
-    SUPPRESS_RETAINPTR_CTOR_ADOPT auto message = adoptXPCObject(xpc_dictionary_create(nullptr, nullptr, 0));
+    SUPPRESS_RETAINPTR_CTOR_ADOPT auto message = adoptOSObject(xpc_dictionary_create(nullptr, nullptr, 0));
     xpc_dictionary_set_string(message.get(), XPCEndpoint::xpcMessageNameKey, LaunchServicesDatabaseXPCConstants::xpcUpdateLaunchServicesDatabaseMessageName);
     xpc_connection_send_message(connection.get(), message.get());
 #endif
@@ -146,7 +147,7 @@ void LaunchServicesDatabaseObserver::handleEvent(xpc_connection_t connection, xp
 
 void LaunchServicesDatabaseObserver::initializeConnection(IPC::Connection* connection)
 {
-    sendEndpointToConnection(connection->protectedXPCConnection().get());
+    sendEndpointToConnection(protect(connection->xpcConnection()).get());
 }
 
 }

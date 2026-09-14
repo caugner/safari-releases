@@ -42,10 +42,12 @@ public:
 
     static bool supported(GraphicsContextGL&);
 
-    RefPtr<WebGLVertexArrayObjectOES> createVertexArrayOES();
+    Ref<WebGLVertexArrayObjectOES> createVertexArrayOES();
     void deleteVertexArrayOES(WebGLVertexArrayObjectOES*);
     GCGLboolean isVertexArrayOES(WebGLVertexArrayObjectOES*);
     void bindVertexArrayOES(WebGLVertexArrayObjectOES*);
 };
 
 } // namespace WebCore
+
+SPECIALIZE_TYPE_TRAITS_WEBGL_EXTENSION(OESVertexArrayObject)

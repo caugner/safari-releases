@@ -32,7 +32,7 @@
 namespace WebCore {
 
 class DMABufBuffer;
-struct DMABufBufferAttributes;
+class DMABufBufferAttributes;
 
 class CoordinatedPlatformLayerBufferDMABuf final : public CoordinatedPlatformLayerBuffer {
 public:
@@ -45,8 +45,12 @@ public:
 private:
     void paintToTextureMapper(TextureMapper&, const FloatRect&, const TransformationMatrix& modelViewMatrix = TransformationMatrix(), float opacity = 1.0) override;
 
-    std::unique_ptr<CoordinatedPlatformLayerBuffer> importDMABuf(TextureMapper&) const;
-    std::unique_ptr<CoordinatedPlatformLayerBuffer> importYUV(TextureMapper&) const;
+#if USE(SKIA)
+    sk_sp<SkImage> skiaImage() override;
+#endif
+
+    std::unique_ptr<CoordinatedPlatformLayerBuffer> importDMABuf() const;
+    std::unique_ptr<CoordinatedPlatformLayerBuffer> importYUV() const;
 
     const Ref<DMABufBuffer> m_dmabuf;
     WTF::UnixFileDescriptor m_fenceFD;

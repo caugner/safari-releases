@@ -45,6 +45,7 @@ public:
 
     void scheduleDisplayRefreshCallbacksForMonotonicAnimations();
     void pauseDisplayRefreshCallbacksForMonotonicAnimations();
+    void highImpactMonotonicAnimationsWereRemoved();
 
     UIView *viewWithLayerIDForTesting(WebCore::PlatformLayerIdentifier) const;
 
@@ -63,14 +64,19 @@ private:
 
     void didRefreshDisplay() override;
 
+    void didCommitLayerTree(IPC::Connection&, const RemoteLayerTreeTransaction&, const RemoteScrollingCoordinatorTransaction&, const std::optional<MainFrameData>&, const TransactionID&) override;
+
+    void windowScreenDidChange(WebCore::PlatformDisplayID) override;
+
     std::optional<WebCore::FramesPerSecond> displayNominalFramesPerSecond() override;
+    bool displayLinkWantsHighFrameRateForTesting() const override;
 
     WKDisplayLinkHandler *displayLinkHandler();
 
     RetainPtr<WKDisplayLinkHandler> m_displayLinkHandler;
 
-    bool m_needsDisplayRefreshCallbacksForDrawing { false };
     bool m_needsDisplayRefreshCallbacksForMonotonicAnimations { false };
+    bool m_hasHighImpactMonotonicAnimations { false };
 };
 
 } // namespace WebKit

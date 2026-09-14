@@ -29,7 +29,7 @@
 #if PLATFORM(IOS_FAMILY)
 
 #import "Logging.h"
-#import "MediaConfiguration.h"
+#import "PlatformMediaConfiguration.h"
 #import "WebCoreThreadRun.h"
 #import <AVFoundation/AVAudioSession.h>
 #import <pal/spi/cocoa/AVFoundationSPI.h>
@@ -37,6 +37,7 @@
 #import <wtf/CheckedPtr.h>
 #import <wtf/NeverDestroyed.h>
 #import <wtf/TZoneMalloc.h>
+#import <wtf/TZoneMallocInlines.h>
 #import <wtf/WeakPtr.h>
 
 #import <pal/cocoa/AVFoundationSoftLink.h>
@@ -112,7 +113,7 @@ void SpatialAudioPlaybackHelperIOS::updateActiveAudioRouteSupportsSpatialPlaybac
     m_activeAudioRouteSupportsSpatialPlayback = false;
 }
 
-bool SpatialAudioPlaybackHelper::supportsSpatialAudioPlaybackForConfiguration(const MediaConfiguration& configuration)
+bool SpatialAudioPlaybackHelper::supportsSpatialAudioPlaybackForConfiguration(const PlatformMediaConfiguration& configuration)
 {
     ASSERT(configuration.audio);
 

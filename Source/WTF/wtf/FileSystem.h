@@ -42,6 +42,10 @@
 #include <wtf/WallTime.h>
 #include <wtf/text/WTFString.h>
 
+#if OS(WINDOWS)
+#include <windows.h>
+#endif
+
 #if USE(CF)
 #include <wtf/RetainPtr.h>
 #endif
@@ -96,7 +100,7 @@ WTF_EXPORT_PRIVATE bool moveFile(const String& oldPath, const String& newPath);
 WTF_EXPORT_PRIVATE std::optional<uint64_t> fileSize(const String&); // Follows symlinks.
 WTF_EXPORT_PRIVATE std::optional<uint64_t> directorySize(const String&);
 WTF_EXPORT_PRIVATE std::optional<WallTime> fileModificationTime(const String&);
-WTF_EXPORT_PRIVATE bool fileIDsAreEqual(std::optional<PlatformFileID>, std::optional<PlatformFileID>);
+WTF_EXPORT_PRIVATE bool NODELETE fileIDsAreEqual(std::optional<PlatformFileID>, std::optional<PlatformFileID>);
 WTF_EXPORT_PRIVATE bool updateFileModificationTime(const String& path); // Sets modification time to now.
 WTF_EXPORT_PRIVATE std::optional<WallTime> fileCreationTime(const String&); // Not all platforms store file creation time.
 WTF_EXPORT_PRIVATE bool isHiddenFile(const String&);
@@ -127,6 +131,7 @@ WTF_EXPORT_PRIVATE bool setExcludedFromBackup(const String&, bool); // Returns t
 WTF_EXPORT_PRIVATE bool markPurgeable(const String&);
 
 WTF_EXPORT_PRIVATE Vector<String> listDirectory(const String& path); // Returns file names, not full paths.
+WTF_EXPORT_PRIVATE void traverseDirectory(const String& path, NOESCAPE const Function<void(const String& fileName, FileType)>&);
 
 WTF_EXPORT_PRIVATE CString fileSystemRepresentation(const String&);
 #if !PLATFORM(WIN)
@@ -139,7 +144,7 @@ WTF_EXPORT_PRIVATE std::optional<Vector<uint8_t>> readEntireFile(const String& p
 WTF_EXPORT_PRIVATE std::optional<uint64_t> overwriteEntireFile(const String& path, std::span<const uint8_t>);
 
 // Prefix is what the filename should be prefixed with, not the full path.
-WTF_EXPORT_PRIVATE std::pair<String, FileHandle> openTemporaryFile(StringView prefix, StringView suffix = { });
+WTF_EXPORT_PRIVATE std::pair<String, FileHandle> openTemporaryFile(StringView prefix, StringView suffix = { }, const String& temporaryDirectory = { });
 WTF_EXPORT_PRIVATE String createTemporaryFile(StringView prefix, StringView suffix = { });
 #if PLATFORM(COCOA)
 WTF_EXPORT_PRIVATE std::pair<FileHandle, CString> createTemporaryFileInDirectory(const String& directory, const String& suffix);
@@ -200,7 +205,7 @@ WTF_EXPORT_PRIVATE bool deleteNonEmptyDirectory(const String&);
 WTF_EXPORT_PRIVATE String realPath(const String&);
 
 WTF_EXPORT_PRIVATE bool isSafeToUseMemoryMapForPath(const String&);
-WARN_UNUSED_RETURN WTF_EXPORT_PRIVATE bool makeSafeToUseMemoryMapForPath(const String&);
+[[nodiscard]] WTF_EXPORT_PRIVATE bool makeSafeToUseMemoryMapForPath(const String&);
 
 WTF_EXPORT_PRIVATE std::optional<MappedFileData> mapFile(const String& path, MappedFileMode);
 

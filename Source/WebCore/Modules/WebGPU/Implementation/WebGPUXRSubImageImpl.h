@@ -25,7 +25,7 @@
 
 #pragma once
 
-#if HAVE(WEBGPU_IMPLEMENTATION)
+#if HAVE(WEBGPU_IMPLEMENTATION) && ENABLE(WEBGPU)
 
 #include "WebGPUPtr.h"
 #include "WebGPUXRSubImage.h"
@@ -60,6 +60,7 @@ private:
     RefPtr<Texture> motionVectorTexture() final;
 
     WGPUXRSubImage backing() const { return m_backing.get(); }
+    bool isXRSubImageImpl() const final { return true; }
 
     WebGPUPtr<WGPUXRSubImage> m_backing;
     const Ref<ConvertToBackingContext> m_convertToBackingContext;
@@ -67,4 +68,8 @@ private:
 
 } // namespace WebCore::WebGPU
 
-#endif // HAVE(WEBGPU_IMPLEMENTATION)
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::WebGPU::XRSubImageImpl)
+    static bool isType(const WebCore::WebGPU::XRSubImage& xrSubImage) { return xrSubImage.isXRSubImageImpl(); }
+SPECIALIZE_TYPE_TRAITS_END()
+
+#endif // HAVE(WEBGPU_IMPLEMENTATION) && ENABLE(WEBGPU)

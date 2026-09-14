@@ -32,7 +32,8 @@
 #include <wtf/text/Base64.h>
 
 #if OS(DARWIN) && !PLATFORM(GTK)
-#include <pal/PALSwift.h>
+#include <pal/crypto/CryptoTypes.h>
+#include <pal/crypto/PlatformECKey.h>
 #endif
 
 namespace WebCore {
@@ -41,7 +42,7 @@ static const ASCIILiteral P256 { "P-256"_s };
 static const ASCIILiteral P384 { "P-384"_s };
 static const ASCIILiteral P521 { "P-521"_s };
 
-static std::optional<CryptoKeyEC::NamedCurve> toNamedCurve(const String& curve)
+static std::optional<CryptoKeyEC::NamedCurve> NODELETE toNamedCurve(const String& curve)
 {
     if (curve == P256)
         return CryptoKeyEC::NamedCurve::P256;

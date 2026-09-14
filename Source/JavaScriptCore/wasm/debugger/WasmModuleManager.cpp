@@ -26,25 +26,21 @@
 #include "config.h"
 #include "WasmModuleManager.h"
 
-#if ENABLE(WEBASSEMBLY)
+#if ENABLE(WEBASSEMBLY_DEBUGGER)
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN
 
-#include "DeferGC.h"
 #include "JSWebAssemblyInstance.h"
 #include "JSWebAssemblyModule.h"
 #include "VM.h"
+#include "WasmDebugServerUtilities.h"
 #include "WasmFormat.h"
+#include "WasmInstanceAnchor.h"
 #include "WasmModule.h"
 #include "WasmModuleInformation.h"
-#include "WeakGCMap.h"
-#include "WeakGCMapInlines.h"
 #include <wtf/DataLog.h>
-#include <wtf/HashMap.h>
 #include <wtf/HexNumber.h>
-#include <wtf/IterationStatus.h>
 #include <wtf/TZoneMallocInlines.h>
-#include <wtf/text/MakeString.h>
 #include <wtf/text/StringBuilder.h>
 #include <wtf/text/WTFString.h>
 
@@ -53,7 +49,6 @@ namespace Wasm {
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(ModuleManager);
 
-
 uint32_t ModuleManager::registerModule(Module& module)
 {
     Locker locker { m_lock };
@@ -61,6 +56,7 @@ uint32_t ModuleManager::registerModule(Module& module)
     m_moduleIdToModule.set(moduleId, &module);
     const auto& moduleInfo = module.moduleInformation();
     moduleInfo.debugInfo->id = moduleId;
+    m_unnotifiedModuleIds.add(moduleId);
     dataLogLnIf(Options::verboseWasmDebugger(), "[ModuleManager][registerModule] - registered module with ID: ", moduleId, " size: ", moduleInfo.debugInfo->source.size(), " bytes");
     return moduleId;
 }
@@ -70,6 +66,8 @@ void ModuleManager::unregisterModule(Module& module)
     Locker locker { m_lock };
     uint32_t moduleId = module.debugId();
     m_moduleIdToModule.remove(moduleId);
+    m_unnotifiedModuleIds.remove(moduleId);
+    m_hasPendingModuleRemovals = true;
     dataLogLnIf(Options::verboseWasmDebugger(), "[ModuleManager][unregisterModule] - unregistered module with debug ID: ", moduleId);
 }
 
@@ -77,19 +75,47 @@ uint32_t ModuleManager::registerInstance(JSWebAssemblyInstance* jsInstance)
 {
     Locker locker { m_lock };
     uint32_t instanceId = m_nextInstanceId++;
-    m_instanceIdToInstance.set(instanceId, jsInstance);
+
+    RefPtr<InstanceAnchor> anchor = jsInstance->anchor();
+    RELEASE_ASSERT(anchor, "Instance must have an anchor");
+
+    amortizedCleanupIfNeeded();
+    m_instanceIdToInstance.set(instanceId, ThreadSafeWeakPtr { *anchor });
+
     jsInstance->setDebugId(instanceId);
     dataLogLnIf(Options::verboseWasmDebugger(), "[ModuleManager][registerInstance] - registered instance with ID: ", instanceId, " for module ID: ", jsInstance->module().debugId());
     return instanceId;
 }
 
-uint32_t ModuleManager::unregisterInstance(JSWebAssemblyInstance* jsInstance)
+bool ModuleManager::needsNewModuleNotification(JSWebAssemblyInstance* jsInstance)
 {
     Locker locker { m_lock };
-    uint32_t instanceId = jsInstance->debugId();
-    m_instanceIdToInstance.remove(instanceId);
-    dataLogLnIf(Options::verboseWasmDebugger(), "[ModuleManager][unregisterInstance] - unregistered instance with ID: ", instanceId, " for module ID: ", jsInstance->module().debugId());
-    return instanceId;
+    uint32_t moduleId = jsInstance->module().debugId();
+    return m_unnotifiedModuleIds.contains(moduleId);
+}
+
+bool ModuleManager::needsLibraryRequery() const
+{
+    Locker locker { m_lock };
+    return !m_unnotifiedModuleIds.isEmpty() || m_hasPendingModuleRemovals;
+}
+
+void ModuleManager::notifyLibraryRequeryComplete()
+{
+    Locker locker { m_lock };
+    m_unnotifiedModuleIds.clear();
+    m_hasPendingModuleRemovals = false;
+}
+
+Vector<uint32_t> ModuleManager::unnotifiedModuleIds() const
+{
+    Locker locker { m_lock };
+    Vector<uint32_t> result;
+    result.reserveInitialCapacity(m_unnotifiedModuleIds.size());
+    for (uint32_t id : m_unnotifiedModuleIds)
+        result.append(id);
+    std::sort(result.begin(), result.end());
+    return result;
 }
 
 Module* ModuleManager::module(uint32_t moduleId) const
@@ -103,23 +129,40 @@ Module* ModuleManager::module(uint32_t moduleId) const
     return itr->value;
 }
 
-JSWebAssemblyInstance* ModuleManager::jsInstance(uint32_t instanceId) const
+JSWebAssemblyInstance* ModuleManager::jsInstance(uint32_t instanceId)
 {
     Locker locker { m_lock };
-    auto* result = m_instanceIdToInstance.get(instanceId);
-    if (!result) {
+    amortizedCleanupIfNeeded();
+
+    auto it = m_instanceIdToInstance.find(instanceId);
+    if (it == m_instanceIdToInstance.end()) {
         dataLogLnIf(Options::verboseWasmDebugger(), "[ModuleManager][jsInstance] - instance not found for ID: ", instanceId);
         return nullptr;
     }
-    return result;
-}
 
-static String generateModuleName(VirtualAddress address, const RefPtr<Module>&)
-{
-    // FIXME: Maybe we should generate a more meaningful name?
-    String moduleName = WTF::makeString("wasm_module_0x"_s, address.hex(), ".wasm"_s);
-    dataLogLnIf(Options::verboseWasmDebugger(), "[ModuleManager][generateModuleName] Using fallback address-based name: ", moduleName);
-    return moduleName;
+    // This function is called from the debugger thread (WasmDebugServer) to access JSWebAssemblyInstance
+    // objects during LLDB packet processing. Using InstanceAnchor provides thread-safe access and automatic
+    // cleanup when instances are destroyed.
+    //
+    // Safety guarantees:
+    // 1. InstanceAnchor::tearDown() is called in JSWebAssemblyInstance destructor, nulling out the pointer
+    // 2. VMs are stopped during debugger access per GDB remote protocol, preventing GC and ensuring stability
+    // 3. The anchor's lock protects concurrent access to the instance pointer
+    RefPtr<InstanceAnchor> anchor = it->value.get();
+    if (!anchor) {
+        dataLogLnIf(Options::verboseWasmDebugger(), "[ModuleManager][jsInstance] - anchor is dead for ID: ", instanceId);
+        return nullptr;
+    }
+
+    Locker anchorLocker { anchor->m_lock };
+    JSWebAssemblyInstance* instance = anchor->instance();
+    if (!instance) {
+        dataLogLnIf(Options::verboseWasmDebugger(), "[ModuleManager][jsInstance] - instance is null for ID: ", instanceId);
+        return nullptr;
+    }
+
+    RELEASE_ASSERT(instance->vm().debugState()->isStopped, "Instance exists but VM is not stopped");
+    return instance;
 }
 
 String ModuleManager::generateLibrariesXML() const
@@ -129,26 +172,49 @@ String ModuleManager::generateLibrariesXML() const
     xml.append("<?xml version=\"1.0\"?>\n"_s);
     xml.append("<library-list>\n"_s);
 
+    auto appendXMLEscaped = [](StringBuilder& builder, const String& value) {
+        for (UChar c : StringView(value).codeUnits()) {
+            switch (c) {
+            case '&':
+                builder.append("&amp;"_s);
+                break;
+            case '<':
+                builder.append("&lt;"_s);
+                break;
+            case '>':
+                builder.append("&gt;"_s);
+                break;
+            case '"':
+                builder.append("&quot;"_s);
+                break;
+            default:
+                builder.append(c);
+                break;
+            }
+        }
+    };
+
     for (const auto& pair : m_moduleIdToModule) {
         uint32_t moduleId = pair.key;
         RefPtr module = pair.value;
         if (!module)
             continue;
 
-        const auto& source = module->moduleInformation().debugInfo->source;
-        if (source.isEmpty())
+        const auto& debugInfo = module->moduleInformation().debugInfo;
+        if (debugInfo->source.isEmpty())
             continue;
 
+        ASSERT(moduleId == debugInfo->id);
         VirtualAddress moduleBaseAddress = VirtualAddress::createModule(moduleId);
-        String moduleName = generateModuleName(moduleBaseAddress, module);
+        String moduleName = debugInfo->debugName();
         xml.append("  <library name=\""_s);
-        xml.append(moduleName);
+        appendXMLEscaped(xml, moduleName);
         xml.append("\">\n"_s);
         xml.append("    <section address=\"0x"_s);
         xml.append(moduleBaseAddress.hex());
         xml.append("\"/>\n"_s);
         xml.append("  </library>\n"_s);
-        dataLogLnIf(Options::verboseWasmDebugger(), "[ModuleManager][generateLibrariesXML] - added module '", moduleName, "' ID: ", moduleId, " at ", moduleBaseAddress, " size: 0x", hex(source.size(), Lowercase));
+        dataLogLnIf(Options::verboseWasmDebugger(), "[ModuleManager][generateLibrariesXML] - added module '", moduleName, "' ID: ", moduleId, " at ", moduleBaseAddress, " size: 0x", hex(debugInfo->source.size(), Lowercase));
     }
 
     xml.append("</library-list>\n"_s);
@@ -164,9 +230,25 @@ uint32_t ModuleManager::nextInstanceId() const
     return m_nextInstanceId;
 }
 
+void ModuleManager::amortizedCleanupIfNeeded()
+{
+    if (++m_operationCountSinceLastCleanup > m_maxOperationCountWithoutCleanup) {
+        m_instanceIdToInstance.removeIf([](auto& entry) {
+            return !entry.value.get(); // Remove entries with dead anchors
+        });
+        cleanupHappened();
+    }
+}
+
+void ModuleManager::cleanupHappened()
+{
+    m_operationCountSinceLastCleanup = 0;
+    m_maxOperationCountWithoutCleanup = std::min(std::numeric_limits<unsigned>::max() / 2, static_cast<unsigned>(m_instanceIdToInstance.size())) * 2;
+}
+
 }
 } // namespace JSC::Wasm
 
 WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
 
-#endif // ENABLE(WEBASSEMBLY)
+#endif // ENABLE(WEBASSEMBLY_DEBUGGER)

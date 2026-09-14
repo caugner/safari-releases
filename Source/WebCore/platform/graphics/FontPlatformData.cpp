@@ -41,9 +41,7 @@ FontPlatformData::FontPlatformData(WTF::HashTableDeletedValueType)
 {
 }
 
-FontPlatformData::FontPlatformData()
-{
-}
+FontPlatformData::FontPlatformData() = default;
 
 FontPlatformData::FontPlatformData(float size, bool syntheticBold, bool syntheticOblique, FontOrientation orientation, FontWidthVariant widthVariant, TextRenderingMode textRenderingMode, const FontCustomPlatformData* customPlatformData)
     : m_size(size)
@@ -65,13 +63,6 @@ FontPlatformData FontPlatformData::cloneWithOrientation(const FontPlatformData& 
 {
     FontPlatformData copy(source);
     copy.m_orientation = orientation;
-    return copy;
-}
-
-FontPlatformData FontPlatformData::cloneWithSyntheticOblique(const FontPlatformData& source, bool syntheticOblique)
-{
-    FontPlatformData copy(source);
-    copy.m_syntheticOblique = syntheticOblique;
     return copy;
 }
 #endif
@@ -103,7 +94,7 @@ void FontPlatformData::updateSizeWithFontSizeAdjust(const FontSizeAdjust& fontSi
         return;
     }
 
-    auto tmpFont = FontCache::forCurrentThread()->fontForPlatformData(*this);
+    auto tmpFont = protect(FontCache::forCurrentThread())->fontForPlatformData(*this);
     auto adjustedFontSize = Style::adjustedFontSize(computedSize, fontSizeAdjust, tmpFont->fontMetrics());
 
     if (adjustedFontSize == size())

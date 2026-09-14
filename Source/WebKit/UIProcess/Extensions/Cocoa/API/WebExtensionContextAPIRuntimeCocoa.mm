@@ -127,7 +127,7 @@ void WebExtensionContext::runtimeReload()
     std::ignore = reload();
 }
 
-void WebExtensionContext::runtimeSendMessage(const String& extensionID, const String& messageJSON, const WebExtensionMessageSenderParameters& senderParameters, CompletionHandler<void(Expected<String, WebExtensionError>&&)>&& completionHandler)
+void WebExtensionContext::runtimeSendMessage(const String& extensionID, const String& messageJSON, const WebExtensionMessageSenderParameters& senderParameters, bool userGesture, CompletionHandler<void(Expected<String, WebExtensionError>&&)>&& completionHandler)
 {
     static NSString * const apiName = @"runtime.sendMessage()";
 
@@ -146,6 +146,10 @@ void WebExtensionContext::runtimeSendMessage(const String& extensionID, const St
         return;
     }
 
+    // Don't propagate web page gestures from content scripts to extension pages. Only gestures
+    // from extension-originated events (action.onClicked, commands.onCommand, menus.onClicked)
+    // should curry — those carry explicit user intent directed at the extension.
+    bool resolvedUserGesture = userGesture && senderParameters.contentWorldType != WebExtensionContentWorldType::ContentScript;
     constexpr auto targetContentWorldType = WebExtensionContentWorldType::Main;
     constexpr auto eventType = WebExtensionEventListenerType::RuntimeOnMessage;
 
@@ -159,7 +163,7 @@ void WebExtensionContext::runtimeSendMessage(const String& extensionID, const St
         auto callbackAggregator = EagerCallbackAggregator<void(Expected<String, WebExtensionError>)>::create(WTF::move(completionHandler), { });
 
         for (auto& process : mainWorldProcesses) {
-            process->sendWithAsyncReply(Messages::WebExtensionContextProxy::DispatchRuntimeMessageEvent(targetContentWorldType, messageJSON, std::nullopt, completeSenderParameters), [callbackAggregator](String&& replyJSON) {
+            process->sendWithAsyncReply(Messages::WebExtensionContextProxy::DispatchRuntimeMessageEvent(targetContentWorldType, messageJSON, std::nullopt, completeSenderParameters, resolvedUserGesture), [callbackAggregator](String&& replyJSON) {
                 // A null reply means no listeners replied. Don't call the callbackAggregator
                 // to give other listeners in a different process a chance to reply.
                 if (replyJSON.isNull())
@@ -171,7 +175,7 @@ void WebExtensionContext::runtimeSendMessage(const String& extensionID, const St
     });
 }
 
-void WebExtensionContext::runtimeConnect(const String& extensionID, WebExtensionPortChannelIdentifier channelIdentifier, const String& name, const WebExtensionMessageSenderParameters& senderParameters, CompletionHandler<void(Expected<void, WebExtensionError>&&)>&& completionHandler)
+void WebExtensionContext::runtimeConnect(const String& extensionID, WebExtensionPortChannelIdentifier channelIdentifier, const String& name, const WebExtensionMessageSenderParameters& senderParameters, bool userGesture, CompletionHandler<void(Expected<void, WebExtensionError>&&)>&& completionHandler)
 {
     static NSString * const apiName = @"runtime.connect()";
 
@@ -196,6 +200,8 @@ void WebExtensionContext::runtimeConnect(const String& extensionID, WebExtension
         return;
     }
 
+    // Don't propagate web page gestures from content scripts to extension pages.
+    bool resolvedUserGesture = userGesture && senderParameters.contentWorldType != WebExtensionContentWorldType::ContentScript;
     constexpr auto eventType = WebExtensionEventListenerType::RuntimeOnConnect;
 
     wakeUpBackgroundContentIfNecessaryToFireEvents({ eventType }, [=, this, protectedThis = Ref { *this }, completionHandler = WTF::move(completionHandler)]() mutable {
@@ -209,7 +215,7 @@ void WebExtensionContext::runtimeConnect(const String& extensionID, WebExtension
         size_t totalExpected = mainWorldProcesses.size();
 
         for (auto& process : mainWorldProcesses) {
-            process->sendWithAsyncReply(Messages::WebExtensionContextProxy::DispatchRuntimeConnectEvent(targetContentWorldType, channelIdentifier, name, std::nullopt, completeSenderParameters), [=, this, protectedThis = Ref { *this }](HashCountedSet<WebPageProxyIdentifier>&& addedPortCounts) mutable {
+            process->sendWithAsyncReply(Messages::WebExtensionContextProxy::DispatchRuntimeConnectEvent(targetContentWorldType, channelIdentifier, name, std::nullopt, completeSenderParameters, resolvedUserGesture), [=, this, protectedThis = Ref { *this }](HashCountedSet<WebPageProxyIdentifier>&& addedPortCounts) mutable {
                 // Flip target and source worlds since we're adding the opposite side of the port connection, sending from target back to source.
                 addPorts(targetContentWorldType, sourceContentWorldType, channelIdentifier, WTF::move(addedPortCounts));
 
@@ -455,7 +461,7 @@ void WebExtensionContext::runtimeWebPageSendMessage(const String& extensionID, c
     completeSenderParameters.tabParameters = tab->parameters();
 
     auto url = completeSenderParameters.url;
-    auto validMatchPatterns = destinationExtension->protectedExtension()->externallyConnectableMatchPatterns();
+    auto validMatchPatterns = protect(destinationExtension->extension())->externallyConnectableMatchPatterns();
     if (!hasPermission(url, tab.get()) || !WebExtensionMatchPattern::patternsMatchURL(validMatchPatterns, url)) {
         callAfterRandomDelay([completionHandler = WTF::move(completionHandler)]() mutable {
             completionHandler({ });
@@ -464,6 +470,8 @@ void WebExtensionContext::runtimeWebPageSendMessage(const String& extensionID, c
         return;
     }
 
+    // Web pages are never trusted for gesture propagation to extension pages.
+    constexpr bool resolvedUserGesture = false;
     constexpr auto eventType = WebExtensionEventListenerType::RuntimeOnMessageExternal;
 
     wakeUpBackgroundContentIfNecessaryToFireEvents({ eventType }, [=, this, protectedThis = Ref { *this }, completionHandler = WTF::move(completionHandler)]() mutable {
@@ -476,7 +484,7 @@ void WebExtensionContext::runtimeWebPageSendMessage(const String& extensionID, c
         auto callbackAggregator = EagerCallbackAggregator<void(Expected<String, WebExtensionError>)>::create(WTF::move(completionHandler), { });
 
         for (auto& process : mainWorldProcesses) {
-            process->sendWithAsyncReply(Messages::WebExtensionContextProxy::DispatchRuntimeMessageEvent(WebExtensionContentWorldType::Main, messageJSON, std::nullopt, completeSenderParameters), [callbackAggregator](String&& replyJSON) {
+            process->sendWithAsyncReply(Messages::WebExtensionContextProxy::DispatchRuntimeMessageEvent(WebExtensionContentWorldType::Main, messageJSON, std::nullopt, completeSenderParameters, resolvedUserGesture), [callbackAggregator](String&& replyJSON) {
                 // A null reply means no listeners replied. Don't call the callbackAggregator
                 // to give other listeners in a different process a chance to reply.
                 if (replyJSON.isNull())
@@ -517,7 +525,7 @@ void WebExtensionContext::runtimeWebPageConnect(const String& extensionID, WebEx
     completeSenderParameters.tabParameters = tab->parameters();
 
     auto url = completeSenderParameters.url;
-    auto validMatchPatterns = destinationExtension->protectedExtension()->externallyConnectableMatchPatterns();
+    auto validMatchPatterns = protect(destinationExtension->extension())->externallyConnectableMatchPatterns();
     if (!hasPermission(url, tab.get()) || !WebExtensionMatchPattern::patternsMatchURL(validMatchPatterns, url)) {
         callAfterRandomDelay([=, this, protectedThis = Ref { *this }, completionHandler = WTF::move(completionHandler)]() mutable {
             completionHandler({ });
@@ -531,6 +539,8 @@ void WebExtensionContext::runtimeWebPageConnect(const String& extensionID, WebEx
     // Add 1 for the starting port here so disconnect will balance with a decrement.
     addPorts(sourceContentWorldType, targetContentWorldType, channelIdentifier, { senderParameters.pageProxyIdentifier });
 
+    // Web pages are never trusted for gesture propagation to extension pages.
+    constexpr bool resolvedUserGesture = false;
     constexpr auto eventType = WebExtensionEventListenerType::RuntimeOnConnectExternal;
 
     wakeUpBackgroundContentIfNecessaryToFireEvents({ eventType }, [=, this, protectedThis = Ref { *this }, completionHandler = WTF::move(completionHandler)]() mutable {
@@ -544,7 +554,7 @@ void WebExtensionContext::runtimeWebPageConnect(const String& extensionID, WebEx
         size_t totalExpected = mainWorldProcesses.size();
 
         for (auto& process : mainWorldProcesses) {
-            process->sendWithAsyncReply(Messages::WebExtensionContextProxy::DispatchRuntimeConnectEvent(targetContentWorldType, channelIdentifier, name, std::nullopt, completeSenderParameters), [=, this, protectedThis = Ref { *this }](HashCountedSet<WebPageProxyIdentifier>&& addedPortCounts) mutable {
+            process->sendWithAsyncReply(Messages::WebExtensionContextProxy::DispatchRuntimeConnectEvent(targetContentWorldType, channelIdentifier, name, std::nullopt, completeSenderParameters, resolvedUserGesture), [=, this, protectedThis = Ref { *this }](HashCountedSet<WebPageProxyIdentifier>&& addedPortCounts) mutable {
                 // Flip target and source worlds since we're adding the opposite side of the port connection, sending from target back to source.
                 addPorts(targetContentWorldType, sourceContentWorldType, channelIdentifier, WTF::move(addedPortCounts));
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2024 Google LLC.
+ * Copyright 2024 Google LLC
  *
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
@@ -33,7 +33,7 @@ class SkPngCodecBase : public SkCodec {
 public:
     ~SkPngCodecBase() override;
 
-    static bool isCompatibleColorProfileAndType(const SkEncodedInfo::ICCProfile* profile,
+    static bool isCompatibleColorProfileAndType(const SkCodecs::ColorProfile* profile,
                                                 SkEncodedInfo::Color color);
 protected:
     SkPngCodecBase(SkEncodedInfo&&, std::unique_ptr<SkStream>, SkEncodedOrigin origin);

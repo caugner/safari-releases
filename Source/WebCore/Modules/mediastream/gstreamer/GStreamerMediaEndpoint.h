@@ -71,7 +71,7 @@ public:
 
     std::unique_ptr<RTCDataChannelHandler> createDataChannel(const String&, const RTCDataChannelInit&);
 
-    void addIceCandidate(GStreamerIceCandidate&, PeerConnectionBackend::AddIceCandidateCallback&&);
+    void addIceCandidate(const RTCIceCandidate&, PeerConnectionBackend::AddIceCandidateCallback&&);
 
     void prepareForClose();
     void close();
@@ -88,15 +88,15 @@ public:
 
     void configureSource(RealtimeOutgoingMediaSourceGStreamer&, GUniquePtr<GstStructure>&&);
 
-    ExceptionOr<RefPtr<GStreamerRtpSenderBackend>> addTrack(MediaStreamTrack&, const FixedVector<String>&);
+    ExceptionOr<Ref<GStreamerRtpSenderBackend>> addTrack(MediaStreamTrack&, const FixedVector<String>&);
     void removeTrack(GStreamerRtpSenderBackend&);
 
     void recycleTransceiverForSenderTrack(GStreamerRtpTransceiverBackend*, MediaStreamTrack&, const FixedVector<String>&);
 
     struct Backends {
-        RefPtr<GStreamerRtpSenderBackend> senderBackend;
-        std::unique_ptr<GStreamerRtpReceiverBackend> receiverBackend;
-        std::unique_ptr<GStreamerRtpTransceiverBackend> transceiverBackend;
+        Ref<GStreamerRtpSenderBackend> senderBackend;
+        UniqueRef<GStreamerRtpReceiverBackend> receiverBackend;
+        UniqueRef<GStreamerRtpTransceiverBackend> transceiverBackend;
     };
     ExceptionOr<Backends> addTransceiver(const String& trackKind, const RTCRtpTransceiverInit&, PeerConnectionBackend::IgnoreNegotiationNeededFlag);
     ExceptionOr<Backends> addTransceiver(MediaStreamTrack&, const RTCRtpTransceiverInit&, PeerConnectionBackend::IgnoreNegotiationNeededFlag);
@@ -104,7 +104,7 @@ public:
 
     GStreamerRtpSenderBackend::Source createSourceForTrack(MediaStreamTrack&);
 
-    void collectTransceivers();
+    void collectTransceivers(Vector<Ref<RTCRtpTransceiver>>&&);
 
     void createSessionDescriptionSucceeded(GUniquePtr<GstWebRTCSessionDescription>&&);
     void createSessionDescriptionFailed(RTCSdpType, GUniquePtr<GError>&&);
@@ -119,11 +119,14 @@ public:
 #endif
 
     void connectIncomingTrack(WebRTCTrackData&);
+    void notifyFirstPacketReceived(WebRTCTrackData&);
 
     void startRTCLogs();
     void stopRTCLogs();
 
     void onNegotiationNeeded();
+
+    void trackWasReplaced(const String& previousId, const String& newId);
 
 protected:
 #if !RELEASE_LOG_DISABLED
@@ -154,7 +157,7 @@ private:
     void prepareDataChannel(GstWebRTCDataChannel*, gboolean isLocal);
     void onDataChannel(GstWebRTCDataChannel*);
 
-    WARN_UNUSED_RETURN GstElement* requestAuxiliarySender(GRefPtr<GstWebRTCDTLSTransport>&&);
+    [[nodiscard]] GstElement* requestAuxiliarySender(GRefPtr<GstWebRTCDTLSTransport>&&);
 
     MediaStream& mediaStreamFromRTCStream(String mediaStreamId);
 
@@ -167,7 +170,7 @@ private:
 
     void processSDPMessage(const GstSDPMessage*, Function<void(unsigned index, CStringView mid, const GstSDPMedia*)>);
 
-    WARN_UNUSED_RETURN GRefPtr<GstPad> requestPad(const GRefPtr<GstCaps>&, const String& mediaStreamID);
+    [[nodiscard]] GRefPtr<GstPad> requestPad(const GRefPtr<GstCaps>&, const String& mediaStreamID);
 
     std::optional<bool> isIceGatheringComplete(const String& currentLocalDescription);
 
@@ -218,8 +221,6 @@ private:
 
     using SSRC = unsigned;
     HashMap<SSRC, RefPtr<GStreamerIncomingTrackProcessor>> m_trackProcessors;
-
-    Vector<String> m_pendingIncomingMediaStreamIDs;
 
     bool m_shouldIgnoreNegotiationNeededSignal { false };
 

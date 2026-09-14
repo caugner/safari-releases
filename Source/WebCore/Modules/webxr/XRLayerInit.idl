@@ -31,8 +31,9 @@ typedef unsigned long GLenum;
     EnabledBySetting=WebXRLayersAPIEnabled,
 ] dictionary XRLayerInit {
     required WebXRSpace space;
+    XRTextureType textureType = "texture";
     GLenum colorFormat = 0x1908;
-    GLenum? depthFormat;
+    [ImplementationDefaultValue=null] GLenum? depthFormat;
     unsigned long mipLevels = 1;
     required unsigned long viewPixelWidth;
     required unsigned long viewPixelHeight;

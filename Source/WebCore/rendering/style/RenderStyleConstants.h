@@ -2,7 +2,7 @@
  * Copyright (C) 2000 Lars Knoll (knoll@kde.org)
  *           (C) 2000 Antti Koivisto (koivisto@kde.org)
  *           (C) 2000 Dirk Mueller (mueller@kde.org)
- * Copyright (C) 2003-2023 Apple Inc. All rights reserved.
+ * Copyright (C) 2003-2026 Apple Inc. All rights reserved.
  * Copyright (C) 2006 Graham Dennis (graham.dennis@gmail.com)
  * Copyright (C) 2009 Torch Mobile Inc. All rights reserved. (http://www.torchmobile.com/)
  * Copyright (C) 2026 Samuel Weinig <sam@webkit.org>
@@ -63,11 +63,18 @@ enum class PseudoElementType : uint8_t {
     WebKitScrollbar,
     SpellingError,
     TargetText,
+    Checkmark,
+    PickerIcon,
     ViewTransition,
     ViewTransitionGroup,
     ViewTransitionImagePair,
     ViewTransitionOld,
     ViewTransitionNew,
+
+    // Special: This is only used for getComputedStyle(), and primarily in the event there's no
+    // concrete backing element and we have to look up the matching style rules. It is also limited
+    // to non-prefixed parts.
+    UserAgentPartFallback,
 
     // Internal:
     WebKitScrollbarThumb,
@@ -94,6 +101,8 @@ constexpr auto allPublicPseudoElementTypes = EnumSet {
     PseudoElementType::WebKitScrollbar,
     PseudoElementType::SpellingError,
     PseudoElementType::TargetText,
+    PseudoElementType::Checkmark,
+    PseudoElementType::PickerIcon,
     PseudoElementType::ViewTransition,
     PseudoElementType::ViewTransitionGroup,
     PseudoElementType::ViewTransitionImagePair,
@@ -155,9 +164,18 @@ enum class BorderStyle : uint8_t {
     Double
 };
 
-inline bool isVisibleBorderStyle(BorderStyle value)
+constexpr bool isVisibleBorderStyle(BorderStyle value)
 {
     return value > BorderStyle::Hidden;
+}
+
+constexpr BorderStyle collapsedBorderStyle(BorderStyle style)
+{
+    if (style == BorderStyle::Outset)
+        return BorderStyle::Groove;
+    if (style == BorderStyle::Inset)
+        return BorderStyle::Ridge;
+    return style;
 }
 
 enum class BorderPrecedence : uint8_t {
@@ -231,6 +249,13 @@ enum class Overflow : uint8_t {
     PagedX,
     PagedY
 };
+
+constexpr bool isNonVisibleOverflow(Overflow overflow)
+{
+    return overflow == Overflow::Hidden
+        || overflow == Overflow::Scroll
+        || overflow == Overflow::Clip;
+}
 
 enum class Clear : uint8_t {
     None,
@@ -618,7 +643,7 @@ enum class BreakBetween : uint8_t {
     RectoPage,
     VersoPage
 };
-bool alwaysPageBreak(BreakBetween);
+bool NODELETE alwaysPageBreak(BreakBetween);
     
 enum class BreakInside : uint8_t {
     Auto,
@@ -698,38 +723,6 @@ enum class CursorVisibility : bool {
     AutoHide,
 };
 #endif
-
-enum class DisplayType : uint8_t {
-    Inline,
-    Block,
-    ListItem,
-    InlineBlock,
-    Table,
-    InlineTable,
-    TableRowGroup,
-    TableHeaderGroup,
-    TableFooterGroup,
-    TableRow,
-    TableColumnGroup,
-    TableColumn,
-    TableCell,
-    TableCaption,
-    Box,
-    InlineBox,
-    Flex,
-    InlineFlex,
-    Contents,
-    Grid,
-    InlineGrid,
-    GridLanes,
-    InlineGridLanes,
-    FlowRoot,
-    Ruby,
-    RubyBlock,
-    RubyBase,
-    RubyAnnotation,
-    None
-};
 
 enum class InsideLink : uint8_t {
     NotInside,
@@ -990,12 +983,6 @@ enum class MathStyle : bool {
     Compact,
 };
 
-enum class ContainerType : uint8_t {
-    Normal,
-    Size,
-    InlineSize,
-};
-
 enum class ContainIntrinsicSizeType : uint8_t {
     None,
     Length,
@@ -1130,7 +1117,7 @@ enum class MaskType : uint8_t {
     Alpha
 };
 
-CSSBoxType transformBoxToCSSBoxType(TransformBox);
+CSSBoxType NODELETE transformBoxToCSSBoxType(TransformBox);
 
 constexpr float defaultMiterLimit = 4;
 
@@ -1174,7 +1161,6 @@ WTF::TextStream& operator<<(WTF::TextStream&, CursorType);
 #if ENABLE(CURSOR_VISIBILITY)
 WTF::TextStream& operator<<(WTF::TextStream&, CursorVisibility);
 #endif
-WTF::TextStream& operator<<(WTF::TextStream&, DisplayType);
 WTF::TextStream& operator<<(WTF::TextStream&, Edge);
 WTF::TextStream& operator<<(WTF::TextStream&, EmptyCell);
 WTF::TextStream& operator<<(WTF::TextStream&, EventListenerRegionType);

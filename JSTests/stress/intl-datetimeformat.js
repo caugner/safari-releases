@@ -253,7 +253,10 @@ shouldBe(Intl.DateTimeFormat('en', { timeZone: 'AMERICA/LOS_ANGELES' }).resolved
 // Default time zone is a valid canonical time zone.
 shouldBe(Intl.DateTimeFormat('en', { timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }).resolvedOptions().timeZone, Intl.DateTimeFormat().resolvedOptions().timeZone);
 
-// Time zone should be preserved and not canonicalized.
+// Time zone identifier is preserved (case-normalized) in resolvedOptions.
+// Per spec, resolvedOptions().timeZone returns [[Identifier]] (the accepted
+// form), not [[PrimaryIdentifier]]. The canonicalization to the IANA primary
+// happens internally for ICU formatting.
 shouldBe(Intl.DateTimeFormat('en', { timeZone: 'Australia/ACT' }).resolvedOptions().timeZone, 'Australia/ACT');
 shouldBe(Intl.DateTimeFormat('en', { timeZone: 'Australia/North' }).resolvedOptions().timeZone, 'Australia/North');
 shouldBe(Intl.DateTimeFormat('en', { timeZone: 'Australia/South' }).resolvedOptions().timeZone, 'Australia/South');
@@ -317,20 +320,20 @@ shouldBe(Intl.DateTimeFormat('en-u-ca-islamic-rgsa').resolvedOptions().calendar,
 // Calendar-sensitive format().
 shouldBe(Intl.DateTimeFormat('en-u-ca-buddhist', { timeZone: 'America/Los_Angeles' }).format(1451099872641), '12/25/2558 BE');
 shouldBeOneOf(Intl.DateTimeFormat('en-u-ca-chinese', { timeZone: 'America/Los_Angeles' }).format(1451099872641), ['11/15/2015', '2015-11-15']);
-shouldBe(Intl.DateTimeFormat('en-u-ca-coptic', { timeZone: 'America/Los_Angeles' }).format(1451099872641), '4/15/1732 ERA1');
+shouldBeOneOf(Intl.DateTimeFormat('en-u-ca-coptic', { timeZone: 'America/Los_Angeles' }).format(1451099872641), ['4/15/1732 ERA1', '4/15/1732 AM']);
 shouldBeOneOf(Intl.DateTimeFormat('en-u-ca-dangi', { timeZone: 'America/Los_Angeles' }).format(1451099872641), ['11/15/2015', '2015-11-15']);
-shouldBe(Intl.DateTimeFormat('en-u-ca-ethioaa', { timeZone: 'America/Los_Angeles' }).format(1451099872641), '4/15/7508 ERA0');
-shouldBe(Intl.DateTimeFormat('en-u-ca-ethiopic', { timeZone: 'America/Los_Angeles' }).format(1451099872641), '4/15/2008 ERA1');
+shouldBeOneOf(Intl.DateTimeFormat('en-u-ca-ethioaa', { timeZone: 'America/Los_Angeles' }).format(1451099872641), ['4/15/7508 ERA0', '4/15/7508 AA']);
+shouldBeOneOf(Intl.DateTimeFormat('en-u-ca-ethiopic', { timeZone: 'America/Los_Angeles' }).format(1451099872641), ['4/15/2008 ERA1', '4/15/2008 AM']);
 shouldBe(Intl.DateTimeFormat('en-u-ca-gregory', { timeZone: 'America/Los_Angeles' }).format(1451099872641), '12/25/2015');
 shouldBe(Intl.DateTimeFormat('en-u-ca-hebrew', { timeZone: 'America/Los_Angeles' }).format(1451099872641), '13 Tevet 5776');
-shouldBe(Intl.DateTimeFormat('en-u-ca-indian', { timeZone: 'America/Los_Angeles' }).format(1451099872641), '10/4/1937 Saka');
+shouldBeOneOf(Intl.DateTimeFormat('en-u-ca-indian', { timeZone: 'America/Los_Angeles' }).format(1451099872641), ['10/4/1937 Saka', '10/4/1937 Śaka']);
 shouldBe(Intl.DateTimeFormat('en-u-ca-islamic', { timeZone: 'America/Los_Angeles' }).format(1451099872641), '3/14/1437 AH');
 shouldBe(Intl.DateTimeFormat('en-u-ca-islamicc', { timeZone: 'America/Los_Angeles' }).format(1451099872641), '3/13/1437 AH');
 shouldBeOneOf(Intl.DateTimeFormat('en-u-ca-ISO8601', { timeZone: 'America/Los_Angeles' }).format(1451099872641), ['12/25/2015', '2015-12-25']);
 shouldBeOneOf(Intl.DateTimeFormat('en-u-ca-japanese', { timeZone: 'America/Los_Angeles' }).format(1451099872641), [ '12/25/27 H', '12/25/H27' ]);
 shouldBe(Intl.DateTimeFormat('en-u-ca-persian', { timeZone: 'America/Los_Angeles' }).format(1451099872641), '10/4/1394 AP');
 shouldBe(Intl.DateTimeFormat('en-u-ca-roc', { timeZone: 'America/Los_Angeles' }).format(1451099872641), '12/25/104 Minguo');
-shouldBe(Intl.DateTimeFormat('en-u-ca-ethiopic-amete-alem', { timeZone: 'America/Los_Angeles' }).format(1451099872641), '4/15/7508 ERA0');
+shouldBeOneOf(Intl.DateTimeFormat('en-u-ca-ethiopic-amete-alem', { timeZone: 'America/Los_Angeles' }).format(1451099872641), ['4/15/7508 ERA0', '4/15/7508 AA']);
 shouldBe(Intl.DateTimeFormat('en-u-ca-islamic-umalqura', { timeZone: 'America/Los_Angeles' }).format(1451099872641), '3/14/1437 AH');
 shouldBe(Intl.DateTimeFormat('en-u-ca-islamic-tbla', { timeZone: 'America/Los_Angeles' }).format(1451099872641), '3/14/1437 AH');
 shouldBe(Intl.DateTimeFormat('en-u-ca-islamic-civil', { timeZone: 'America/Los_Angeles' }).format(1451099872641), '3/13/1437 AH');

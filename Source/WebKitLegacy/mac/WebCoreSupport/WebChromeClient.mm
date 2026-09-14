@@ -44,7 +44,7 @@
 #import "WebHTMLViewInternal.h"
 #import "WebHistoryInternal.h"
 #import "WebKitFullScreenListener.h"
-#import "WebKitPrefix.h"
+#import "WebKitLegacyPrefix.h"
 #import "WebNSURLRequestExtras.h"
 #import "WebOpenPanelResultListener.h"
 #import "WebPlugin.h"
@@ -52,15 +52,20 @@
 #import "WebSecurityOriginInternal.h"
 #import "WebSelectionServiceController.h"
 #import "WebUIDelegatePrivate.h"
+#if PLATFORM(IOS_FAMILY)
+#import "WebUIKitDelegate.h"
+#endif
 #import "WebView.h"
 #import "WebViewInternal.h"
 #import <Foundation/Foundation.h>
 #import <JavaScriptCore/ConsoleTypes.h>
 #import <WebCore/Chrome.h>
 #import <WebCore/ColorChooser.h>
+#if ENABLE(CONTENT_CHANGE_OBSERVER)
+#import <WebCore/ContentChangeObserver.h>
+#endif
 #import <WebCore/ContextMenu.h>
 #import <WebCore/ContextMenuController.h>
-#import <WebCore/CookieConsentDecisionResult.h>
 #import <WebCore/Cursor.h>
 #import <WebCore/DataListSuggestionPicker.h>
 #import <WebCore/DocumentFullscreen.h>
@@ -94,6 +99,7 @@
 #import <WebCore/SerializedCryptoKeyWrap.h>
 #import <WebCore/StorageNamespaceProvider.h>
 #import <WebCore/UniversalAccessZoom.h>
+#import <WebCore/WKContentObservation.h>
 #import <WebCore/Widget.h>
 #import <WebCore/WindowFeatures.h>
 #import <pal/spi/mac/NSViewSPI.h>
@@ -164,8 +170,7 @@ NSString *WebConsoleMessageErrorMessageLevel = @"ErrorMessageLevel";
 - (void)setIsSelected:(BOOL)isSelected;
 @end
 
-using namespace WebCore;
-using namespace HTMLNames;
+using namespace WebCore::HTMLNames;
 
 WTF_MAKE_TZONE_ALLOCATED_IMPL(WebChromeClient);
 
@@ -181,7 +186,7 @@ void WebChromeClient::chromeDestroyed()
 // These functions scale between window and WebView coordinates because JavaScript/DOM operations 
 // assume that the WebView and the window share the same coordinate system.
 
-void WebChromeClient::setWindowRect(const FloatRect& rect)
+void WebChromeClient::setWindowRect(const WebCore::FloatRect& rect)
 {
 #if !PLATFORM(IOS_FAMILY)
     NSRect windowRect = toDeviceSpace(rect, [m_webView window]);
@@ -189,18 +194,18 @@ void WebChromeClient::setWindowRect(const FloatRect& rect)
 #endif
 }
 
-FloatRect WebChromeClient::windowRect() const
+WebCore::FloatRect WebChromeClient::windowRect() const
 {
 #if !PLATFORM(IOS_FAMILY)
     NSRect windowRect = [[m_webView _UIDelegateForwarder] webViewFrame:m_webView];
-    return toUserSpace(windowRect, [m_webView window]);
+    return WebCore::toUserSpace(windowRect, [m_webView window]);
 #else
-    return FloatRect();
+    return WebCore::FloatRect();
 #endif
 }
 
 // FIXME: We need to add API for setting and getting this.
-FloatRect WebChromeClient::pageRect() const
+WebCore::FloatRect WebChromeClient::pageRect() const
 {
     return [m_webView frame];
 }
@@ -215,26 +220,26 @@ void WebChromeClient::unfocus()
     [[m_webView _UIDelegateForwarder] webViewUnfocus:m_webView];
 }
 
-bool WebChromeClient::canTakeFocus(FocusDirection) const
+bool WebChromeClient::canTakeFocus(WebCore::FocusDirection) const
 {
     // There's unfortunately no way to determine if we will become first responder again
     // once we give it up, so we just have to guess that we won't.
     return true;
 }
 
-void WebChromeClient::takeFocus(FocusDirection direction)
+void WebChromeClient::takeFocus(WebCore::FocusDirection direction)
 {
 #if !PLATFORM(IOS_FAMILY)
-    if (direction == FocusDirection::Forward) {
+    if (direction == WebCore::FocusDirection::Forward) {
         // Since we're trying to move focus out of m_webView, and because
         // m_webView may contain subviews within it, we ask it for the next key
         // view of the last view in its key view loop. This makes m_webView
         // behave as if it had no subviews, which is the behavior we want.
-        NSView *lastView = [m_webView _findLastViewInKeyViewLoop];
+        RetainPtr lastView = [m_webView _findLastViewInKeyViewLoop];
         // avoid triggering assertions if the WebView is the only thing in the key loop
-        if ([m_webView _becomingFirstResponderFromOutside] && m_webView == [lastView nextValidKeyView])
+        if ([m_webView _becomingFirstResponderFromOutside] && m_webView == [lastView.get() nextValidKeyView])
             return;
-        [[m_webView window] selectKeyViewFollowingView:lastView];
+        [[m_webView window] selectKeyViewFollowingView:lastView.get()];
     } else {
         // avoid triggering assertions if the WebView is the only thing in the key loop
         if ([m_webView _becomingFirstResponderFromOutside] && m_webView == [m_webView previousValidKeyView])
@@ -244,26 +249,26 @@ void WebChromeClient::takeFocus(FocusDirection direction)
 #endif
 }
 
-void WebChromeClient::focusedElementChanged(Element* element, LocalFrame*, FocusOptions, BroadcastFocusedElement)
+void WebChromeClient::focusedElementChanged(WebCore::Element* element, WebCore::LocalFrame*, WebCore::FocusOptions, WebCore::BroadcastFocusedElement)
 {
-    if (!is<HTMLInputElement>(element))
+    if (!is<WebCore::HTMLInputElement>(element))
         return;
 
-    auto& inputElement = downcast<HTMLInputElement>(*element);
+    auto& inputElement = downcast<WebCore::HTMLInputElement>(*element);
     if (!inputElement.isText())
         return;
 
     CallFormDelegate(m_webView, @selector(didFocusTextField:inFrame:), kit(&inputElement), kit(inputElement.document().frame()));
 }
 
-void WebChromeClient::focusedFrameChanged(Frame*)
+void WebChromeClient::focusedFrameChanged(WebCore::Frame*)
 {
 }
 
-RefPtr<Page> WebChromeClient::createWindow(LocalFrame& frame, const String& openedMainFrameName, const WindowFeatures& features, const NavigationAction&)
+RefPtr<WebCore::Page> WebChromeClient::createWindow(WebCore::LocalFrame& frame, const String& openedMainFrameName, const WebCore::WindowFeatures& features, const WebCore::NavigationAction&)
 {
-    id delegate = [m_webView UIDelegate];
-    WebView *newWebView;
+    RetainPtr<id> delegate = [m_webView UIDelegate];
+    RetainPtr<WebView> newWebView;
 
 #if ENABLE(FULLSCREEN_API)
     if (RefPtr document = frame.document()) {
@@ -273,8 +278,8 @@ RefPtr<Page> WebChromeClient::createWindow(LocalFrame& frame, const String& open
         }
     }
 #endif
-    
-    if ([delegate respondsToSelector:@selector(webView:createWebViewWithRequest:windowFeatures:)]) {
+
+    if ([delegate.get() respondsToSelector:@selector(webView:createWebViewWithRequest:windowFeatures:)]) {
         auto dictFeatures = adoptNS([[NSMutableDictionary alloc] initWithObjectsAndKeys:
             @(features.wantsPopup()), @"wantsPopup",
             @(features.hasAdditionalFeatures), @"hasAdditionalFeatures",
@@ -306,25 +311,16 @@ RefPtr<Page> WebChromeClient::createWindow(LocalFrame& frame, const String& open
             [dictFeatures setObject:@(*features.dialog) forKey:@"dialog"];
 
         newWebView = CallUIDelegate(m_webView, @selector(webView:createWebViewWithRequest:windowFeatures:), nil, dictFeatures.get());
-    } else if (features.dialog && [delegate respondsToSelector:@selector(webView:createWebViewModalDialogWithRequest:)])
+    } else if (features.dialog && [delegate.get() respondsToSelector:@selector(webView:createWebViewModalDialogWithRequest:)])
         newWebView = CallUIDelegate(m_webView, @selector(webView:createWebViewModalDialogWithRequest:), nil);
     else
         newWebView = CallUIDelegate(m_webView, @selector(webView:createWebViewWithRequest:), nil);
 
-    RefPtr newPage = core(newWebView);
+    RefPtr newPage = core(newWebView.get());
     if (newPage) {
         if (!features.wantsNoOpener()) {
-            m_webView.page->protectedStorageNamespaceProvider()->cloneSessionStorageNamespaceForPage(*m_webView.page, *newPage);
+            protect(m_webView.page->storageNamespaceProvider())->cloneSessionStorageNamespaceForPage(*m_webView.page, *newPage);
             newPage->mainFrame().setOpenerForWebKitLegacy(&frame);
-
-            auto& newPageClient = static_cast<WebChromeClient&>(newPage->chrome().client());
-            setToolbarsVisible(features.toolBarVisible || features.locationBarVisible);
-            if (features.statusBarVisible)
-                newPageClient.setStatusbarVisible(*features.statusBarVisible);
-            if (features.scrollbarsVisible)
-                newPageClient.setScrollbarsVisible(*features.scrollbarsVisible);
-            if (features.menuBarVisible)
-                newPageClient.setMenubarVisible(*features.menuBarVisible);
             newPage->applyWindowFeatures(features);
         }
 
@@ -356,46 +352,9 @@ void WebChromeClient::runModal()
     CallUIDelegate(m_webView, @selector(webViewRunModal:));
 }
 
-void WebChromeClient::setToolbarsVisible(bool b)
+bool WebChromeClient::isPopup() const
 {
-    [[m_webView _UIDelegateForwarder] webView:m_webView setToolbarsVisible:b];
-}
-
-bool WebChromeClient::toolbarsVisible() const
-{
-    return CallUIDelegateReturningBoolean(NO, m_webView, @selector(webViewAreToolbarsVisible:));
-}
-
-void WebChromeClient::setStatusbarVisible(bool b)
-{
-    [[m_webView _UIDelegateForwarder] webView:m_webView setStatusBarVisible:b];
-}
-
-bool WebChromeClient::statusbarVisible() const
-{
-    return CallUIDelegateReturningBoolean(NO, m_webView, @selector(webViewIsStatusBarVisible:));
-}
-
-void WebChromeClient::setScrollbarsVisible(bool b)
-{
-    [[[m_webView mainFrame] frameView] setAllowsScrolling:b];
-}
-
-bool WebChromeClient::scrollbarsVisible() const
-{
-    return [[[m_webView mainFrame] frameView] allowsScrolling];
-}
-
-void WebChromeClient::setMenubarVisible(bool)
-{
-    // The menubar is always visible in Mac OS X.
-    return;
-}
-
-bool WebChromeClient::menubarVisible() const
-{
-    // The menubar is always visible in Mac OS X.
-    return true;
+    return NO;
 }
 
 void WebChromeClient::setResizable(bool b)
@@ -466,12 +425,12 @@ inline static NSString *stringForMessageLevel(MessageLevel level)
 void WebChromeClient::addMessageToConsole(MessageSource source, MessageLevel level, const String& message, unsigned lineNumber, unsigned columnNumber, const String& sourceURL)
 {
 #if !PLATFORM(IOS_FAMILY)
-    id delegate = [m_webView UIDelegate];
+    RetainPtr<id> delegate = [m_webView UIDelegate];
 #else
     if (![m_webView _allowsMessaging])
         return;
 
-    id delegate = [m_webView _UIKitDelegate];
+    RetainPtr<id> delegate = [m_webView _UIKitDelegate];
     // No delegate means nothing to send this data to so bail.
     if (!delegate)
         return;
@@ -480,35 +439,35 @@ void WebChromeClient::addMessageToConsole(MessageSource source, MessageLevel lev
     BOOL respondsToNewSelector = NO;
 
     SEL selector = @selector(webView:addMessageToConsole:withSource:);
-    if ([delegate respondsToSelector:selector])
+    if ([delegate.get() respondsToSelector:selector])
         respondsToNewSelector = YES;
     else {
         // The old selector only takes JSMessageSource messages.
         if (source != MessageSource::JS)
             return;
         selector = @selector(webView:addMessageToConsole:);
-        if (![delegate respondsToSelector:selector])
+        if (![delegate.get() respondsToSelector:selector])
             return;
     }
 
-    NSString *messageSource = stringForMessageSource(source);
-    auto dictionary = @{
+    RetainPtr messageSource = stringForMessageSource(source);
+    RetainPtr dictionary = @{
         @"message": message.createNSString().get(),
         @"lineNumber": @(lineNumber),
         @"columnNumber": @(columnNumber),
         @"sourceURL": sourceURL.createNSString().get(),
-        @"MessageSource": messageSource,
+        @"MessageSource": messageSource.get(),
         @"MessageLevel": stringForMessageLevel(level),
     };
 
 #if PLATFORM(IOS_FAMILY)
-    [[[m_webView _UIKitDelegateForwarder] asyncForwarder] webView:m_webView addMessageToConsole:dictionary withSource:messageSource];
+    [[[m_webView _UIKitDelegateForwarder] asyncForwarder] webView:m_webView addMessageToConsole:dictionary.get() withSource:messageSource.get()];
     UNUSED_VARIABLE(respondsToNewSelector);
 #else
     if (respondsToNewSelector)
-        CallUIDelegate(m_webView, selector, dictionary, messageSource);
+        CallUIDelegate(m_webView, selector, dictionary.get(), messageSource.get());
     else
-        CallUIDelegate(m_webView, selector, dictionary);
+        CallUIDelegate(m_webView, selector, dictionary.get());
 #endif
 }
 
@@ -517,7 +476,7 @@ bool WebChromeClient::canRunBeforeUnloadConfirmPanel()
     return [[m_webView UIDelegate] respondsToSelector:@selector(webView:runBeforeUnloadConfirmPanelWithMessage:initiatedByFrame:)];
 }
 
-bool WebChromeClient::runBeforeUnloadConfirmPanel(String&& message, LocalFrame& frame)
+bool WebChromeClient::runBeforeUnloadConfirmPanel(String&& message, WebCore::LocalFrame& frame)
 {
     return CallUIDelegateReturningBoolean(true, m_webView, @selector(webView:runBeforeUnloadConfirmPanelWithMessage:initiatedByFrame:), message.createNSString().get(), kit(&frame));
 }
@@ -542,51 +501,51 @@ void WebChromeClient::closeWindow()
     [m_webView _closeWindow];
 }
 
-void WebChromeClient::runJavaScriptAlert(LocalFrame& frame, const String& message)
+void WebChromeClient::runJavaScriptAlert(WebCore::LocalFrame& frame, const String& message)
 {
-    id delegate = [m_webView UIDelegate];
+    RetainPtr<id> delegate = [m_webView UIDelegate];
     SEL selector = @selector(webView:runJavaScriptAlertPanelWithMessage:initiatedByFrame:);
-    if ([delegate respondsToSelector:selector]) {
+    if ([delegate.get() respondsToSelector:selector]) {
         CallUIDelegate(m_webView, selector, message.createNSString().get(), kit(&frame));
         return;
     }
 
     // Call the old version of the delegate method if it is implemented.
     selector = @selector(webView:runJavaScriptAlertPanelWithMessage:);
-    if ([delegate respondsToSelector:selector]) {
+    if ([delegate.get() respondsToSelector:selector]) {
         CallUIDelegate(m_webView, selector, message.createNSString().get());
         return;
     }
 }
 
-bool WebChromeClient::runJavaScriptConfirm(LocalFrame& frame, const String& message)
+bool WebChromeClient::runJavaScriptConfirm(WebCore::LocalFrame& frame, const String& message)
 {
-    id delegate = [m_webView UIDelegate];
+    RetainPtr<id> delegate = [m_webView UIDelegate];
     SEL selector = @selector(webView:runJavaScriptConfirmPanelWithMessage:initiatedByFrame:);
-    if ([delegate respondsToSelector:selector])
+    if ([delegate.get() respondsToSelector:selector])
         return CallUIDelegateReturningBoolean(NO, m_webView, selector, message.createNSString().get(), kit(&frame));
 
     // Call the old version of the delegate method if it is implemented.
     selector = @selector(webView:runJavaScriptConfirmPanelWithMessage:);
-    if ([delegate respondsToSelector:selector])
+    if ([delegate.get() respondsToSelector:selector])
         return CallUIDelegateReturningBoolean(NO, m_webView, selector, message.createNSString().get());
 
     return NO;
 }
 
-bool WebChromeClient::runJavaScriptPrompt(LocalFrame& frame, const String& prompt, const String& defaultText, String& result)
+bool WebChromeClient::runJavaScriptPrompt(WebCore::LocalFrame& frame, const String& prompt, const String& defaultText, String& result)
 {
-    id delegate = [m_webView UIDelegate];
+    RetainPtr<id> delegate = [m_webView UIDelegate];
     SEL selector = @selector(webView:runJavaScriptTextInputPanelWithPrompt:defaultText:initiatedByFrame:);
     RetainPtr defaultString = defaultText.createNSString();
-    if ([delegate respondsToSelector:selector]) {
+    if ([delegate.get() respondsToSelector:selector]) {
         result = (NSString *)CallUIDelegate(m_webView, selector, prompt.createNSString().get(), defaultString.get(), kit(&frame));
         return !result.isNull();
     }
 
     // Call the old version of the delegate method if it is implemented.
     selector = @selector(webView:runJavaScriptTextInputPanelWithPrompt:defaultText:);
-    if ([delegate respondsToSelector:selector]) {
+    if ([delegate.get() respondsToSelector:selector]) {
         result = (NSString *)CallUIDelegate(m_webView, selector, prompt.createNSString().get(), defaultString.get());
         return !result.isNull();
     }
@@ -595,52 +554,52 @@ bool WebChromeClient::runJavaScriptPrompt(LocalFrame& frame, const String& promp
     return !result.isNull();
 }
 
-void WebChromeClient::invalidateRootView(const IntRect&)
+void WebChromeClient::invalidateRootView(const WebCore::IntRect&)
 {
 }
 
-void WebChromeClient::invalidateContentsAndRootView(const IntRect& rect)
+void WebChromeClient::invalidateContentsAndRootView(const WebCore::IntRect& rect)
 {
 }
 
-void WebChromeClient::invalidateContentsForSlowScroll(const IntRect& rect)
+void WebChromeClient::invalidateContentsForSlowScroll(const WebCore::IntRect& rect)
 {
     invalidateContentsAndRootView(rect);
 }
 
-void WebChromeClient::scroll(const IntSize&, const IntRect&, const IntRect&)
+void WebChromeClient::scroll(const WebCore::IntSize&, const WebCore::IntRect&, const WebCore::IntRect&)
 {
 }
 
-IntPoint WebChromeClient::screenToRootView(const IntPoint& p) const
-{
-    // FIXME: Implement this.
-    return p;
-}
-
-IntPoint WebChromeClient::rootViewToScreen(const IntPoint& p) const
+WebCore::IntPoint WebChromeClient::screenToRootView(const WebCore::IntPoint& p) const
 {
     // FIXME: Implement this.
     return p;
 }
 
-IntRect WebChromeClient::rootViewToScreen(const IntRect& r) const
+WebCore::IntPoint WebChromeClient::rootViewToScreen(const WebCore::IntPoint& p) const
+{
+    // FIXME: Implement this.
+    return p;
+}
+
+WebCore::IntRect WebChromeClient::rootViewToScreen(const WebCore::IntRect& r) const
 {
     // FIXME: Implement this.
     return r;
 }
 
-IntPoint WebChromeClient::accessibilityScreenToRootView(const IntPoint& p) const
+WebCore::IntPoint WebChromeClient::accessibilityScreenToRootView(const WebCore::IntPoint& p) const
 {
     return screenToRootView(p);
 }
 
-IntRect WebChromeClient::rootViewToAccessibilityScreen(const IntRect& r) const
+WebCore::IntRect WebChromeClient::rootViewToAccessibilityScreen(const WebCore::IntRect& r) const
 {
     return rootViewToScreen(r);
 }
 
-void WebChromeClient::didFinishLoadingImageForElement(HTMLImageElement&)
+void WebChromeClient::didFinishLoadingImageForElement(WebCore::HTMLImageElement&)
 {
 }
 
@@ -649,44 +608,44 @@ PlatformPageClient WebChromeClient::platformPageClient() const
     return 0;
 }
 
-void WebChromeClient::contentsSizeChanged(LocalFrame&, const IntSize&) const
+void WebChromeClient::contentsSizeChanged(WebCore::LocalFrame&, const WebCore::IntSize&) const
 {
 }
 
-void WebChromeClient::scrollContainingScrollViewsToRevealRect(const IntRect& r) const
+void WebChromeClient::scrollContainingScrollViewsToRevealRect(const WebCore::IntRect& r) const
 {
     // FIXME: This scrolling behavior should be under the control of the embedding client,
     // perhaps in a delegate method, rather than something WebKit does unconditionally.
-    NSView *coordinateView = [[[m_webView mainFrame] frameView] documentView];
+    RetainPtr coordinateView = [[[m_webView mainFrame] frameView] documentView];
     NSRect rect = r;
-    for (NSView *view = m_webView; view; view = [view superview]) {
-        if ([view isKindOfClass:[NSClipView class]]) {
-            NSClipView *clipView = (NSClipView *)view;
-            NSView *documentView = [clipView documentView];
-            [documentView scrollRectToVisible:[documentView convertRect:rect fromView:coordinateView]];
+    for (RetainPtr<NSView> view = m_webView; view; view = [view.get() superview]) {
+        if ([view.get() isKindOfClass:[NSClipView class]]) {
+            RetainPtr clipView = (NSClipView *)view.get();
+            NSView *documentView = [clipView.get() documentView];
+            [documentView scrollRectToVisible:[documentView convertRect:rect fromView:coordinateView.get()]];
         }
     }
 }
 
 // End host window methods.
 
-bool WebChromeClient::shouldUnavailablePluginMessageBeButton(PluginUnavailabilityReason pluginUnavailabilityReason) const
+bool WebChromeClient::shouldUnavailablePluginMessageBeButton(WebCore::PluginUnavailabilityReason pluginUnavailabilityReason) const
 {
-    if (pluginUnavailabilityReason == PluginUnavailabilityReason::PluginMissing)
+    if (pluginUnavailabilityReason == WebCore::PluginUnavailabilityReason::PluginMissing)
         return [[m_webView UIDelegate] respondsToSelector:@selector(webView:didPressMissingPluginButton:)];
 
     return false;
 }
 
-void WebChromeClient::unavailablePluginButtonClicked(Element& element, PluginUnavailabilityReason pluginUnavailabilityReason) const
+void WebChromeClient::unavailablePluginButtonClicked(WebCore::Element& element, WebCore::PluginUnavailabilityReason pluginUnavailabilityReason) const
 {
     ASSERT(element.hasTagName(objectTag) || element.hasTagName(embedTag) || element.hasTagName(appletTag));
 
-    ASSERT(pluginUnavailabilityReason == PluginUnavailabilityReason::PluginMissing);
+    ASSERT(pluginUnavailabilityReason == WebCore::PluginUnavailabilityReason::PluginMissing);
     CallUIDelegate(m_webView, @selector(webView:didPressMissingPluginButton:), kit(&element));
 }
 
-void WebChromeClient::mouseDidMoveOverElement(const HitTestResult& result, OptionSet<WebCore::PlatformEventModifier> modifiers, const String& toolTip, TextDirection)
+void WebChromeClient::mouseDidMoveOverElement(const WebCore::HitTestResult& result, OptionSet<WebCore::PlatformEventModifier> modifiers, const String& toolTip, WebCore::TextDirection)
 {
     auto element = adoptNS([[WebElementDictionary alloc] initWithHitTestResult:result]);
     [m_webView _mouseDidMoveOverElement:element.get() modifierFlags:modifiers.toRaw()];
@@ -695,21 +654,21 @@ void WebChromeClient::mouseDidMoveOverElement(const HitTestResult& result, Optio
 
 void WebChromeClient::setToolTip(const String& toolTip)
 {
-    NSView<WebDocumentView> *documentView = [[[m_webView _selectedOrMainFrame] frameView] documentView];
-    if ([documentView isKindOfClass:[WebHTMLView class]])
-        [(WebHTMLView *)documentView _setToolTip:toolTip.createNSString().get()];
+    RetainPtr documentView = [[[m_webView _selectedOrMainFrame] frameView] documentView];
+    if ([documentView.get() isKindOfClass:[WebHTMLView class]])
+        [(WebHTMLView *)documentView.get() _setToolTip:toolTip.createNSString().get()];
 }
 
-void WebChromeClient::print(LocalFrame& frame, const StringWithDirection&)
+void WebChromeClient::print(WebCore::LocalFrame& frame, const WebCore::StringWithDirection&)
 {
-    WebFrame *webFrame = kit(&frame);
+    RetainPtr webFrame = kit(&frame);
     if ([[m_webView UIDelegate] respondsToSelector:@selector(webView:printFrame:)])
-        CallUIDelegate(m_webView, @selector(webView:printFrame:), webFrame);
+        CallUIDelegate(m_webView, @selector(webView:printFrame:), webFrame.get());
     else
-        CallUIDelegate(m_webView, @selector(webView:printFrameView:), [webFrame frameView]);
+        CallUIDelegate(m_webView, @selector(webView:printFrameView:), [webFrame.get() frameView]);
 }
 
-void WebChromeClient::exceededDatabaseQuota(LocalFrame& frame, const String& databaseName, DatabaseDetails)
+void WebChromeClient::exceededDatabaseQuota(WebCore::LocalFrame& frame, const String& databaseName, WebCore::DatabaseDetails)
 {
     BEGIN_BLOCK_OBJC_EXCEPTIONS
 
@@ -719,30 +678,30 @@ void WebChromeClient::exceededDatabaseQuota(LocalFrame& frame, const String& dat
     END_BLOCK_OBJC_EXCEPTIONS
 }
 
-RefPtr<ColorChooser> WebChromeClient::createColorChooser(ColorChooserClient& client, const Color& initialColor)
+RefPtr<WebCore::ColorChooser> WebChromeClient::createColorChooser(WebCore::ColorChooserClient& client, const WebCore::Color& initialColor)
 {
     // FIXME: Implement <input type='color'> for WK1 (Bug 119094).
     ASSERT_NOT_REACHED();
     return nullptr;
 }
 
-RefPtr<DataListSuggestionPicker> WebChromeClient::createDataListSuggestionPicker(DataListSuggestionsClient& client)
+RefPtr<WebCore::DataListSuggestionPicker> WebChromeClient::createDataListSuggestionPicker(WebCore::DataListSuggestionsClient& client)
 {
     ASSERT_NOT_REACHED();
     return nullptr;
 }
 
-RefPtr<DateTimeChooser> WebChromeClient::createDateTimeChooser(DateTimeChooserClient&)
+RefPtr<WebCore::DateTimeChooser> WebChromeClient::createDateTimeChooser(WebCore::DateTimeChooserClient&)
 {
     ASSERT_NOT_REACHED();
     return nullptr;
 }
 
-void WebChromeClient::setTextIndicator(RefPtr<TextIndicator>&& textIndicator) const
+void WebChromeClient::setTextIndicator(RefPtr<WebCore::TextIndicator>&& textIndicator) const
 {
 }
 
-void WebChromeClient::updateTextIndicator(RefPtr<TextIndicator>&& textIndicator) const
+void WebChromeClient::updateTextIndicator(RefPtr<WebCore::TextIndicator>&& textIndicator) const
 {
 }
 
@@ -780,33 +739,33 @@ void WebChromeClient::requestPointerUnlock(CompletionHandler<void(bool)>&& compl
 }
 #endif
 
-void WebChromeClient::runOpenPanel(LocalFrame&, FileChooser& chooser)
+void WebChromeClient::runOpenPanel(WebCore::LocalFrame&, WebCore::FileChooser& chooser)
 {
     BEGIN_BLOCK_OBJC_EXCEPTIONS
     BOOL allowMultipleFiles = chooser.settings().allowsMultipleFiles;
     auto listener = adoptNS([[WebOpenPanelResultListener alloc] initWithChooser:chooser]);
-    id delegate = [m_webView UIDelegate];
-    if ([delegate respondsToSelector:@selector(webView:runOpenPanelForFileButtonWithResultListener:allowMultipleFiles:)])
+    RetainPtr<id> delegate = [m_webView UIDelegate];
+    if ([delegate.get() respondsToSelector:@selector(webView:runOpenPanelForFileButtonWithResultListener:allowMultipleFiles:)])
         CallUIDelegate(m_webView, @selector(webView:runOpenPanelForFileButtonWithResultListener:allowMultipleFiles:), listener.get(), allowMultipleFiles);
-    else if ([delegate respondsToSelector:@selector(webView:runOpenPanelForFileButtonWithResultListener:)])
+    else if ([delegate.get() respondsToSelector:@selector(webView:runOpenPanelForFileButtonWithResultListener:)])
         CallUIDelegate(m_webView, @selector(webView:runOpenPanelForFileButtonWithResultListener:), listener.get());
     else
         [listener cancel];
     END_BLOCK_OBJC_EXCEPTIONS
 }
 
-void WebChromeClient::showShareSheet(ShareDataWithParsedURL&&, CompletionHandler<void(bool)>&&)
+void WebChromeClient::showShareSheet(WebCore::ShareDataWithParsedURL&&, CompletionHandler<void(bool)>&&)
 {
 }
 
-void WebChromeClient::loadIconForFiles(const Vector<String>& filenames, FileIconLoader& iconLoader)
+void WebChromeClient::loadIconForFiles(const Vector<String>& filenames, WebCore::FileIconLoader& iconLoader)
 {
     iconLoader.iconLoaded(createIconForFiles(filenames));
 }
 
-RefPtr<Icon> WebChromeClient::createIconForFiles(const Vector<String>& filenames)
+RefPtr<WebCore::Icon> WebChromeClient::createIconForFiles(const Vector<String>& filenames)
 {
-    return Icon::createIconForFiles(filenames);
+    return WebCore::Icon::createIconForFiles(filenames);
 }
 
 #if !PLATFORM(IOS_FAMILY)
@@ -821,18 +780,18 @@ void WebChromeClient::setCursor(const WebCore::Cursor& cursor)
     if (!m_webView)
         return;
 
-    NSWindow *window = [m_webView window];
+    RetainPtr window = [m_webView window];
     if (!window)
         return;
 
-    if ([window windowNumber] != [NSWindow windowNumberAtPoint:[NSEvent mouseLocation] belowWindowWithWindowNumber:0])
+    if ([window.get() windowNumber] != [NSWindow windowNumberAtPoint:[NSEvent mouseLocation] belowWindowWithWindowNumber:0])
         return;
 
-    NSCursor *platformCursor = cursor.platformCursor();
-    if ([NSCursor currentCursor] == platformCursor)
+    RetainPtr platformCursor = cursor.platformCursor();
+    if ([NSCursor currentCursor] == platformCursor.get())
         return;
 
-    [platformCursor set];
+    [platformCursor.get() set];
 }
 
 void WebChromeClient::setCursorHiddenUntilMouseMoves(bool hiddenUntilMouseMoves)
@@ -842,12 +801,12 @@ void WebChromeClient::setCursorHiddenUntilMouseMoves(bool hiddenUntilMouseMoves)
 
 #endif
 
-KeyboardUIMode WebChromeClient::keyboardUIMode()
+WebCore::KeyboardUIMode WebChromeClient::keyboardUIMode()
 {
     BEGIN_BLOCK_OBJC_EXCEPTIONS
     return [m_webView _keyboardUIMode];
     END_BLOCK_OBJC_EXCEPTIONS
-    return KeyboardAccessDefault;
+    return WebCore::KeyboardAccessDefault;
 }
 
 NSResponder *WebChromeClient::firstResponder()
@@ -893,16 +852,6 @@ void WebChromeClient::elementDidBlur(WebCore::Element& element)
 }
 #endif
 
-bool WebChromeClient::selectItemWritingDirectionIsNatural()
-{
-    return false;
-}
-
-bool WebChromeClient::selectItemAlignmentFollowsMenuWritingDirection()
-{
-    return true;
-}
-
 RefPtr<WebCore::PopupMenu> WebChromeClient::createPopupMenu(WebCore::PopupMenuClient& client) const
 {
 #if !PLATFORM(IOS_FAMILY)
@@ -926,12 +875,12 @@ bool WebChromeClient::shouldPaintEntireContents() const
 #if PLATFORM(IOS_FAMILY)
     return false;
 #else
-    NSView *documentView = [[[m_webView mainFrame] frameView] documentView];
-    return [documentView layer];
+    RetainPtr documentView = [[[m_webView mainFrame] frameView] documentView];
+    return [documentView.get() layer];
 #endif
 }
 
-void WebChromeClient::attachRootGraphicsLayer(LocalFrame& frame, GraphicsLayer* graphicsLayer)
+void WebChromeClient::attachRootGraphicsLayer(WebCore::LocalFrame& frame, WebCore::GraphicsLayer* graphicsLayer)
 {
 #if !PLATFORM(MAC)
     UNUSED_PARAM(frame);
@@ -946,16 +895,16 @@ void WebChromeClient::attachRootGraphicsLayer(LocalFrame& frame, GraphicsLayer* 
         return;
     }
 
-    WebHTMLView *webHTMLView = (WebHTMLView *)documentView;
+    RetainPtr webHTMLView = (WebHTMLView *)documentView;
     if (graphicsLayer)
-        [webHTMLView attachRootLayer:graphicsLayer->platformLayer()];
+        [webHTMLView.get() attachRootLayer:graphicsLayer->platformLayer()];
     else
-        [webHTMLView detachRootLayer];
+        [webHTMLView.get() detachRootLayer];
     END_BLOCK_OBJC_EXCEPTIONS
 #endif
 }
 
-void WebChromeClient::attachViewOverlayGraphicsLayer(GraphicsLayer*)
+void WebChromeClient::attachViewOverlayGraphicsLayer(WebCore::GraphicsLayer*)
 {
     // FIXME: If we want view-relative page overlays in Legacy WebKit, this would be the place to hook them up.
 }
@@ -976,7 +925,7 @@ void WebChromeClient::triggerRenderingUpdate()
 
 #if ENABLE(VIDEO)
 
-bool WebChromeClient::canEnterVideoFullscreen(HTMLVideoElement&, WebCore::HTMLMediaElementEnums::VideoFullscreenMode) const
+bool WebChromeClient::canEnterVideoFullscreen(WebCore::HTMLVideoElement&, WebCore::HTMLMediaElementEnums::VideoFullscreenMode) const
 {
 #if !PLATFORM(IOS_FAMILY) || HAVE(AVKIT)
     return true;
@@ -985,7 +934,7 @@ bool WebChromeClient::canEnterVideoFullscreen(HTMLVideoElement&, WebCore::HTMLMe
 #endif
 }
 
-bool WebChromeClient::supportsVideoFullscreen(HTMLMediaElementEnums::VideoFullscreenMode)
+bool WebChromeClient::supportsVideoFullscreen(WebCore::HTMLMediaElementEnums::VideoFullscreenMode)
 {
 #if !PLATFORM(IOS_FAMILY) || HAVE(AVKIT)
     return true;
@@ -1001,10 +950,10 @@ void WebChromeClient::setMockVideoPresentationModeEnabled(bool enabled)
     m_mockVideoPresentationModeEnabled = enabled;
 }
 
-void WebChromeClient::enterVideoFullscreenForVideoElement(HTMLVideoElement& videoElement, HTMLMediaElementEnums::VideoFullscreenMode mode, bool standby)
+void WebChromeClient::enterVideoFullscreenForVideoElement(WebCore::HTMLVideoElement& videoElement, WebCore::HTMLMediaElementEnums::VideoFullscreenMode mode, bool standby)
 {
     ASSERT_UNUSED(standby, !standby);
-    ASSERT(mode != HTMLMediaElementEnums::VideoFullscreenModeNone);
+    ASSERT(mode != WebCore::HTMLMediaElementEnums::VideoFullscreenModeNone);
     BEGIN_BLOCK_OBJC_EXCEPTIONS
     if (m_mockVideoPresentationModeEnabled)
         videoElement.didBecomeFullscreenElement();
@@ -1024,7 +973,7 @@ void WebChromeClient::exitVideoFullscreenForVideoElement(WebCore::HTMLVideoEleme
     completionHandler(true);
 }
 
-void WebChromeClient::exitVideoFullscreenToModeWithoutAnimation(HTMLVideoElement& videoElement, HTMLMediaElementEnums::VideoFullscreenMode targetMode)
+void WebChromeClient::exitVideoFullscreenToModeWithoutAnimation(WebCore::HTMLVideoElement& videoElement, WebCore::HTMLMediaElementEnums::VideoFullscreenMode targetMode)
 {
     BEGIN_BLOCK_OBJC_EXCEPTIONS
     if (m_mockVideoPresentationModeEnabled)
@@ -1040,7 +989,7 @@ void WebChromeClient::exitVideoFullscreenToModeWithoutAnimation(HTMLVideoElement
 
 #if ENABLE(VIDEO) && PLATFORM(MAC) && ENABLE(VIDEO_PRESENTATION_MODE)
 
-void WebChromeClient::setUpPlaybackControlsManager(HTMLMediaElement& element)
+void WebChromeClient::setUpPlaybackControlsManager(WebCore::HTMLMediaElement& element)
 {
     [m_webView _setUpPlaybackControlsManagerForMediaElement:element];
 }
@@ -1059,7 +1008,7 @@ void WebChromeClient::mediaEngineChanged(WebCore::HTMLMediaElement&)
 
 #if ENABLE(FULLSCREEN_API)
 
-bool WebChromeClient::supportsFullScreenForElement(const Element& element, bool withKeyboard)
+bool WebChromeClient::supportsFullScreenForElement(const WebCore::Element& element, bool withKeyboard)
 {
     SEL selector = @selector(webView:supportsFullScreenForElement:withKeyboard:);
     if ([[m_webView UIDelegate] respondsToSelector:selector])
@@ -1072,7 +1021,7 @@ bool WebChromeClient::supportsFullScreenForElement(const Element& element, bool 
 }
 
 // FIXME: Remove this when rdar://144645925 is resolved.
-void WebChromeClient::enterFullScreenForElement(Element& element, HTMLMediaElementEnums::VideoFullscreenMode, CompletionHandler<void(ExceptionOr<void>)>&& willEnterFullscreen, CompletionHandler<bool(bool)>&& didEnterFullscreen)
+void WebChromeClient::enterFullScreenForElement(WebCore::Element& element, WebCore::HTMLMediaElementEnums::VideoFullscreenMode, CompletionHandler<void(WebCore::ExceptionOr<void>)>&& willEnterFullscreen, CompletionHandler<bool(bool)>&& didEnterFullscreen)
 {
     SEL selector = @selector(webView:enterFullScreenForElement:listener:);
     if ([[m_webView UIDelegate] respondsToSelector:selector]) {
@@ -1089,7 +1038,7 @@ void WebChromeClient::enterFullScreenForElement(Element& element, HTMLMediaEleme
 #endif
 }
 
-void WebChromeClient::exitFullScreenForElement(Element* element, CompletionHandler<void()>&& completionHandler)
+void WebChromeClient::exitFullScreenForElement(WebCore::Element* element, CompletionHandler<void()>&& completionHandler)
 {
     SEL selector = @selector(webView:exitFullScreenForElement:listener:);
     if ([[m_webView UIDelegate] respondsToSelector:selector]) {
@@ -1122,22 +1071,22 @@ bool WebChromeClient::hasRelevantSelectionServices(bool isTextOnly) const
 
 #if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY)
 
-void WebChromeClient::addPlaybackTargetPickerClient(PlaybackTargetClientContextIdentifier contextId)
+void WebChromeClient::addPlaybackTargetPickerClient(WebCore::PlaybackTargetClientContextIdentifier contextId)
 {
     [m_webView _addPlaybackTargetPickerClient:contextId];
 }
 
-void WebChromeClient::removePlaybackTargetPickerClient(PlaybackTargetClientContextIdentifier contextId)
+void WebChromeClient::removePlaybackTargetPickerClient(WebCore::PlaybackTargetClientContextIdentifier contextId)
 {
     [m_webView _removePlaybackTargetPickerClient:contextId];
 }
 
-void WebChromeClient::showPlaybackTargetPicker(PlaybackTargetClientContextIdentifier contextId, const WebCore::IntPoint& location, bool hasVideo)
+void WebChromeClient::showPlaybackTargetPicker(WebCore::PlaybackTargetClientContextIdentifier contextId, const WebCore::IntPoint& location, bool hasVideo)
 {
     [m_webView _showPlaybackTargetPicker:contextId location:location hasVideo:hasVideo];
 }
 
-void WebChromeClient::playbackTargetPickerClientStateDidChange(PlaybackTargetClientContextIdentifier contextId, MediaProducerMediaStateFlags state)
+void WebChromeClient::playbackTargetPickerClientStateDidChange(WebCore::PlaybackTargetClientContextIdentifier contextId, WebCore::MediaProducerMediaStateFlags state)
 {
     [m_webView _playbackTargetPickerClientStateDidChange:contextId state:state];
 }
@@ -1147,7 +1096,7 @@ void WebChromeClient::setMockMediaPlaybackTargetPickerEnabled(bool enabled)
     [m_webView _setMockMediaPlaybackTargetPickerEnabled:enabled];
 }
 
-void WebChromeClient::setMockMediaPlaybackTargetPickerState(const String& name, MediaPlaybackTargetMockState state)
+void WebChromeClient::setMockMediaPlaybackTargetPickerState(const String& name, WebCore::MediaPlaybackTargetMockState state)
 {
     [m_webView _setMockMediaPlaybackTargetPickerName:name.createNSString().get() state:state];
 }
@@ -1213,7 +1162,30 @@ void WebChromeClient::registerBlobPathForTesting(const String&, CompletionHandle
     completion();
 }
 
-void WebChromeClient::requestCookieConsent(CompletionHandler<void(CookieConsentDecisionResult)>&& completion)
+#if ENABLE(CONTENT_CHANGE_OBSERVER)
+void WebChromeClient::didFinishContentChangeObserving(WebCore::LocalFrame& frame, WebCore::ContentChange observedContentChange)
 {
-    completion(CookieConsentDecisionResult::NotSupported);
+#if PLATFORM(IOS_FAMILY)
+    if (!frame.document())
+        return;
+
+    auto toWKContentChange = [](WebCore::ContentChange change) {
+        using enum WebCore::ContentChange;
+        switch (change) {
+        case None:
+            return WKContentNoChange;
+        case Visibility:
+            return WKContentVisibilityChange;
+        case Indeterminate:
+            return WKContentIndeterminateChange;
+        }
+        ASSERT_NOT_REACHED();
+        return WKContentNoChange;
+    };
+
+    [[webView() _UIKitDelegateForwarder] webView:webView() didObserveDeferredContentChange:toWKContentChange(observedContentChange) forFrame:kit(&frame)];
+#else
+    notImplemented();
+#endif
 }
+#endif

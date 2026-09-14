@@ -57,14 +57,14 @@ public:
     void ref() const final { RefCounted::ref(); }
     void deref() const final { RefCounted::deref(); }
 
-    const LayoutRect& dirtySourceRect() const { return m_dirtySourceRect; }
+    const LayoutRect& dirtySourceRect() const LIFETIME_BOUND { return m_dirtySourceRect; }
     void expandDirtySourceRect(const LayoutRect& rect) { m_dirtySourceRect.unite(rect); }
 
     CSSFilterRenderer* filter() const { return m_filter.get(); }
     void clearFilter() { m_filter = nullptr; }
     
-    bool hasFilterThatMovesPixels() const;
-    bool hasFilterThatShouldBeRestrictedBySecurityOrigin() const;
+    bool NODELETE hasFilterThatMovesPixels() const;
+    bool NODELETE hasFilterThatShouldBeRestrictedBySecurityOrigin() const;
     bool hasSourceImage() const;
 
     void updateReferenceFilterClients(const Style::Filter&);
@@ -76,7 +76,7 @@ public:
     // Per render
     LayoutRect repaintRect() const { return m_repaintRect; }
 
-    GraphicsContext* beginFilterEffect(RenderElement&, GraphicsContext&, const LayoutRect& filterBoxRect, const LayoutRect& dirtyRect, const LayoutRect& layerRepaintRect, const LayoutRect& clipRect);
+    GraphicsContext* beginFilterEffect(RenderElement&, GraphicsContext&, OptionSet<PaintBehavior>, const LayoutRect& filterBoxRect, const LayoutRect& dirtyRect, const LayoutRect& layerRepaintRect, const LayoutRect& clipRect, NOESCAPE const Function<void(GraphicsContext&)>& applyAdditionalDestinationClip = { });
     void applyFilterEffect(GraphicsContext& destinationContext);
 
 private:

@@ -26,6 +26,7 @@
 
 #include "config.h"
 #include "ReadableStreamToSharedBufferSink.h"
+#include "ContextDestructionObserverInlines.h"
 
 #include "DOMException.h"
 #include "EventLoop.h"
@@ -36,6 +37,7 @@
 #include "ReadableStreamDefaultReader.h"
 #include "ScriptExecutionContext.h"
 #include "SharedBuffer.h"
+#include <JavaScriptCore/JSGenericTypedArrayViewInlines.h>
 
 namespace WebCore {
 
@@ -47,10 +49,10 @@ public:
     JSDOMGlobalObject* globalObject() final
     {
         RefPtr context = m_context.get();
-        return context ? JSC::jsCast<JSDOMGlobalObject*>(context->globalObject()): nullptr;
+        return context ? downcast<JSDOMGlobalObject>(context->globalObject()): nullptr;
     }
 
-    ScriptExecutionContext* context() const { return m_context.get(); }
+    ScriptExecutionContext* NODELETE context() const { return m_context.get(); }
 
 private:
     SinkReadRequest(ReadableStreamToSharedBufferSink& sink, ScriptExecutionContext& context)
@@ -70,10 +72,10 @@ private:
             return;
 
         Ref vm = globalObject->vm();
-        auto scope = DECLARE_CATCH_SCOPE(vm);
+        auto scope = DECLARE_THROW_SCOPE(vm);
         auto chunkOrException = convert<IDLUint8Array>(*globalObject, value);
         if (chunkOrException.hasException(scope)) [[unlikely]] {
-            scope.clearException();
+            TRY_CLEAR_EXCEPTION(scope, void());
             sink->error(Exception { ExceptionCode::TypeError, "Unable to convert chunk to Uin8Array"_s });
             return;
         }
@@ -113,7 +115,7 @@ ReadableStreamToSharedBufferSink::~ReadableStreamToSharedBufferSink() = default;
 void ReadableStreamToSharedBufferSink::pipeFrom(ReadableStream& stream)
 {
     RefPtr context = stream.scriptExecutionContext();
-    auto* globalObject = context ? JSC::jsCast<JSDOMGlobalObject*>(context->globalObject()): nullptr;
+    auto* globalObject = context ? downcast<JSDOMGlobalObject>(context->globalObject()): nullptr;
     if (!globalObject) {
         error(Exception { ExceptionCode::TypeError, "no global object"_s });
         return;
@@ -142,7 +144,7 @@ void ReadableStreamToSharedBufferSink::enqueue(const Ref<JSC::Uint8Array>& buffe
     if (!context)
         return;
 
-    protect(context->eventLoop())->queueMicrotask([weakThis = WeakPtr { *this }] {
+    protect(context->eventLoop())->queueMicrotask(context->vm(), [weakThis = WeakPtr { *this }] {
         if (RefPtr protectedThis = weakThis)
             protectedThis->keepReading();
     });

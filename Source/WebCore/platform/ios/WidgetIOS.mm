@@ -65,9 +65,7 @@ Widget::Widget(NSView* view)
     init(view);
 }
 
-Widget::~Widget()
-{
-}
+Widget::~Widget() = default;
 
 // FIXME: Should move this to Chrome; bad layering that this knows about Frame.
 void Widget::setFocus(bool focused)
@@ -347,11 +345,6 @@ FloatRect Widget::convertFromContainingWindowToRoot(const Widget* rootWidget, co
 NSView *Widget::platformWidget() const
 {
     return m_widget.get();
-}
-
-RetainPtr<NSView> Widget::protectedPlatformWidget() const
-{
-    return platformWidget();
 }
 
 void Widget::setPlatformWidget(NSView *widget)

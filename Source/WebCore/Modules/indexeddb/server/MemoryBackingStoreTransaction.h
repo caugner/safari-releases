@@ -78,7 +78,7 @@ public:
 
     IDBTransactionInfo info() const { return m_info; }
 
-    MemoryCursor* cursor(const IDBResourceIdentifier&) const;
+    MemoryCursor* NODELETE cursor(const IDBResourceIdentifier&) const;
     void addCursor(MemoryCursor&);
 
 private:
@@ -98,7 +98,7 @@ private:
     HashSet<Ref<MemoryIndex>> m_indexes;
     HashSet<Ref<MemoryIndex>> m_versionChangeAddedIndexes;
 
-    HashMap<String, RefPtr<MemoryObjectStore>> m_deletedObjectStores;
+    HashMap<String, Ref<MemoryObjectStore>> m_deletedObjectStores;
     HashSet<Ref<MemoryIndex>> m_deletedIndexes;
     WeakHashMap<MemoryObjectStore, String> m_originalObjectStoreNames;
     HashMap<Ref<MemoryIndex>, String> m_originalIndexNames;

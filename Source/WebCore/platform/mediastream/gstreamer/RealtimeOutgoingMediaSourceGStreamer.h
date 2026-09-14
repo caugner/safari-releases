@@ -47,9 +47,9 @@ public:
     const RefPtr<MediaStreamTrackPrivate>& track() const { return m_track; }
 
     void setMediaStreamID(const String& mediaStreamId) { m_mediaStreamId = mediaStreamId; }
-    const String& mediaStreamID() const { return m_mediaStreamId; }
+    const String& mediaStreamID() const LIFETIME_BOUND { return m_mediaStreamId; }
     const GRefPtr<GstCaps>& allowedCaps() const;
-    WARN_UNUSED_RETURN GRefPtr<GstCaps> rtpCaps() const;
+    [[nodiscard]] GRefPtr<GstCaps> rtpCaps() const;
 
     void link();
     const GRefPtr<GstPad>& pad() const { return m_webrtcSinkPad; }
@@ -66,11 +66,11 @@ public:
 
     void configure(GRefPtr<GstCaps>&&);
 
-    WARN_UNUSED_RETURN GUniquePtr<GstStructure> stats();
+    [[nodiscard]] GUniquePtr<GstStructure> stats();
 
-    WARN_UNUSED_RETURN GUniquePtr<GstStructure> mediaCaptureStats();
+    [[nodiscard]] GUniquePtr<GstStructure> mediaCaptureStats();
 
-    WARN_UNUSED_RETURN virtual GRefPtr<GstPad> outgoingSourcePad() const = 0;
+    [[nodiscard]] virtual GRefPtr<GstPad> outgoingSourcePad() const = 0;
     virtual RefPtr<GStreamerRTPPacketizer> createPacketizer(RefPtr<UniqueSSRCGenerator>, const GstStructure*, GUniquePtr<GstStructure>&&) = 0;
 
     void replaceTrack(const RefPtr<MediaStreamTrack>&);
@@ -107,7 +107,6 @@ protected:
     bool m_muted { false };
     bool m_isStopped { true };
     RefPtr<MediaStreamTrackPrivate> m_track;
-    std::optional<RealtimeMediaSourceSettings> m_initialSettings;
     GRefPtr<GstElement> m_bin;
     GRefPtr<GstElement> m_inputSelector;
     GRefPtr<GstElement> m_fallbackSource;
@@ -155,6 +154,8 @@ private:
     void stopUpdatingStats();
 
     RefPtr<GStreamerRTPPacketizer> getPacketizerForRid(const String&);
+
+    String m_pendingTrackId { emptyString() };
 };
 
 } // namespace WebCore

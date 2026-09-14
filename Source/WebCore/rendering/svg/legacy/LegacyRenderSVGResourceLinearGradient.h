@@ -31,11 +31,10 @@ class LegacyRenderSVGResourceLinearGradient final : public LegacyRenderSVGResour
     WTF_MAKE_TZONE_ALLOCATED(LegacyRenderSVGResourceLinearGradient);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(LegacyRenderSVGResourceLinearGradient);
 public:
-    LegacyRenderSVGResourceLinearGradient(SVGLinearGradientElement&, RenderStyle&&);
+    LegacyRenderSVGResourceLinearGradient(SVGLinearGradientElement&, Style::ComputedStyle&&);
     virtual ~LegacyRenderSVGResourceLinearGradient();
 
     inline SVGLinearGradientElement& linearGradientElement() const;
-    inline Ref<SVGLinearGradientElement> protectedLinearGradientElement() const;
 
     FloatPoint startPoint(const LinearGradientAttributes&) const;
     FloatPoint endPoint(const LinearGradientAttributes&) const;
@@ -46,7 +45,7 @@ private:
     SVGUnitTypes::SVGUnitType gradientUnits() const final { return m_attributes.gradientUnits(); }
     AffineTransform gradientTransform() const final { return m_attributes.gradientTransform(); }
     bool collectGradientAttributes() final;
-    Ref<Gradient> buildGradient(const RenderStyle&) const final;
+    Ref<Gradient> buildGradient(const Style::ComputedStyle&) const final;
 
     void gradientElement() const = delete;
 
@@ -57,4 +56,7 @@ private:
 
 } // namespace WebCore
 
-SPECIALIZE_TYPE_TRAITS_LEGACY_RENDER_SVG_RESOURCE(LegacyRenderSVGResourceLinearGradient, LinearGradientResourceType)
+SPECIALIZE_TYPE_TRAITS_BEGIN(WebCore::LegacyRenderSVGResourceLinearGradient)
+    static bool isType(const WebCore::LegacyRenderSVGResource& resource) { return resource.resourceType() == WebCore::LinearGradientResourceType; }
+    static bool isType(const WebCore::LegacyRenderSVGResourceContainer& resource) { return resource.resourceType() == WebCore::LinearGradientResourceType; }
+SPECIALIZE_TYPE_TRAITS_END()

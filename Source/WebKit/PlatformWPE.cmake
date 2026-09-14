@@ -6,13 +6,10 @@ include(GNUInstallDirs)
 include(GLibMacros)
 include(InspectorGResources.cmake)
 include(ModernMediaControlsGResources.cmake)
+include(Platform/Skia.cmake)
 
 if (ENABLE_PDFJS)
     include(PdfJSGResources.cmake)
-endif ()
-
-if (USE_SKIA)
-    include(Platform/Skia.cmake)
 endif ()
 
 set(WebKit_OUTPUT_NAME WPEWebKit-${WPE_API_VERSION})
@@ -62,8 +59,6 @@ if (NOT DEVELOPER_MODE AND NOT CMAKE_SYSTEM_NAME MATCHES "Darwin")
     WEBKIT_ADD_TARGET_PROPERTIES(WebKit LINK_FLAGS "-Wl,--version-script,${CMAKE_CURRENT_SOURCE_DIR}/webkitglib-symbols.map")
     set_property(TARGET WebKit APPEND PROPERTY LINK_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/webkitglib-symbols.map")
 endif ()
-
-set(WebKit_USE_PREFIX_HEADER ON)
 
 add_custom_target(webkitwpe-forwarding-headers
     COMMAND ${PERL_EXECUTABLE} ${WEBKIT_DIR}/Scripts/generate-forwarding-headers.pl --include-path ${WEBKIT_DIR} --output ${FORWARDING_HEADERS_DIR} --platform wpe --platform soup
@@ -115,13 +110,13 @@ list(APPEND WebKit_SERIALIZATION_IN_FILES Shared/glib/RendererBufferFormat.seria
 
 if (USE_GBM)
   list(APPEND WebKit_SERIALIZATION_IN_FILES
-      Shared/gbm/DMABufBuffer.serialization.in
       Shared/gbm/DRMDevice.serialization.in
   )
 endif ()
 
 list(APPEND WebKit_SERIALIZATION_IN_FILES
     Shared/glib/AvailableInputDevices.serialization.in
+    Shared/glib/DMABufBufferAttributes.serialization.in
     Shared/glib/InputMethodState.serialization.in
     Shared/glib/RenderProcessInfo.serialization.in
     Shared/glib/RendererBufferTransportMode.serialization.in
@@ -161,7 +156,7 @@ add_custom_command(
     OUTPUT ${WebKit_DERIVED_SOURCES_DIR}/WebKitDirectoryInputStreamData.cpp ${WebKit_DERIVED_SOURCES_DIR}/WebKitDirectoryInputStreamData.h
     MAIN_DEPENDENCY ${WEBCORE_DIR}/css/make-css-file-arrays.pl
     DEPENDS ${WebKit_DirectoryInputStream_DATA}
-    COMMAND ${PERL_EXECUTABLE} ${WEBCORE_DIR}/css/make-css-file-arrays.pl --defines "${FEATURE_DEFINES_WITH_SPACE_SEPARATOR}" --preprocessor "${CODE_GENERATOR_PREPROCESSOR}" ${WebKit_DERIVED_SOURCES_DIR}/WebKitDirectoryInputStreamData.h ${WebKit_DERIVED_SOURCES_DIR}/WebKitDirectoryInputStreamData.cpp ${WebKit_DirectoryInputStream_DATA}
+    COMMAND ${PERL_EXECUTABLE} ${WEBCORE_DIR}/css/make-css-file-arrays.pl --defines "${FEATURE_DEFINES_WITH_SPACE_SEPARATOR}" ${WebKit_DERIVED_SOURCES_DIR}/WebKitDirectoryInputStreamData.h ${WebKit_DERIVED_SOURCES_DIR}/WebKitDirectoryInputStreamData.cpp ${WebKit_DirectoryInputStream_DATA}
     VERBATIM
 )
 
@@ -183,6 +178,7 @@ set(WPE_API_HEADER_TEMPLATES
     ${WEBKIT_DIR}/UIProcess/API/glib/WebKitEditingCommands.h.in
     ${WEBKIT_DIR}/UIProcess/API/glib/WebKitEditorState.h.in
     ${WEBKIT_DIR}/UIProcess/API/glib/WebKitError.h.in
+    ${WEBKIT_DIR}/UIProcess/API/glib/WebKitFaviconDatabase.h.in
     ${WEBKIT_DIR}/UIProcess/API/glib/WebKitFeature.h.in
     ${WEBKIT_DIR}/UIProcess/API/glib/WebKitFileChooserRequest.h.in
     ${WEBKIT_DIR}/UIProcess/API/glib/WebKitFindController.h.in
@@ -204,6 +200,7 @@ set(WPE_API_HEADER_TEMPLATES
     ${WEBKIT_DIR}/UIProcess/API/glib/WebKitOptionMenuItem.h.in
     ${WEBKIT_DIR}/UIProcess/API/glib/WebKitPermissionRequest.h.in
     ${WEBKIT_DIR}/UIProcess/API/glib/WebKitPermissionStateQuery.h.in
+    ${WEBKIT_DIR}/UIProcess/API/glib/WebKitPointerLockPermissionRequest.h.in
     ${WEBKIT_DIR}/UIProcess/API/glib/WebKitPolicyDecision.h.in
     ${WEBKIT_DIR}/UIProcess/API/glib/WebKitResponsePolicyDecision.h.in
     ${WEBKIT_DIR}/UIProcess/API/glib/WebKitScriptDialog.h.in
@@ -480,25 +477,14 @@ if (ANDROID)
 endif ()
 
 if (USE_ATK)
-    list(APPEND WebKit_SYSTEM_INCLUDE_DIRECTORIES
-        ${ATK_INCLUDE_DIRS}
-    )
-
-    list(APPEND WebKit_LIBRARIES
+    list(APPEND WebKit_PRIVATE_LIBRARIES
+        ATK::ATK
         ATK::Bridge
-        ${ATK_LIBRARIES}
     )
 endif ()
 
 if (USE_OPENXR)
    list(APPEND WebKit_LIBRARIES OpenXR::openxr_loader)
-endif ()
-
-if (USE_CAIRO)
-    include(Platform/Cairo.cmake)
-    list(APPEND WebKit_LIBRARIES
-        Freetype::Freetype
-    )
 endif ()
 
 if (ENABLE_BUBBLEWRAP_SANDBOX)
@@ -525,6 +511,10 @@ else ()
 endif ()
 
 list(APPEND WebKit_MESSAGES_IN_FILES
+    UIProcess/ViewGestureController
+
+    WebProcess/WebPage/ViewGestureGeometryCollector
+
     WebProcess/glib/SystemSettingsManager
 )
 
@@ -534,26 +524,39 @@ if (ENABLE_WPE_PLATFORM)
         "${WEBKIT_DIR}/WPEPlatform"
     )
 
-    list(APPEND WebKit_PRIVATE_LIBRARIES
-        WPEPlatform
-    )
+    # Link the WPEPlatform OBJECT libraries by name for their link interface.
+    # CMake < 3.29 omits their objects from a Swift link, so pass them
+    # explicitly there. CMake >= 3.29 adds them itself and doing so again
+    # duplicates every symbol.
+    set(_old_cmake_swift_needs_explicit_objects FALSE)
+    if (SWIFT_REQUIRED AND CMAKE_VERSION VERSION_LESS "3.29")
+        set(_old_cmake_swift_needs_explicit_objects TRUE)
+    endif ()
+
+    list(APPEND WebKit_PRIVATE_LIBRARIES WPEPlatform)
+    if (_old_cmake_swift_needs_explicit_objects)
+        list(APPEND WebKit_PRIVATE_LIBRARIES "$<TARGET_OBJECTS:WPEPlatform>")
+    endif ()
 
     if (ENABLE_WPE_PLATFORM_DRM)
-        list(APPEND WebKit_PRIVATE_LIBRARIES
-            WPEPlatformDRM
-        )
+        list(APPEND WebKit_PRIVATE_LIBRARIES WPEPlatformDRM)
+        if (_old_cmake_swift_needs_explicit_objects)
+            list(APPEND WebKit_PRIVATE_LIBRARIES "$<TARGET_OBJECTS:WPEPlatformDRM>")
+        endif ()
     endif ()
 
     if (ENABLE_WPE_PLATFORM_HEADLESS)
-        list(APPEND WebKit_PRIVATE_LIBRARIES
-            WPEPlatformHeadless
-        )
+        list(APPEND WebKit_PRIVATE_LIBRARIES WPEPlatformHeadless)
+        if (_old_cmake_swift_needs_explicit_objects)
+            list(APPEND WebKit_PRIVATE_LIBRARIES "$<TARGET_OBJECTS:WPEPlatformHeadless>")
+        endif ()
     endif ()
 
     if (ENABLE_WPE_PLATFORM_WAYLAND)
-        list(APPEND WebKit_PRIVATE_LIBRARIES
-            WPEPlatformWayland
-        )
+        list(APPEND WebKit_PRIVATE_LIBRARIES WPEPlatformWayland)
+        if (_old_cmake_swift_needs_explicit_objects)
+            list(APPEND WebKit_PRIVATE_LIBRARIES "$<TARGET_OBJECTS:WPEPlatformWayland>")
+        endif ()
     endif ()
 
     list(APPEND WebKit_MESSAGES_IN_FILES
@@ -596,7 +599,7 @@ WEBKIT_BUILD_INSPECTOR_GRESOURCES(
 install(FILES "${CMAKE_BINARY_DIR}/share/inspector.gresource" DESTINATION "${CMAKE_INSTALL_FULL_DATADIR}/wpe-webkit-${WPE_API_VERSION}")
 
 add_library(WPEInjectedBundle MODULE "${WEBKIT_DIR}/WebProcess/InjectedBundle/API/glib/WebKitInjectedBundleMain.cpp")
-ADD_WEBKIT_PREFIX_HEADER(WPEInjectedBundle)
+WEBKIT_ADD_PREFIX_HEADER(WPEInjectedBundle WebKitPrefix.h PREFIX_LANGUAGES CXX)
 target_link_libraries(WPEInjectedBundle WebKit)
 
 target_include_directories(WPEInjectedBundle PRIVATE $<TARGET_PROPERTY:WebKit,INCLUDE_DIRECTORIES>)
@@ -606,115 +609,65 @@ target_include_directories(WPEInjectedBundle SYSTEM PRIVATE
 )
 
 if (ENABLE_WPE_QT_API)
-    if (USE_QT6)
-        list(APPEND WPE_QT_API_INSTALLED_HEADERS
-            ${WEBKIT_DIR}/UIProcess/API/wpe/qt6/WPEQtView.h
-            ${WEBKIT_DIR}/UIProcess/API/wpe/qt6/WPEQtViewLoadRequest.h
-        )
+    list(APPEND WPE_QT_API_INSTALLED_HEADERS
+        ${WEBKIT_DIR}/UIProcess/API/wpe/qt6/WPEQtView.h
+        ${WEBKIT_DIR}/UIProcess/API/wpe/qt6/WPEQtViewLoadRequest.h
+    )
 
-        # FIXME: This should be MODULE, but tests link directly against it. Abusing
-        #        SHARED here works on Linux and probably some other systems, but
-        #        not on MacOS or Windows.
-        add_library(qtwpe SHARED
-            UIProcess/API/wpe/qt6/WPEDisplayQtQuick.cpp
-            UIProcess/API/wpe/qt6/WPEToplevelQtQuick.cpp
-            UIProcess/API/wpe/qt6/WPEViewQtQuick.cpp
-            UIProcess/API/wpe/qt6/WPEQmlExtensionPlugin.cpp
-            UIProcess/API/wpe/qt6/WPEQtView.cpp
-            UIProcess/API/wpe/qt6/WPEQtViewLoadRequest.cpp
-        )
-        set_target_properties(qtwpe PROPERTIES
-            OUTPUT_NAME qtwpe
-            AUTOMOC ON
-        )
-        target_compile_definitions(qtwpe PUBLIC
-            QT_NO_KEYWORDS=1
-            QT_WPE_LIBRARY
-        )
-        target_link_libraries(qtwpe
-            PUBLIC
-                Qt::Quick
-            PRIVATE
-                Epoxy::Epoxy
-                GLib::GLib
-                GLib::Object
-                WebKit
-        )
-        target_include_directories(qtwpe PRIVATE
-            $<TARGET_PROPERTY:WebKit,INCLUDE_DIRECTORIES>
-            ${JavaScriptCoreGLib_FRAMEWORK_HEADERS_DIR}
-            ${CMAKE_BINARY_DIR}
-            ${WPE_INCLUDE_DIRS}
-            ${WEBKIT_DIR}/UIProcess/API/wpe/qt6
-        )
-
-        target_link_libraries(qtwpe PRIVATE Qt::QuickPrivate)
-
-        install(TARGETS qtwpe
-            DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}/qt6/qml/org/wpewebkit/qtwpe/"
-        )
-        install(FILES ${WEBKIT_DIR}/UIProcess/API/wpe/qt6/qmldir
-            DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}/qt6/qml/org/wpewebkit/qtwpe/"
-        )
-
-        file(MAKE_DIRECTORY
-            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/qt6/qml/org/wpewebkit/qtwpe
-        )
-        add_custom_command(TARGET qtwpe POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy
-            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libqtwpe.so
-            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/qt6/qml/org/wpewebkit/qtwpe)
-        add_custom_command(TARGET qtwpe POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy
-            ${WEBKIT_DIR}/UIProcess/API/wpe/qt6/qmldir
-            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/qt6/qml/org/wpewebkit/qtwpe)
-    else ()
-        set(qtwpe_SOURCES
-            ${WEBKIT_DIR}/UIProcess/API/wpe/qt5/WPEQtViewBackend.cpp
-            ${WEBKIT_DIR}/UIProcess/API/wpe/qt5/WPEQmlExtensionPlugin.cpp
-            ${WEBKIT_DIR}/UIProcess/API/wpe/qt5/WPEQtView.cpp
-            ${WEBKIT_DIR}/UIProcess/API/wpe/qt5/WPEQtViewLoadRequest.cpp
-        )
-
-        set(qtwpe_LIBRARIES
+    # FIXME: This should be MODULE, but tests link directly against it. Abusing
+    #        SHARED here works on Linux and probably some other systems, but
+    #        not on MacOS or Windows.
+    add_library(qtwpe SHARED
+        UIProcess/API/wpe/qt6/WPEDisplayQtQuick.cpp
+        UIProcess/API/wpe/qt6/WPEToplevelQtQuick.cpp
+        UIProcess/API/wpe/qt6/WPEViewQtQuick.cpp
+        UIProcess/API/wpe/qt6/WPEQmlExtensionPlugin.cpp
+        UIProcess/API/wpe/qt6/WPEQtView.cpp
+        UIProcess/API/wpe/qt6/WPEQtViewLoadRequest.cpp
+    )
+    set_target_properties(qtwpe PROPERTIES
+        OUTPUT_NAME qtwpe
+        AUTOMOC ON
+    )
+    target_compile_definitions(qtwpe PUBLIC
+        QT_NO_KEYWORDS=1
+        QT_WPE_LIBRARY
+    )
+    target_link_libraries(qtwpe
+        PUBLIC
+            Qt::Quick
+        PRIVATE
             Epoxy::Epoxy
+            GLib::GLib
             GLib::Object
-            Qt5::Core Qt5::Quick
-            WPE::FDO
             WebKit
-        )
+    )
+    target_include_directories(qtwpe PRIVATE
+        $<TARGET_PROPERTY:WebKit,INCLUDE_DIRECTORIES>
+        ${JavaScriptCoreGLib_FRAMEWORK_HEADERS_DIR}
+        ${CMAKE_BINARY_DIR}
+        ${WPE_INCLUDE_DIRS}
+        ${WEBKIT_DIR}/UIProcess/API/wpe/qt6
+    )
 
-        set(qtwpe_INCLUDE_DIRECTORIES
-            $<TARGET_PROPERTY:WebKit,INCLUDE_DIRECTORIES>
-            ${JavaScriptCoreGLib_FRAMEWORK_HEADERS_DIR}
-            ${CMAKE_BINARY_DIR}
-            ${Qt5_INCLUDE_DIRS}
-            ${Qt5Gui_PRIVATE_INCLUDE_DIRS}
-            ${WPE_INCLUDE_DIRS}
-        )
+    target_link_libraries(qtwpe PRIVATE Qt::QuickPrivate)
 
-        list(APPEND WPE_QT_API_INSTALLED_HEADERS
-            ${WEBKIT_DIR}/UIProcess/API/wpe/qt5/WPEQtView.h
-            ${WEBKIT_DIR}/UIProcess/API/wpe/qt5/WPEQtViewLoadRequest.h
-        )
+    install(TARGETS qtwpe
+        DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}/qt6/qml/org/wpewebkit/qtwpe/"
+    )
+    install(FILES ${WEBKIT_DIR}/UIProcess/API/wpe/qt6/qmldir
+        DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}/qt6/qml/org/wpewebkit/qtwpe/"
+    )
 
-        add_library(qtwpe SHARED ${qtwpe_SOURCES})
-        set_target_properties(qtwpe PROPERTIES
-            OUTPUT_NAME qtwpe
-            AUTOMOC ON
-        )
-        target_compile_definitions(qtwpe PUBLIC QT_NO_KEYWORDS=1)
-        target_link_libraries(qtwpe ${qtwpe_LIBRARIES})
-        target_include_directories(qtwpe PRIVATE ${qtwpe_INCLUDE_DIRECTORIES})
-        install(TARGETS qtwpe DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}/qt5/qml/org/wpewebkit/qtwpe/")
-        install(FILES ${WEBKIT_DIR}/UIProcess/API/wpe/qt5/qmldir DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}/qt5/qml/org/wpewebkit/qtwpe/")
-
-        file(MAKE_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/qt5/qml/org/wpewebkit/qtwpe)
-        add_custom_command(TARGET qtwpe POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy
-            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libqtwpe.so
-            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/qt5/qml/org/wpewebkit/qtwpe)
-        add_custom_command(TARGET qtwpe POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy
-            ${WEBKIT_DIR}/UIProcess/API/wpe/qt5/qmldir
-            ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/qt5/qml/org/wpewebkit/qtwpe)
-    endif ()
+    file(MAKE_DIRECTORY
+        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/qt6/qml/org/wpewebkit/qtwpe
+    )
+    add_custom_command(TARGET qtwpe POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy
+        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libqtwpe.so
+        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/qt6/qml/org/wpewebkit/qtwpe)
+    add_custom_command(TARGET qtwpe POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy
+        ${WEBKIT_DIR}/UIProcess/API/wpe/qt6/qmldir
+        ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/qt6/qml/org/wpewebkit/qtwpe)
 endif ()
 
 install(TARGETS WPEInjectedBundle
@@ -818,6 +771,7 @@ GI_INTROSPECT(WPEWebKit ${WPE_API_VERSION} wpe/webkit.h
         ${WPE_API_INSTALLED_HEADERS}
         Shared/API/glib
         UIProcess/API/glib
+        UIProcess/API/wpe/WebKitImageWPE.cpp
     NO_IMPLICIT_SOURCES
 )
 GI_DOCGEN(WPEWebKit wpe/wpewebkit.toml.in

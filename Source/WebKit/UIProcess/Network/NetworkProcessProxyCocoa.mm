@@ -35,6 +35,7 @@
 #import "WebProcessPool.h"
 #import "WebProcessProxy.h"
 #import "XPCEndpoint.h"
+#import <wtf/Borrow.h>
 #import <wtf/EnumTraits.h>
 #import <wtf/RuntimeApplicationChecks.h>
 #import <wtf/darwin/XPCExtras.h>
@@ -74,7 +75,7 @@ bool NetworkProcessProxy::XPCEventHandler::handleXPCEvent(xpc_object_t event)
     if (messageName == LaunchServicesDatabaseXPCConstants::xpcLaunchServicesDatabaseXPCEndpointMessageName) {
         networkProcess->m_endpointMessage = event;
         for (auto& processPool : WebProcessPool::allProcessPools()) {
-            for (Ref process : processPool->processes())
+            for (Ref process : borrow(processPool->processes()).get())
                 networkProcess->sendXPCEndpointToProcess(process);
         }
 #if ENABLE(GPU_PROCESS)
@@ -93,16 +94,16 @@ NetworkProcessProxy::XPCEventHandler::XPCEventHandler(const NetworkProcessProxy&
 
 bool NetworkProcessProxy::sendXPCEndpointToProcess(AuxiliaryProcessProxy& process)
 {
-    RELEASE_LOG(Process, "%p - NetworkProcessProxy::sendXPCEndpointToProcess(%p) state = %d has connection = %d XPC endpoint message = %p", this, &process, enumToUnderlyingType(process.state()), process.hasConnection(), xpcEndpointMessage());
+    RELEASE_LOG(Process, "%p - NetworkProcessProxy::sendXPCEndpointToProcess(%p) state = %d has connection = %d XPC endpoint message = %p", this, &process, std::to_underlying(process.state()), process.hasConnection(), xpcEndpointMessage());
 
     if (process.state() != AuxiliaryProcessProxy::State::Running)
         return false;
     if (!process.hasConnection())
         return false;
-    XPCObjectPtr<xpc_object_t> message = xpcEndpointMessage();
+    OSObjectPtr<xpc_object_t> message = xpcEndpointMessage();
     if (!message)
         return false;
-    XPCObjectPtr<xpc_connection_t> xpcConnection = process.connection().xpcConnection();
+    OSObjectPtr<xpc_connection_t> xpcConnection = process.connection().xpcConnection();
     RELEASE_ASSERT(xpcConnection);
     xpc_connection_send_message(xpcConnection.get(), message.get());
     return true;

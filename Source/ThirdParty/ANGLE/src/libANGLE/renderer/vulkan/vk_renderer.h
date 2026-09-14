@@ -34,6 +34,7 @@
 #include "libANGLE/renderer/vulkan/vk_internal_shaders_autogen.h"
 #include "libANGLE/renderer/vulkan/vk_mem_alloc_wrapper.h"
 #include "libANGLE/renderer/vulkan/vk_resource.h"
+#include "vulkan/vulkan_core.h"
 
 namespace angle
 {
@@ -199,6 +200,10 @@ class Renderer : angle::NonCopyable
     {
         return mSubgroupProperties;
     }
+    const VkPhysicalDeviceShaderCorePropertiesAMD &getPhysicalDeviceShaderCorePropertiesAMD() const
+    {
+        return mShaderCorePropertiesAMD;
+    }
 
     const VkPhysicalDeviceFeatures &getPhysicalDeviceFeatures() const
     {
@@ -230,7 +235,7 @@ class Renderer : angle::NonCopyable
     uint32_t getQueueFamilyIndex() const { return mCurrentQueueFamilyIndex; }
     const VkQueueFamilyProperties &getQueueFamilyProperties() const
     {
-        return mQueueFamilyProperties[mCurrentQueueFamilyIndex];
+        return mQueueFamilyProperties2[mCurrentQueueFamilyIndex].queueFamilyProperties;
     }
     const DeviceQueueIndex getDeviceQueueIndex(egl::ContextPriority priority) const
     {
@@ -589,8 +594,8 @@ class Renderer : angle::NonCopyable
     }
 
     void addBufferBlockToOrphanList(vk::BufferBlock *block) { mOrphanedBufferBlockList.add(block); }
-    void addSamplerToOrphanList(SharedSamplerPtr sampler);
-    void addSamplerYcbcrConversionToOrphanList(VkSamplerYcbcrConversion conversion);
+    SamplerCache &getSamplerCache() { return mSamplerCache; }
+    SamplerYcbcrConversionCache &getYuvConversionCache() { return mYuvConversionCache; }
 
     VkDeviceSize getSuballocationDestroyedSize() const
     {
@@ -726,7 +731,9 @@ class Renderer : angle::NonCopyable
                               const angle::FeatureOverrides &featureOverrides,
                               UseVulkanSwapchain useVulkanSwapchain,
                               angle::NativeWindowSystem nativeWindowSystem);
-    angle::Result createDeviceAndQueue(vk::ErrorContext *context, uint32_t queueFamilyIndex);
+    angle::Result createDeviceAndQueue(vk::ErrorContext *context,
+                                       uint32_t queueFamilyIndex,
+                                       VkQueueGlobalPriority globalPriority);
     void ensureCapsInitialized() const;
     void initializeValidationMessageSuppressions();
 
@@ -803,8 +810,6 @@ class Renderer : angle::NonCopyable
     // Find the threshold for pending suballocation and image garbage sizes before the context
     // should be flushed.
     void calculatePendingGarbageSizeLimit();
-
-    bool cleanupOrphanedSamplers();
 
     template <typename CommandBufferHelperT, typename RecyclerT>
     angle::Result getCommandBufferImpl(vk::ErrorContext *context,
@@ -935,6 +940,7 @@ class Renderer : angle::NonCopyable
     VkPhysicalDeviceTileMemoryHeapFeaturesQCOM mTileMemoryHeapFeatures;
     VkPhysicalDeviceTileMemoryHeapPropertiesQCOM mTileMemoryHeapProperties;
     VkPhysicalDeviceTextureCompressionASTC3DFeaturesEXT mTextureCompressionASTC3DFeatures;
+    VkPhysicalDeviceShaderCorePropertiesAMD mShaderCorePropertiesAMD;
 
     uint32_t mLegacyDitheringVersion = 0;
 
@@ -942,7 +948,7 @@ class Renderer : angle::NonCopyable
     angle::ShadingRateSet mSupportedFragmentShadingRatesEXT;
     angle::ShadingRateMap mSupportedFragmentShadingRateEXTSampleCounts;
 
-    std::vector<VkQueueFamilyProperties> mQueueFamilyProperties;
+    std::vector<VkQueueFamilyProperties2> mQueueFamilyProperties2;
     uint32_t mCurrentQueueFamilyIndex;
     uint32_t mMaxVertexAttribDivisor;
     VkDeviceSize mMaxVertexAttribStride;
@@ -962,10 +968,8 @@ class Renderer : angle::NonCopyable
     // Holds RefCountedEvent that are free and ready to reuse
     vk::RefCountedEventRecycler mRefCountedEventRecycler;
 
-    // Holds orphaned VkSampler and VkSamplerYcbcrConversion objects when ShareGroup gets destroyed
-    angle::SimpleMutex mOrphanedSamplerMutex;
-    std::vector<SharedSamplerPtr> mOrphanedSamplers;
-    std::vector<VkSamplerYcbcrConversion> mOrphanedSamplerYcbcrConversions;
+    SamplerCache mSamplerCache;
+    SamplerYcbcrConversionCache mYuvConversionCache;
 
     VkDeviceSize mPendingGarbageSizeLimit;
 

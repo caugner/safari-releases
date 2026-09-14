@@ -25,8 +25,9 @@
 
 #pragma once
 
-#include <WebCore/JSDOMConvertStrings.h>
-#include <WebCore/JSDOMExceptionHandling.h>
+#include "JSDOMConvertStrings.h"
+#include "JSDOMExceptionHandling.h"
+#include <WebCore/JSDOMBindingFacade.h>
 
 namespace WebCore {
 
@@ -58,7 +59,7 @@ static bool isVisibleNamedProperty(JSC::JSGlobalObject& lexicalGlobalObject, JSC
     
     // 2. If O has an own property named P, then return false.
     JSC::PropertySlot slot { &thisObject, JSC::PropertySlot::InternalMethodType::VMInquiry, &lexicalGlobalObject.vm() };
-    if (JSC::JSObject::getOwnPropertySlot(&thisObject, &lexicalGlobalObject, propertyName, slot))
+    if (WebCore::getOwnPropertySlot(&thisObject, &lexicalGlobalObject, propertyName, slot))
         return false;
     
     // 3. If O implements an interface that has the [LegacyOverrideBuiltIns] extended attribute, then return true.
@@ -70,8 +71,8 @@ static bool isVisibleNamedProperty(JSC::JSGlobalObject& lexicalGlobalObject, JSC
     //    1. If prototype is not a named properties object, and prototype has an own property named P, then return false.
     // FIXME: Implement checking for 'named properties object'.
     //    2. Set prototype to be the value of the internal [[Prototype]] property of prototype.
-    auto prototype = thisObject.getPrototypeDirect();
-    if (prototype.isObject() && JSC::asObject(prototype)->getPropertySlot(&lexicalGlobalObject, propertyName, slot))
+    auto prototype = WebCore::storedPrototype(thisObject.structure(), &thisObject);
+    if (prototype.isObject() && WebCore::getPropertySlot(JSC::asObject(prototype), &lexicalGlobalObject, propertyName, slot))
         return false;
 
     // 6. Return true.
@@ -103,7 +104,7 @@ static decltype(auto) visibleNamedPropertyItemAccessorFunctor(InnerItemAccessor&
         using ReturnType = typename IDLType::ImplementationType;
 
         return [innerItemAccessor = std::forward<InnerItemAccessor>(innerItemAccessor)] (JSClass& thisObject, JSC::PropertyName propertyName) -> std::optional<ReturnType> {
-            auto result = innerItemAccessor(thisObject, propertyName);
+            SUPPRESS_UNCHECKED_LOCAL auto result = innerItemAccessor(thisObject, propertyName);
             if (!IDLType::isNullValue(result))
                 return ReturnType { IDLType::extractValueFromNullable(result) };
             return std::nullopt;
@@ -131,7 +132,7 @@ static auto accessVisibleNamedProperty(JSC::JSGlobalObject& lexicalGlobalObject,
 
     // 2. If O has an own property named P, then return false.
     JSC::PropertySlot slot { &thisObject, JSC::PropertySlot::InternalMethodType::VMInquiry, &lexicalGlobalObject.vm() };
-    if (JSC::JSObject::getOwnPropertySlot(&thisObject, &lexicalGlobalObject, propertyName, slot))
+    if (WebCore::getOwnPropertySlot(&thisObject, &lexicalGlobalObject, propertyName, slot))
         return std::nullopt;
 
     // 3. If O implements an interface that has the [LegacyOverrideBuiltIns] extended attribute, then return true.
@@ -143,8 +144,8 @@ static auto accessVisibleNamedProperty(JSC::JSGlobalObject& lexicalGlobalObject,
     //    1. If prototype is not a named properties object, and prototype has an own property named P, then return false.
     // FIXME: Implement checking for 'named properties object'.
     //    2. Set prototype to be the value of the internal [[Prototype]] property of prototype.
-    auto prototype = thisObject.getPrototypeDirect();
-    if (prototype.isObject() && JSC::asObject(prototype)->getPropertySlot(&lexicalGlobalObject, propertyName, slot))
+    auto prototype = WebCore::storedPrototype(thisObject.structure(), &thisObject);
+    if (prototype.isObject() && WebCore::getPropertySlot(JSC::asObject(prototype), &lexicalGlobalObject, propertyName, slot))
         return std::nullopt;
 
     // 6. Return true.

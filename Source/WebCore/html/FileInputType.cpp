@@ -30,6 +30,7 @@
 #include "ElementInlines.h"
 #include "ElementRareData.h"
 #include "Event.h"
+#include "FrameDestructionObserverInlines.h"
 #include "File.h"
 #include "FileChooser.h"
 #include "FileList.h"
@@ -74,7 +75,7 @@ FileInputType::FileInputType(HTMLInputElement& element)
 
 FileInputType::~FileInputType()
 {
-    if (RefPtr fileChooser = m_fileChooser)
+    if (auto* fileChooser = m_fileChooser.get())
         fileChooser->invalidate();
 
     if (m_fileIconLoader)
@@ -142,7 +143,7 @@ bool FileInputType::appendFormData(DOMFormData& formData) const
     return true;
 }
 
-bool FileInputType::valueMissing(const String& value) const
+bool FileInputType::valueMissing(StringView value) const
 {
     ASSERT(element());
     return element()->isRequired() && value.isEmpty();
@@ -151,14 +152,14 @@ bool FileInputType::valueMissing(const String& value) const
 String FileInputType::valueMissingText() const
 {
     ASSERT(element());
-    return protectedElement()->multiple() ? validationMessageValueMissingForMultipleFileText() : validationMessageValueMissingForFileText();
+    return element()->multiple() ? validationMessageValueMissingForMultipleFileText() : validationMessageValueMissingForFileText();
 }
 
 void FileInputType::handleDOMActivateEvent(Event& event)
 {
     ASSERT(element());
 
-    if (protectedElement()->isDisabledFormControl())
+    if (element()->isDisabledFormControl())
         return;
 
     if (!UserGestureIndicator::processingUserGesture())
@@ -173,7 +174,7 @@ void FileInputType::showPicker()
     ASSERT(element());
     if (auto* chrome = this->chrome()) {
         applyFileChooserSettings();
-        chrome->runOpenPanel(*element()->document().protectedFrame(), *protectedFileChooser());
+        chrome->runOpenPanel(*protect(element()->document().frame()), *protect(m_fileChooser));
     }
 }
 
@@ -182,11 +183,11 @@ bool FileInputType::allowsShowPickerAcrossFrames()
     return true;
 }
 
-RenderPtr<RenderElement> FileInputType::createInputRenderer(RenderStyle&& style)
+RenderPtr<RenderElement> FileInputType::createInputRenderer(Style::ComputedStyle&& style)
 {
     ASSERT(element());
     // FIXME: https://github.com/llvm/llvm-project/pull/142471 Moving style is not unsafe.
-    SUPPRESS_UNCOUNTED_ARG return createRenderer<RenderFileUploadControl>(*protectedElement(), WTF::move(style));
+    SUPPRESS_UNCOUNTED_ARG return createRenderer<RenderFileUploadControl>(*protect(element()), WTF::move(style));
 }
 
 bool FileInputType::canSetStringValue() const
@@ -205,7 +206,7 @@ String FileInputType::firstElementPathForInputValue() const
     // decided to try to parse the value by looking for backslashes
     // (because that's what Windows file paths use). To be compatible
     // with that code, we make up a fake path for the file.
-    return makeString("C:\\fakepath\\"_s, protectedFiles()->file(0).name());
+    return makeString("C:\\fakepath\\"_s, files().file(0).name());
 }
 
 void FileInputType::setValue(const String&, bool valueChanged, TextFieldEventBehavior, TextControlSetValueSelection)
@@ -214,7 +215,7 @@ void FileInputType::setValue(const String&, bool valueChanged, TextFieldEventBeh
     if (!valueChanged)
         return;
     
-    protectedFiles()->clear();
+    protect(files())->clear();
     m_icon = nullptr;
     ASSERT(element());
     Ref element = *this->element();
@@ -229,7 +230,7 @@ void FileInputType::createShadowSubtree()
     ASSERT(element()->shadowRoot());
 
     Ref element = *this->element();
-    Ref button = HTMLInputElement::create(inputTag, element->protectedDocument(), nullptr, false);
+    Ref button = HTMLInputElement::create(inputTag, protect(element->document()), false);
     {
         ScriptDisallowedScope::EventAllowedScope eventAllowedScopeBeforeAppend { button };
         button->setAttributeWithoutSynchronization(typeAttr, InputTypeNames::button());
@@ -242,9 +243,9 @@ void FileInputType::createShadowSubtree()
     disabledStateChanged();
 }
 
-static RefPtr<HTMLInputElement> fileSelectorButton(const Element& element)
+static RefPtr<HTMLInputElement> NODELETE fileSelectorButton(const Element& element)
 {
-    RefPtr root = element.userAgentShadowRoot();
+    auto* root = element.userAgentShadowRoot();
     return root ? downcast<HTMLInputElement>(root->firstChild()) : nullptr;
 }
 
@@ -300,7 +301,7 @@ FileChooserSettings FileInputType::fileChooserSettings() const
     settings.allowsMultipleFiles = element->hasAttributeWithoutSynchronization(multipleAttr);
     settings.acceptMIMETypes = element->acceptMIMETypes();
     settings.acceptFileExtensions = element->acceptFileExtensions();
-    settings.selectedFiles = protectedFiles()->paths();
+    settings.selectedFiles = protect(files())->paths();
 #if ENABLE(MEDIA_CAPTURE)
     settings.mediaCaptureType = element->mediaCaptureType();
 #endif
@@ -309,7 +310,7 @@ FileChooserSettings FileInputType::fileChooserSettings() const
 
 void FileInputType::applyFileChooserSettings()
 {
-    if (RefPtr fileChooser = m_fileChooser)
+    if (auto* fileChooser = m_fileChooser.get())
         fileChooser->invalidate();
 
     m_fileChooser = FileChooser::create(*this, fileChooserSettings());
@@ -318,10 +319,10 @@ void FileInputType::applyFileChooserSettings()
 bool FileInputType::allowsDirectories() const
 {
     ASSERT(element());
-    Ref element = *this->element();
-    if (!element->protectedDocument()->settings().directoryUploadEnabled())
+    auto& element = *this->element();
+    if (!element.document().settings().directoryUploadEnabled())
         return false;
-    return element->hasAttributeWithoutSynchronization(webkitdirectoryAttr);
+    return element.hasAttributeWithoutSynchronization(webkitdirectoryAttr);
 }
 
 bool FileInputType::dirAutoUsesValue() const
@@ -348,7 +349,7 @@ void FileInputType::setFiles(RefPtr<FileList>&& files, RequestIcon shouldRequest
     if (length != m_fileList->length())
         pathsChanged = true;
     else {
-        Ref currentFiles = m_fileList;
+        auto& currentFiles = m_fileList;
         for (unsigned i = 0; i < length; ++i) {
             if (files->file(i).path() != currentFiles->file(i).path() || !FileSystem::fileIDsAreEqual(files->file(i).fileID(), currentFiles->file(i).fileID())) {
                 pathsChanged = true;
@@ -363,7 +364,7 @@ void FileInputType::setFiles(RefPtr<FileList>&& files, RequestIcon shouldRequest
     element->updateValidity();
 
     if (shouldRequestIcon == RequestIcon::Yes)
-        requestIcon(protectedFiles()->paths());
+        requestIcon(protect(this->files())->paths());
 
     if (CheckedPtr renderer = element->renderer())
         renderer->repaint();
@@ -419,7 +420,7 @@ void FileInputType::filesChosen(const Vector<String>& paths, const Vector<String
     ASSERT(element());
     ASSERT(!paths.isEmpty());
 
-    size_t size = protectedElement()->hasAttributeWithoutSynchronization(multipleAttr) ? paths.size() : 1;
+    size_t size = element()->hasAttributeWithoutSynchronization(multipleAttr) ? paths.size() : 1;
 
     Vector<FileChooserFileInfo> files(size, [&](size_t i) {
         return FileChooserFileInfo { paths[i], i < replacementPaths.size() ? replacementPaths[i] : nullString(), { } };
@@ -431,7 +432,7 @@ void FileInputType::filesChosen(const Vector<String>& paths, const Vector<String
 void FileInputType::fileChoosingCancelled()
 {
     ASSERT(element());
-    protectedElement()->dispatchCancelEvent();
+    protect(element())->dispatchCancelEvent();
 }
 
 void FileInputType::didCreateFileList(Ref<FileList>&& fileList, RefPtr<Icon>&& icon)
@@ -468,31 +469,24 @@ bool FileInputType::receiveDroppedFilesWithImageTranscoding(const Vector<String>
 #if PLATFORM(MAC)
     auto settings = fileChooserSettings();
     auto allowedMIMETypes = MIMETypeRegistry::allowedMIMETypes(settings.acceptMIMETypes, settings.acceptFileExtensions);
-    
+
     auto transcodingPaths = findImagesForTranscoding(paths, allowedMIMETypes);
     if (transcodingPaths.isEmpty())
-        return { };
+        return false;
 
     auto transcodingMIMEType = MIMETypeRegistry::preferredImageMIMETypeForEncoding(allowedMIMETypes, { });
     if (transcodingMIMEType.isNull())
-        return { };
+        return false;
 
     auto transcodingUTI = WebCore::UTIFromMIMEType(transcodingMIMEType);
     auto transcodingExtension = WebCore::MIMETypeRegistry::preferredExtensionForMIMEType(transcodingMIMEType);
 
-    auto callFilesChosen = [protectedThis = Ref { *this }, paths](const Vector<String>& replacementPaths) {
+    auto* chrome = this->chrome();
+    if (!chrome)
+        return false;
+
+    chrome->transcodeChosenFiles(WTF::move(transcodingPaths), WTF::move(transcodingUTI), WTF::move(transcodingExtension), [protectedThis = Ref { *this }, paths](Vector<String>&& replacementPaths) mutable {
         protectedThis->filesChosen(paths, replacementPaths);
-    };
-
-    sharedImageTranscodingQueueSingleton().dispatch([callFilesChosen = WTF::move(callFilesChosen), transcodingPaths = crossThreadCopy(WTF::move(transcodingPaths)), transcodingUTI = WTF::move(transcodingUTI).isolatedCopy(), transcodingExtension = WTF::move(transcodingExtension).isolatedCopy()]() mutable {
-        ASSERT(!RunLoop::isMain());
-
-        auto replacementPaths = transcodeImages(transcodingPaths, transcodingUTI, transcodingExtension);
-        ASSERT(transcodingPaths.size() == replacementPaths.size());
-
-        RunLoop::mainSingleton().dispatch([callFilesChosen = WTF::move(callFilesChosen), replacementPaths = crossThreadCopy(WTF::move(replacementPaths))] {
-            callFilesChosen(replacementPaths);
-        });
     });
 
     return true;
@@ -526,7 +520,7 @@ String FileInputType::defaultToolTip() const
     unsigned listSize = m_fileList->length();
     if (!listSize) {
         ASSERT(element());
-        if (protectedElement()->multiple())
+        if (element()->multiple())
             return fileButtonNoFilesSelectedLabel();
         return fileButtonNoFileSelectedLabel();
     }

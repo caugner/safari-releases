@@ -66,6 +66,8 @@ RemoteScrollingTreeMac::RemoteScrollingTreeMac(RemoteScrollingCoordinatorProxy& 
     ScrollingThread::dispatch([protectedThis = Ref { *this }]() {
         if ([CATransaction respondsToSelector:@selector(setDisableImplicitTransactionMainThreadAssert:)])
             [CATransaction setDisableImplicitTransactionMainThreadAssert:YES];
+
+        [CATransaction setDefaultDisableRunLoopObserverCommits:YES];
     });
 }
 
@@ -172,22 +174,6 @@ void RemoteScrollingTreeMac::startPendingScrollAnimations()
 
         LOG_WITH_STREAM(Scrolling, stream << "RemoteScrollingTreeMac::startPendingScrollAnimations() for node " << nodeID << " with data " << data);
 
-        if (auto previousData = std::exchange(data.requestedDataBeforeAnimatedScroll, std::nullopt)) {
-            auto& [requestType, positionOrDeltaBeforeAnimatedScroll, scrollType, clamping] = *previousData;
-
-            switch (requestType) {
-            case ScrollRequestType::PositionUpdate:
-            case ScrollRequestType::DeltaUpdate: {
-                auto intermediatePosition = RequestedScrollData::computeDestinationPosition(targetNode->currentScrollPosition(), requestType, positionOrDeltaBeforeAnimatedScroll);
-                targetNode->scrollTo(intermediatePosition, scrollType, clamping);
-                break;
-            }
-            case ScrollRequestType::CancelAnimatedScroll:
-                targetNode->stopAnimatedScroll();
-                break;
-            }
-        }
-
         auto finalPosition = data.destinationPosition(targetNode->currentScrollPosition());
         targetNode->startAnimatedScrollToPosition(finalPosition);
     }
@@ -204,8 +190,6 @@ void RemoteScrollingTreeMac::startPendingScrollAnimations()
 
 void RemoteScrollingTreeMac::hasNodeWithAnimatedScrollChanged(bool hasNodeWithAnimatedScroll)
 {
-    ASSERT(ScrollingThread::isCurrentThread());
-
     RunLoop::mainSingleton().dispatch([protectedThis = Ref { *this }, hasNodeWithAnimatedScroll] {
         if (CheckedPtr scrollingCoordinatorProxy = protectedThis->scrollingCoordinatorProxy())
             scrollingCoordinatorProxy->hasNodeWithAnimatedScrollChanged(hasNodeWithAnimatedScroll);
@@ -237,58 +221,46 @@ void RemoteScrollingTreeMac::scrollingTreeNodeDidScroll(ScrollingTreeScrollingNo
     if (isHandlingProgrammaticScroll())
         return;
 
-    auto scrollUpdate = ScrollUpdate { node.scrollingNodeID(), node.currentScrollPosition(), layoutViewportOrigin, ScrollUpdateType::PositionUpdate, action };
+    auto scrollUpdate = ScrollUpdate {
+        .nodeID = node.scrollingNodeID(),
+        .scrollPosition = node.currentScrollPosition(),
+        .data = ScrollUpdateData {
+            .updateType = ScrollUpdateType::PositionUpdate,
+            .updateLayerPositionAction = action,
+            .layoutViewportOriginOrOverrideRect = layoutViewportOrigin,
+        }
+    };
     addPendingScrollUpdate(WTF::move(scrollUpdate));
-
-    // Happens when the this is called as a result of the scrolling tree commmit.
-    if (RunLoop::isMain()) {
-        if (CheckedPtr scrollingCoordinatorProxy = this->scrollingCoordinatorProxy())
-            scrollingCoordinatorProxy->scrollingThreadAddedPendingUpdate();
-        return;
-    }
-
-    RunLoop::mainSingleton().dispatch([protectedThis = Ref { *this }] {
-        if (CheckedPtr scrollingCoordinatorProxy = protectedThis->scrollingCoordinatorProxy())
-            scrollingCoordinatorProxy->scrollingThreadAddedPendingUpdate();
-    });
 }
 
 void RemoteScrollingTreeMac::scrollingTreeNodeDidStopAnimatedScroll(ScrollingTreeScrollingNode& node)
 {
-    auto scrollUpdate = ScrollUpdate { node.scrollingNodeID(), { }, { }, ScrollUpdateType::AnimatedScrollDidEnd };
+    auto scrollUpdate = ScrollUpdate {
+        .nodeID = node.scrollingNodeID(),
+        .scrollPosition = { },
+        .data = ScrollUpdateData {
+            .updateType = ScrollUpdateType::AnimatedScrollDidEnd,
+        }
+    };
     addPendingScrollUpdate(WTF::move(scrollUpdate));
-
-    // Happens when the this is called as a result of the scrolling tree commmit.
-    if (RunLoop::isMain()) {
-        if (CheckedPtr scrollingCoordinatorProxy = this->scrollingCoordinatorProxy())
-            scrollingCoordinatorProxy->scrollingThreadAddedPendingUpdate();
-        return;
-    }
-
-    RunLoop::mainSingleton().dispatch([protectedThis = Ref { *this }] {
-        if (CheckedPtr scrollingCoordinatorProxy = protectedThis->scrollingCoordinatorProxy())
-            scrollingCoordinatorProxy->scrollingThreadAddedPendingUpdate();
-    });
 }
 
 void RemoteScrollingTreeMac::scrollingTreeNodeDidStopWheelEventScroll(WebCore::ScrollingTreeScrollingNode& node)
 {
     ASSERT(ScrollingThread::isCurrentThread());
 
-    auto scrollUpdate = ScrollUpdate { node.scrollingNodeID(), { }, { }, ScrollUpdateType::WheelEventScrollDidEnd };
+    auto scrollUpdate = ScrollUpdate {
+        .nodeID = node.scrollingNodeID(),
+        .scrollPosition = { },
+        .data = ScrollUpdateData {
+            .updateType = ScrollUpdateType::WheelEventScrollDidEnd,
+        }
+    };
     addPendingScrollUpdate(WTF::move(scrollUpdate));
-
-    RunLoop::mainSingleton().dispatch([protectedThis = Ref { *this }, nodeID = node.scrollingNodeID()] {
-        if (CheckedPtr scrollingCoordinatorProxy = protectedThis->scrollingCoordinatorProxy())
-            scrollingCoordinatorProxy->scrollingThreadAddedPendingUpdate();
-    });
 }
 
-void RemoteScrollingTreeMac::scrollingTreeNodeDidStopProgrammaticScroll(WebCore::ScrollingTreeScrollingNode& node)
+void RemoteScrollingTreeMac::didAddPendingScrollUpdate()
 {
-    auto scrollUpdate = ScrollUpdate { node.scrollingNodeID(), { }, { }, ScrollUpdateType::ProgrammaticScrollDidEnd };
-    addPendingScrollUpdate(WTF::move(scrollUpdate));
-
     if (RunLoop::isMain()) {
         if (CheckedPtr scrollingCoordinatorProxy = this->scrollingCoordinatorProxy())
             scrollingCoordinatorProxy->scrollingThreadAddedPendingUpdate();
@@ -301,14 +273,14 @@ void RemoteScrollingTreeMac::scrollingTreeNodeDidStopProgrammaticScroll(WebCore:
     });
 }
 
-bool RemoteScrollingTreeMac::scrollingTreeNodeRequestsScroll(ScrollingNodeID nodeID, const RequestedScrollData& request)
+RequestsScrollHandling RemoteScrollingTreeMac::scrollingTreeNodeRequestsScroll(ScrollingNodeID nodeID, const RequestedScrollData& request)
 {
-    if (request.animated == ScrollIsAnimated::Yes) {
+    if (isAnimatedUpdate(request.requestType)) {
         ASSERT(m_treeLock.isLocked());
         m_nodesWithPendingScrollAnimations.set(nodeID, request);
-        return true;
+        return RequestsScrollHandling::Handled;
     }
-    return false;
+    return RequestsScrollHandling::Unhandled;
 }
 
 bool RemoteScrollingTreeMac::scrollingTreeNodeRequestsKeyboardScroll(ScrollingNodeID nodeID, const RequestedKeyboardScrollData& request)
@@ -329,7 +301,7 @@ void RemoteScrollingTreeMac::currentSnapPointIndicesDidChange(ScrollingNodeID no
 void RemoteScrollingTreeMac::reportExposedUnfilledArea(MonotonicTime time, unsigned unfilledArea)
 {
     RunLoop::mainSingleton().dispatch([protectedThis = Ref { *this }, time, unfilledArea] {
-        if (CheckedPtr scrollingCoordinatorProxy = protectedThis->scrollingCoordinatorProxy())
+        if (auto* scrollingCoordinatorProxy = protectedThis->scrollingCoordinatorProxy())
             scrollingCoordinatorProxy->reportExposedUnfilledArea(time, unfilledArea);
     });
 }
@@ -568,11 +540,9 @@ OptionSet<EventListenerRegionType> RemoteScrollingTreeMac::eventListenerRegionTy
 
     auto rootContentsLayer = rootScrollingNode->rootContentsLayer();
 
-    auto* eventRegion = eventRegionForPoint(rootScrollingNode->rootContentsLayer().get(), point);
-    if (!eventRegion)
-        return { };
-
-    return eventRegion->eventListenerRegionTypesForPoint(roundedIntPoint(point));
+    return eventRegionForPoint(rootScrollingNode->rootContentsLayer().get(), point).transform([&point](const WebCore::EventRegion& eventRegion) {
+        return eventRegion.eventListenerRegionTypesForPoint(roundedIntPoint(point));
+    }).value_or(OptionSet<EventListenerRegionType> { });
 }
 #endif
 
@@ -589,6 +559,32 @@ void RemoteScrollingTreeMac::scrollingTreeNodeScrollbarMinimumThumbLengthDidChan
     RunLoop::mainSingleton().dispatch([protectedThis = Ref { *this }, nodeID, orientation, minimumThumbLength] {
         if (CheckedPtr scrollingCoordinatorProxy = protectedThis->scrollingCoordinatorProxy())
             scrollingCoordinatorProxy->scrollingTreeNodeScrollbarMinimumThumbLengthDidChange(nodeID, orientation, minimumThumbLength);
+    });
+}
+
+void RemoteScrollingTreeMac::triggerMainFrameRubberBandSnapBack()
+{
+    ASSERT(isMainRunLoop());
+    ScrollingThread::dispatch([protectedThis = Ref { *this }]() {
+        Locker locker { protectedThis->m_treeLock };
+        RefPtr rootScrollingNode = dynamicDowncast<ScrollingTreeFrameScrollingNodeMac>(protectedThis->rootNode());
+        if (!rootScrollingNode)
+            return;
+
+        rootScrollingNode->startRubberBandSnapBack();
+    });
+}
+
+void RemoteScrollingTreeMac::mainFrameRubberBandTargetOffsetDidChange()
+{
+    ASSERT(isMainRunLoop());
+    ScrollingThread::dispatch([protectedThis = Ref { *this }]() {
+        Locker locker { protectedThis->m_treeLock };
+        RefPtr rootScrollingNode = dynamicDowncast<ScrollingTreeFrameScrollingNodeMac>(protectedThis->rootNode());
+        if (!rootScrollingNode)
+            return;
+
+        rootScrollingNode->rubberBandTargetOffsetDidChange();
     });
 }
 

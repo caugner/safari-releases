@@ -31,6 +31,7 @@
 #include <WebCore/ResourceError.h>
 #include <wtf/CompletionHandler.h>
 #include <wtf/Expected.h>
+#include <wtf/Markable.h>
 
 namespace JSC {
 class JSGlobalObject;
@@ -47,7 +48,7 @@ class FetchEvent final : public ExtendableEvent {
     WTF_MAKE_TZONE_ALLOCATED(FetchEvent);
 public:
     struct Init : ExtendableEventInit {
-        RefPtr<FetchRequest> request;
+        Ref<FetchRequest> request;
         String clientId;
         String resultingClientId;
         RefPtr<DOMPromise> handled;
@@ -67,8 +68,8 @@ public:
     WEBCORE_EXPORT void onResponse(ResponseCallback&&);
 
     FetchRequest& request() { return m_request.get(); }
-    const String& clientId() const { return m_clientId; }
-    const String& resultingClientId() const { return m_resultingClientId; }
+    const String& clientId() const LIFETIME_BOUND { return m_clientId; }
+    const String& resultingClientId() const LIFETIME_BOUND { return m_resultingClientId; }
     DOMPromise& handled() const { return m_handled.get(); }
 
     bool respondWithEntered() const { return m_respondWithEntered; }

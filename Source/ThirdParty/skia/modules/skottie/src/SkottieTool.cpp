@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Google Inc.
+ * Copyright 2018 Google LLC
  *
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
@@ -319,7 +319,7 @@ public:
 
         if (frame && stream) {
             SkSerialProcs sProcs;
-            sProcs.fImageProc = [](SkImage* img, void*) -> sk_sp<SkData> {
+            sProcs.fImageProc = [](SkImage* img, void*) -> sk_sp<const SkData> {
                 return SkPngEncoder::Encode(as_IB(img)->directContext(), img,
                                             SkPngEncoder::Options{});
             };

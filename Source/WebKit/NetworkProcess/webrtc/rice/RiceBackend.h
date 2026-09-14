@@ -31,6 +31,8 @@
 #include <WebCore/GUniquePtrRice.h>
 #include <WebCore/RTCIceComponent.h>
 #include <WebCore/RTCIceProtocol.h>
+#include <WebCore/RiceGatherResult.h>
+#include <WebCore/ScriptExecutionContextIdentifier.h>
 #include <WebCore/SharedMemory.h>
 #include <wtf/Expected.h>
 #include <wtf/Forward.h>
@@ -39,9 +41,12 @@
 #include <wtf/RefCounted.h>
 #include <wtf/RunLoop.h>
 #include <wtf/TZoneMalloc.h>
+#include <wtf/ThreadSafeRefCounted.h>
+#include <wtf/ThreadSafeWeakPtr.h>
 #include <wtf/URL.h>
 #include <wtf/URLHash.h>
 #include <wtf/Vector.h>
+#include <wtf/glib/GUniquePtr.h>
 #include <wtf/text/WTFString.h>
 
 namespace IPC {
@@ -58,14 +63,14 @@ struct RiceBackendIdentifierType;
 
 using RiceBackendIdentifier = ObjectIdentifier<RiceBackendIdentifierType>;
 
-class RiceBackend : public RefCounted<RiceBackend>, public IPC::MessageReceiver, public IPC::MessageSender, public Identified<RiceBackendIdentifier> {
+class RiceBackend : public ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr<RiceBackend, WTF::DestructionThread::Main>, public IPC::MessageReceiver, public IPC::MessageSender, public Identified<RiceBackendIdentifier> {
     WTF_MAKE_TZONE_ALLOCATED(RiceBackend);
 public:
     static void initialize(NetworkConnectionToWebProcess&, WebKit::WebPageProxyIdentifier&&, CompletionHandler<void(RefPtr<RiceBackend>&&)>&&);
     ~RiceBackend();
 
-    void ref() const final { RefCounted::ref(); }
-    void deref() const final { RefCounted::deref(); }
+    void ref() const final { ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr::ref(); }
+    void deref() const final { ThreadSafeRefCountedAndCanMakeThreadSafeWeakPtr::deref(); }
 
     void didReceiveMessage(IPC::Connection&, IPC::Decoder&);
     void didReceiveSyncMessage(IPC::Connection&, IPC::Decoder&, UniqueRef<IPC::Encoder>&);
@@ -74,15 +79,22 @@ public:
     using ResolveCallback = CompletionHandler<void(Expected<String, WebCore::ExceptionData>&&)>;
     void resolveAddress(const String&, ResolveCallback&&);
 
-    void sendData(unsigned, WebCore::RTCIceProtocol, String, String, WebCore::SharedMemory::Handle&&);
-    void finalizeStream(unsigned);
+    void resolveAddressSync(const String&, ResolveCallback&&);
 
-    void gatherSocketAddresses(unsigned, CompletionHandler<void(Vector<String> &&)>&&);
+    void sendData(unsigned, WebCore::RTCIceProtocol, const String&, const String&, WebCore::SharedMemory::Handle&&);
+    void finalizeStream(unsigned);
+    void setSocketTypeOfService(unsigned, unsigned);
+
+    using GatherSocketAddressesCallback = CompletionHandler<void(WebCore::RiceGatherResult&&)>;
+    void gatherSocketAddresses(WebCore::ScriptExecutionContextIdentifier, unsigned, unsigned, unsigned, GatherSocketAddressesCallback&&);
 
     GRefPtr<RiceSockets> getSocketsForStream(unsigned);
     GRefPtr<GSource> getRecvSourceForStream(unsigned);
 
     void notifyIncomingData(unsigned streamId, WebCore::RTCIceProtocol, String&&, String&&, WebCore::SharedMemory::Handle&&);
+
+    void allocateSocket(unsigned, unsigned, WebCore::RTCIceProtocol, const String&, const String&);
+    void removeSocket(unsigned, unsigned, WebCore::RTCIceProtocol, const String&, const String&);
 
 private:
 
@@ -96,17 +108,20 @@ private:
 
     RefPtr<RunLoop> m_runLoop;
 
+    void configureSockets();
+
     struct SocketData {
         GRefPtr<RiceSockets> sockets;
         GRefPtr<GSource> source;
     };
-    HashMap<unsigned, SocketData, WTF::IntHash<unsigned>, WTF::UnsignedWithZeroKeyHashTraits<unsigned>> m_sockets;
+    Lock m_socketsLock;
+    HashMap<unsigned, SocketData, WTF::IntHash<unsigned>, WTF::UnsignedWithZeroKeyHashTraits<unsigned>> m_sockets WTF_GUARDED_BY_LOCK(m_socketsLock);
 
     HashMap<unsigned, Vector<GUniquePtr<RiceAddress>>, WTF::IntHash<unsigned>, WTF::UnsignedWithZeroKeyHashTraits<unsigned>> m_udpAddresses;
+    HashMap<unsigned, Vector<std::pair<String, String>>, WTF::IntHash<unsigned>, WTF::UnsignedWithZeroKeyHashTraits<unsigned>> m_tcpAddresses;
     Vector<GRefPtr<RiceTcpListener>> m_tcpListeners;
 
     HashMap<String, GUniquePtr<RiceAddress>> m_addressCache;
-    HashMap<unsigned, Vector<String>, WTF::IntHash<unsigned>, WTF::UnsignedWithZeroKeyHashTraits<unsigned>> m_udpSocketAddressesCache;
 
     const RiceAddress* ensureRiceAddressFromCache(const String&);
 };

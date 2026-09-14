@@ -53,10 +53,10 @@ SandboxExtensionImpl::SandboxExtensionImpl(std::span<const uint8_t> serializedFo
 SandboxExtensionImpl::~SandboxExtensionImpl()
 {
     if (!m_token.isNull())
-        secureMemsetSpan(m_token.mutableSpan(), 0);
+        secureZeroSpan(m_token.mutableSpan());
 }
 
-WARN_UNUSED_RETURN bool SandboxExtensionImpl::consume()
+[[nodiscard]] bool SandboxExtensionImpl::consume()
 {
     m_handle = sandbox_extension_consume(m_token.data());
 #if PLATFORM(IOS_FAMILY_SIMULATOR)

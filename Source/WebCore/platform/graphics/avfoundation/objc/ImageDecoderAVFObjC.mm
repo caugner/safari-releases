@@ -246,7 +246,7 @@ public:
         return adoptRef(*new ImageDecoderAVFObjCSample(WTF::move(sampleBuffer)));
     }
 
-    CGImageRef image() const { return m_image.get(); }
+    CGImageRef NODELETE image() const { return m_image.get(); }
     void setImage(RetainPtr<CGImageRef>&& image)
     {
         m_image = WTF::move(image);
@@ -314,19 +314,13 @@ SPECIALIZE_TYPE_TRAITS_END()
 
 namespace WebCore {
 
-static RefPtr<ImageDecoderAVFObjCSample> toProtectedSample(const PresentationOrderSampleMap::value_type& pair)
+static ImageDecoderAVFObjCSample* NODELETE toSample(const PresentationOrderSampleMap::value_type& pair)
 {
     return downcast<ImageDecoderAVFObjCSample>(pair.second.ptr());
 }
 
 template <typename Iterator>
-ImageDecoderAVFObjCSample* toSample(Iterator iter)
-{
-    return downcast<ImageDecoderAVFObjCSample>(iter->second.ptr());
-}
-
-template <typename Iterator>
-RefPtr<ImageDecoderAVFObjCSample> toProtectedSample(Iterator iter)
+ImageDecoderAVFObjCSample* NODELETE toSample(Iterator iter)
 {
     return downcast<ImageDecoderAVFObjCSample>(iter->second.ptr());
 }
@@ -364,7 +358,7 @@ ImageDecoderAVFObjC::ImageDecoderAVFObjC(const FragmentedSharedBuffer& data, con
     [retainPtr(m_asset.get().resourceLoader) setDelegate:m_loader.get() queue:globalDispatchQueueSingleton(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0)];
     [m_asset loadValuesAsynchronouslyForKeys:@[@"tracks"] completionHandler:[protectedThis = Ref { *this }] () mutable {
         callOnMainThread([protectedThis = WTF::move(protectedThis)] {
-            protectedThis->setTrack(protectedThis->protectedFirstEnabledTrack().get());
+            protectedThis->setTrack(protect(protectedThis->firstEnabledTrack()).get());
         });
     }];
 }
@@ -401,11 +395,6 @@ ALLOW_DEPRECATED_DECLARATIONS_END
     }
 
     return [videoTracks objectAtIndex:firstEnabledIndex];
-}
-
-RetainPtr<AVAssetTrack> ImageDecoderAVFObjC::protectedFirstEnabledTrack()
-{
-    return firstEnabledTrack();
 }
 
 void ImageDecoderAVFObjC::readSamples()
@@ -487,7 +476,7 @@ bool ImageDecoderAVFObjC::storeSampleBuffer(CMSampleBufferRef sampleBuffer)
     // obtain RGBA IOSurface-backed CVPixelBuffer from the decoding session is enough
     // to ensure the pixel buffer is not replaced in VTCreateCGImageFromCVPixelBuffer.
 
-    toProtectedSample(iter)->setImage(adoptCF(rawImage));
+    protect(toSample(iter))->setImage(adoptCF(rawImage));
 
     return true;
 }
@@ -691,7 +680,7 @@ void ImageDecoderAVFObjC::setData(const FragmentedSharedBuffer& data, bool allDa
         m_isAllDataReceived = true;
 
         if (!m_track)
-            setTrack(protectedFirstEnabledTrack().get());
+            setTrack(protect(firstEnabledTrack()).get());
 
         if (!m_track)
             return;
@@ -705,7 +694,7 @@ void ImageDecoderAVFObjC::clearFrameBufferCache(size_t index)
 {
     size_t i = 0;
     for (auto& samplePair : m_sampleData.presentationOrder()) {
-        toProtectedSample(samplePair)->setImage(nullptr);
+        protect(toSample(samplePair))->setImage(nullptr);
         if (++i > index)
             break;
     }
@@ -733,7 +722,7 @@ bool ImageDecoderAVFObjC::sampleIsComplete(const ImageDecoderAVFObjCSample& samp
         return byteRangeValue.byteOffset + byteRangeValue.byteLength <= m_loader.get().data.length;
     }
 
-    return PAL::CMSampleBufferDataIsReady(sample.protectedSampleBuffer().get());
+    return PAL::CMSampleBufferDataIsReady(protect(sample.sampleBuffer()).get());
 }
 
 }

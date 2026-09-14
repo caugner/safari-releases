@@ -30,6 +30,7 @@
 #if ENABLE(MATHML)
 #include "AccessibilityMathMLElement.h"
 
+#include "AccessibilityNodeObjectInlines.h"
 #include "AXObjectCacheInlines.h"
 #include "AXUtilities.h"
 #include "AccessibilityObjectInlines.h"
@@ -37,6 +38,7 @@
 #include "MathMLNames.h"
 #include "NodeInlines.h"
 #include "Settings.h"
+#include "StyleComputedStyle+GettersInlines.h"
 
 namespace WebCore {
 
@@ -61,7 +63,7 @@ AccessibilityRole AccessibilityMathMLElement::determineAccessibilityRole()
     if (m_ariaRole != AccessibilityRole::Unknown)
         return m_ariaRole;
 
-    if (WebCore::elementName(m_renderer->protectedNode().get()) == ElementName::MathML_math)
+    if (WebCore::elementName(m_renderer->node()) == ElementName::MathML_math)
         return AccessibilityRole::DocumentMath;
 
     // It's not clear which role a platform should choose for a math element.
@@ -87,7 +89,7 @@ void AccessibilityMathMLElement::addChildren()
 
     m_subtreeDirty = false;
 
-#ifndef NDEBUG
+#if ASSERT_ENABLED
     verifyChildrenIndexInParent();
 #endif
 }
@@ -95,7 +97,7 @@ void AccessibilityMathMLElement::addChildren()
 String AccessibilityMathMLElement::textUnderElement(TextUnderElementMode mode) const
 {
     if (m_isAnonymousOperator && !mode.isHidden()) {
-        char16_t operatorChar = downcast<RenderMathMLOperator>(*m_renderer).textContent();
+        char16_t operatorChar = downcast<RenderMathMLOperator>(*m_renderer).singleCharCodePoint();
         return operatorChar ? String(span(operatorChar)) : String();
     }
 
@@ -173,13 +175,13 @@ bool AccessibilityMathMLElement::isMathOperator() const
 
 bool AccessibilityMathMLElement::isMathFenceOperator() const
 {
-    auto* mathMLOperator = dynamicDowncast<RenderMathMLOperator>(renderer());
+    CheckedPtr mathMLOperator = dynamicDowncast<RenderMathMLOperator>(renderer());
     return mathMLOperator && mathMLOperator->hasOperatorFlag(MathMLOperatorDictionary::Fence);
 }
 
 bool AccessibilityMathMLElement::isMathSeparatorOperator() const
 {
-    auto* mathMLOperator = dynamicDowncast<RenderMathMLOperator>(renderer());
+    CheckedPtr mathMLOperator = dynamicDowncast<RenderMathMLOperator>(renderer());
     return mathMLOperator && mathMLOperator->hasOperatorFlag(MathMLOperatorDictionary::Separator);
 }
 
@@ -465,7 +467,7 @@ void AccessibilityMathMLElement::mathPostscripts(AccessibilityMathMultiscriptPai
 
 int AccessibilityMathMLElement::mathLineThickness() const
 {
-    auto* fraction = dynamicDowncast<RenderMathMLFraction>(renderer());
+    CheckedPtr fraction = dynamicDowncast<RenderMathMLFraction>(renderer());
     if (!fraction)
         return -1;
 

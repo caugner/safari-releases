@@ -104,21 +104,23 @@ std::optional<String> TransferString::release(size_t maxCopySizeInBytes) && // N
         },
 #endif
         [maxCopySizeInBytes](SharedSpan8 handle) -> std::optional<String> {
-            RefPtr<SharedMemory> memory = WebCore::SharedMemory::map(WTF::move(handle.dataHandle), WebCore::SharedMemoryProtection::ReadOnly);
+            RefPtr memory = WebCore::SharedMemory::map(WTF::move(handle.dataHandle), WebCore::SharedMemoryProtection::ReadOnly);
             if (!memory)
                 return std::nullopt;
             if (memory->size() > maxCopySizeInBytes) {
-                Ref<StringImpl> impl = ExternalStringImpl::create(byteCast<Latin1Character>(memory->span()), [memory = memory.releaseNonNull()] (auto...) mutable { });
+                auto span = byteCast<Latin1Character>(memory->span());
+                Ref<StringImpl> impl = ExternalStringImpl::create(span, [memory = memory.releaseNonNull()] (auto...) mutable { });
                 return std::optional<String> { std::in_place, String { WTF::move(impl) } };
             }
             return std::optional<String> { std::in_place, String { byteCast<Latin1Character>(memory->span()) } };
         },
         [maxCopySizeInBytes](SharedSpan16 handle) -> std::optional<String> {
-            RefPtr<SharedMemory> memory = WebCore::SharedMemory::map(WTF::move(handle.dataHandle), WebCore::SharedMemoryProtection::ReadOnly);
+            RefPtr memory = WebCore::SharedMemory::map(WTF::move(handle.dataHandle), WebCore::SharedMemoryProtection::ReadOnly);
             if (!memory || (memory->size() % sizeof(char16_t)))
                 return std::nullopt;
             if (memory->size() > maxCopySizeInBytes) {
-                Ref<StringImpl> impl = ExternalStringImpl::create(spanReinterpretCast<const char16_t>(memory->span()), [memory = memory.releaseNonNull()] (auto...) mutable { });
+                auto span = spanReinterpretCast<const char16_t>(memory->span());
+                Ref<StringImpl> impl = ExternalStringImpl::create(span, [memory = memory.releaseNonNull()] (auto...) mutable { });
                 return std::optional<String> { std::in_place, String { WTF::move(impl) } };
             }
             return std::optional<String> { std::in_place, String { spanReinterpretCast<const char16_t>(memory->span()) } };
@@ -126,7 +128,7 @@ std::optional<String> TransferString::release(size_t maxCopySizeInBytes) && // N
     );
 }
 
-TransferString::IPCData TransferString::toIPCData() const
+TransferString::IPCData TransferString::toIPCData() const LIFETIME_BOUND
 {
     return WTF::switchOn(m_storage,
         [](const String& string) {

@@ -48,11 +48,58 @@ static AtomString mouseEventType(PlatformTouchPoint::TouchPhaseType phase)
     return nullAtom();
 }
 
-Ref<MouseEvent> MouseEvent::create(const PlatformTouchEvent& event, unsigned index, Ref<WindowProxy>&& view, IsCancelable cancelable)
+static DoublePoint computeMovementDelta(const PlatformTouchEvent& event, unsigned index)
 {
-    return adoptRef(*new MouseEvent(EventInterfaceType::MouseEvent, mouseEventType(event.touchPhaseAtIndex(index)), CanBubble::Yes, cancelable, IsComposed::Yes,
-        event.timestamp(), WTF::move(view), 0, event.touchLocationInRootViewAtIndex(index), event.touchLocationInRootViewAtIndex(index), 0, 0,
-        event.modifiers(), MouseButton::Left, 0, nullptr, 0, SyntheticClickType::NoTap, { }, { }, IsSimulated::No, IsTrusted::Yes));
+    const auto phase = event.touchPhaseAtIndex(index);
+
+    switch (phase) {
+    case PlatformTouchPoint::TouchPhaseBegan:
+        return { };
+    case PlatformTouchPoint::TouchPhaseMoved:
+    case PlatformTouchPoint::TouchPhaseStationary: {
+        auto currentPosition = event.touchLocationInRootViewAtIndex(index);
+        auto previousPosition = event.touchPreviousLocationInRootViewAtIndex(index);
+        return DoublePoint { currentPosition - previousPosition };
+    }
+    case PlatformTouchPoint::TouchPhaseEnded:
+    case PlatformTouchPoint::TouchPhaseCancelled:
+        return { };
+    }
+    ASSERT_NOT_REACHED();
+    return { };
+}
+
+Ref<MouseEvent> MouseEvent::create(const PlatformTouchEvent& event, unsigned index, Ref<WindowProxy>&& view, IsCancelable cancelable, ShouldComputeMovementDelta shouldComputeMovementDelta)
+{
+    const auto movementDelta = shouldComputeMovementDelta == ShouldComputeMovementDelta::Yes ? computeMovementDelta(event, index) : DoublePoint { };
+
+    return adoptRef(
+        *new MouseEvent(
+            EventInterfaceType::MouseEvent,
+            mouseEventType(event.touchPhaseAtIndex(index)),
+            CanBubble::Yes,
+            cancelable,
+            IsComposed::Yes,
+            event.timestamp(),
+            WTF::move(view),
+            0,
+            event.touchLocationInRootViewAtIndex(index),
+            event.touchLocationInRootViewAtIndex(index),
+            movementDelta.x(),
+            movementDelta.y(),
+            event.modifiers(),
+            MouseButton::Left,
+            0,
+            nullptr,
+            0,
+            SyntheticClickType::NoTap,
+            { },
+            { },
+            std::nullopt,
+            IsSimulated::No,
+            IsTrusted::Yes
+        )
+    );
 }
 
 } // namespace WebCore

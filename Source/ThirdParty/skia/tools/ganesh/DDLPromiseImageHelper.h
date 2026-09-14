@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 Google Inc.
+ * Copyright 2018 Google LLC
  *
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
@@ -127,7 +127,7 @@ public:
 private:
     void createCallbackContexts(GrDirectContext*);
     // reinflate a deflated SKP, replacing all the indices with promise images.
-    sk_sp<SkPicture> reinflateSKP(sk_sp<GrContextThreadSafeProxy>, SkData* deflatedSKP);
+    sk_sp<SkPicture> reinflateSKP(sk_sp<GrContextThreadSafeProxy>, const SkData* deflatedSKP);
 
     // This is the information extracted into this class from the parsing of the skp file.
     // Once it has all been uploaded to the GPU and distributed to the promise images, it

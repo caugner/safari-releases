@@ -918,8 +918,16 @@ angle::ObjCPtr<id<MTLLibrary>> CreateShaderLibrary(
     __TV_OS_VERSION_MAX_ALLOWED >= 180000 || TARGET_OS_VISION
         if (@available(macOS 15.0, iOS 18.0, *))
         {
-            options.get().mathMode                   = MTLMathModeRelaxed;
-            options.get().mathFloatingPointFunctions = MTLMathFloatingPointFunctionsFast;
+            if (disableFastMath)
+            {
+                options.get().mathMode                   = MTLMathModeSafe;
+                options.get().mathFloatingPointFunctions = MTLMathFloatingPointFunctionsPrecise;
+            }
+            else
+            {
+                options.get().mathMode                   = MTLMathModeFast;
+                options.get().mathFloatingPointFunctions = MTLMathFloatingPointFunctionsFast;
+            }
         }
         else
 #endif

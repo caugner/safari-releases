@@ -29,6 +29,7 @@
 #import <ImageIO/ImageIO.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <WebCore/UTIRegistry.h>
+#import <wtf/cocoa/TypeCastsCocoa.h>
 
 #if USE(APPKIT)
 #import <AppKit/AppKit.h>

@@ -28,6 +28,7 @@
 
 #ifdef __cplusplus
 
+#include <WebGPU/WebGPU.h>
 #include <CoreGraphics/CGImage.h>
 #ifndef __swift__
 // Swift C++ Interop does not support extern C. This header has that.
@@ -41,6 +42,13 @@
 #define WGPU_FUZZER_ASSERT_NOT_REACHED(...) WTFLogAlways(__VA_ARGS__)
 #endif
 
+// Threshold above which the Metal backend uses newBufferWithBytesNoCopy in writeBuffer / writeTexture
+// and aliases the caller's storage rather than copying. Callers passing transfers >= this size MUST
+// keep the source bytes alive until the GPU has consumed them (e.g. via addCompletedHandler).
+// Value is 32 * 1024 * 1024; written as a single integer literal so Swift's clang macro importer
+// picks it up as `WGPU_LARGE_BUFFER_SIZE` rather than skipping it.
+#define WGPU_LARGE_BUFFER_SIZE 33554432
+
 #include <optional>
 #include <simd/simd.h>
 #include <wtf/MachSendRight.h>
@@ -51,7 +59,7 @@
 typedef struct CF_BRIDGED_TYPE(id) __CVBuffer* CVPixelBufferRef;
 #endif
 
-typedef struct WGPUDDMeshImpl* WGPUDDMesh;
+typedef struct WebMeshImpl* WebMesh;
 typedef struct WGPUExternalTextureImpl* WGPUExternalTexture;
 
 typedef enum WGPUBufferBindingTypeExtended {
@@ -67,12 +75,6 @@ typedef enum WGPUSTypeExtended {
     WGPUSTypeExtended_BindGroupLayoutEntryExternalTexture = 0x645C3DAA, // Random
     WGPUSTypeExtended_Force32 = 0x7FFFFFFF
 } WGPUSTypeExtended;
-
-typedef struct WGPUDDCreateMeshDescriptor {
-    unsigned width;
-    unsigned height;
-    Vector<RetainPtr<IOSurfaceRef>> ioSurfaces;
-} WGPUDDCreateMeshDescriptor;
 
 const int WGPUTextureSampleType_ExternalTexture = WGPUTextureSampleType_Force32 - 1;
 
@@ -98,24 +100,12 @@ typedef WGPUTexture (*WGPUProcSwapChainGetCurrentTexture)(WGPUSwapChain swapChai
 
 #if !defined(WGPU_SKIP_DECLARATIONS)
 
-WGPU_EXPORT WGPUDDMesh wgpuDDMeshCreate(WGPUInstance instance, const WGPUDDCreateMeshDescriptor* descriptor);
-WGPU_EXPORT void wgpuDDMeshUpdate(WGPUDDMesh mesh, id);
-WGPU_EXPORT void wgpuDDMeshTextureUpdate(WGPUDDMesh mesh, id);
-WGPU_EXPORT void wgpuDDMeshMaterialUpdate(WGPUDDMesh mesh, id);
-WGPU_EXPORT void wgpuDDMeshRender(WGPUDDMesh mesh);
-WGPU_EXPORT void wgpuDDMeshSetTransform(WGPUDDMesh mesh, const simd_float4x4& transform);
-WGPU_EXPORT void wgpuDDMeshSetCameraDistance(WGPUDDMesh mesh, float distance);
-WGPU_EXPORT void wgpuDDMeshPlay(WGPUDDMesh mesh, bool autoplay);
-
 WGPU_EXPORT void wgpuRenderBundleSetLabel(WGPURenderBundle renderBundle, char const * label);
 
 // FIXME: https://github.com/webgpu-native/webgpu-headers/issues/89 is about moving this from WebGPUExt.h to WebGPU.h
 WGPU_EXPORT WGPUTexture wgpuSwapChainGetCurrentTexture(WGPUSwapChain swapChain, uint32_t frameIndex);
 
 WGPU_EXPORT WGPUExternalTexture wgpuDeviceImportExternalTexture(WGPUDevice device, const WGPUExternalTextureDescriptor* descriptor);
-
-WGPU_EXPORT void wgpuDDMeshReference(WGPUDDMesh mesh);
-WGPU_EXPORT void wgpuDDMeshRelease(WGPUDDMesh mesh);
 
 WGPU_EXPORT void wgpuDeviceSetDeviceLostCallback(WGPUDevice device, WGPUDeviceLostCallback callback, void* userdata);
 WGPU_EXPORT void wgpuDeviceSetDeviceLostCallbackWithBlock(WGPUDevice device, WGPUDeviceLostBlockCallback callback);

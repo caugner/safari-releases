@@ -70,7 +70,7 @@ public:
 
     WebPageProxyIdentifier webPageProxyID() const { return m_webProxyPageID; }
 
-    const WebCore::SecurityOriginData& topOrigin() const { return m_topOrigin; }
+    const WebCore::SecurityOriginData& topOrigin() const LIFETIME_BOUND { return m_topOrigin; }
 
 private:
     WebSocketTask(NetworkSocketChannel&, WebPageProxyIdentifier, const WebCore::ResourceRequest&, const String& protocol, const WebCore::ClientOrigin&);
@@ -87,8 +87,6 @@ private:
     void didSendData(WebCore::CurlStreamID, size_t) final { };
     void didReceiveData(WebCore::CurlStreamID, const WebCore::SharedBuffer&) final;
     void didFail(WebCore::CurlStreamID, CURLcode, WebCore::CertificateInfo&&) final;
-
-    RefPtr<NetworkSocketChannel> protectedChannel() const;
 
     void tryServerTrustEvaluation(WebCore::AuthenticationChallenge&&, String&&);
 

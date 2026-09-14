@@ -49,6 +49,7 @@
 #import "WebResourceLoadDelegate.h"
 #import "WebViewInternal.h"
 #import <JavaScriptCore/InitializeThreading.h>
+#import <WebCore/FrameDestructionObserverInlines.h>
 #import <WebCore/FrameLoader.h>
 #import <WebCore/LegacyWebArchive.h>
 #import <WebCore/MIMETypeRegistry.h>
@@ -114,7 +115,7 @@ public:
 #endif
 };
 
-static inline WebDataSourcePrivate* toPrivate(void* privateAttribute)
+static inline WebDataSourcePrivate* NODELETE toPrivate(void* privateAttribute)
 {
     return reinterpret_cast<WebDataSourcePrivate*>(privateAttribute);
 }
@@ -380,8 +381,8 @@ void addTypesFromClass(NSMutableDictionary *allTypes, Class objCClass, NSArray *
         [self _setRepresentation:(id <WebDocumentRepresentation>)newRep.get()];
     }
 
-    id<WebDocumentRepresentation> representation = toPrivate(_private)->representation.get();
-    [representation setDataSource:self];
+    RetainPtr<id<WebDocumentRepresentation>> representation = toPrivate(_private)->representation.get();
+    [representation.get() setDataSource:self];
 #if PLATFORM(IOS_FAMILY)
     toPrivate(_private)->loader->setResponseMIMEType([self _responseMIMEType]);
 #endif
@@ -476,7 +477,7 @@ void addTypesFromClass(NSMutableDictionary *allTypes, Class objCClass, NSArray *
 
 - (NSURLRequest *)initialRequest
 {
-    return toPrivate(_private)->loader->originalRequest().protectedNSURLRequest(WebCore::HTTPBodyUpdatePolicy::UpdateHTTPBody).autorelease();
+    return protect(toPrivate(_private)->loader->originalRequest().nsURLRequest(WebCore::HTTPBodyUpdatePolicy::UpdateHTTPBody)).autorelease();
 }
 
 - (NSMutableURLRequest *)request
@@ -486,12 +487,12 @@ void addTypesFromClass(NSMutableDictionary *allTypes, Class objCClass, NSArray *
         return nil;
 
     // FIXME: this cast is dubious
-    return (NSMutableURLRequest *)toPrivate(_private)->loader->request().protectedNSURLRequest(WebCore::HTTPBodyUpdatePolicy::UpdateHTTPBody).autorelease();
+    return (NSMutableURLRequest *)protect(toPrivate(_private)->loader->request().nsURLRequest(WebCore::HTTPBodyUpdatePolicy::UpdateHTTPBody)).autorelease();
 }
 
 - (NSURLResponse *)response
 {
-    return toPrivate(_private)->loader->response().protectedNSURLResponse().autorelease();
+    return protect(toPrivate(_private)->loader->response().nsURLResponse()).autorelease();
 }
 
 - (NSString *)textEncodingName

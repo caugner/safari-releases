@@ -26,11 +26,12 @@
 #import "config.h"
 #import "AXCoreObject.h"
 
+#import "AXLoggerBase.h"
 #import "AXObjectCache.h"
 #import "AXTreeStoreInlines.h"
 #import "AccessibilityObjectInlines.h"
 #import "ColorCocoa.h"
-#import "RenderObjectInlines.h"
+#import "StyleSpeakAs.h"
 #import "WebAccessibilityObjectWrapperBase.h"
 #import "Widget.h"
 
@@ -62,6 +63,13 @@ SOFT_LINK_CONSTANT(AXRuntime, UIAccessibilityTokenAttachment, NSString *);
 
 namespace WebCore {
 
+RetainPtr<id> AXCoreObject::platformElement() const
+{
+    if (isRemoteFrame()) [[unlikely]]
+        return remoteFramePlatformElement();
+    return wrapper();
+}
+
 String AXCoreObject::speechHint() const
 {
     auto speakAs = this->speakAs();
@@ -76,17 +84,6 @@ String AXCoreObject::speechHint() const
         builder.append(" no-punctuation"_s);
 
     return builder.toString();
-}
-
-// FIXME: We should create an AXCoreObjectInline.h file and move protectedWrapper() and protectedPlatformWidget() into it.
-RetainPtr<AccessibilityObjectWrapper> AXCoreObject::protectedWrapper() const
-{
-    return m_wrapper.get();
-}
-
-RetainPtr<PlatformWidget> AXCoreObject::protectedPlatformWidget() const
-{
-    return platformWidget();
 }
 
 // When modifying attributed strings, the range can come from a source which may provide faulty information (e.g. the spell checker).
@@ -292,8 +289,7 @@ RetainPtr<NSMutableAttributedString> AXCoreObject::createAttributedString(String
     // attributedStringSetCompositionAttributes(string.get(), node, textRange);
 
     if (spellCheck == AXCoreObject::SpellCheck::Yes) {
-        RefPtr node = this->node();
-        if (AXObjectCache::shouldSpellCheck() && node) {
+        if (RefPtr node = AXObjectCache::shouldSpellCheck() ? this->node() : nullptr) {
             // FIXME: This eagerly resolves misspellings, and since it requires a node, we will
             // never do this if `this` is an AXIsolatedObject`. We might need to figure out how
             // to spellcheck off the main-thread.
@@ -309,12 +305,12 @@ NSArray *renderWidgetChildren(const AXCoreObject& object)
     if (!object.isWidget()) [[likely]]
         return nil;
 
-    id child = Accessibility::retrieveAutoreleasedValueFromMainThread<id>([object = Ref { object }] () -> RetainPtr<id> {
+    auto result = Accessibility::retrieveValueFromMainThreadWithTimeout([object = Ref { object }] () -> RetainPtr<id> {
         RefPtr widget = object->widget();
         return widget ? widget->accessibilityObject() : nil;
-    });
+    }, Accessibility::PluginTimeout);
 
-    if (child)
+    if (id child = result.value ? (*result.value).autorelease() : nil)
         return @[child];
 ALLOW_DEPRECATED_DECLARATIONS_BEGIN
     return [object.platformWidget() accessibilityAttributeValue:NSAccessibilityChildrenAttribute];
@@ -445,10 +441,9 @@ ALLOW_DEPRECATED_DECLARATIONS_BEGIN
 ALLOW_DEPRECATED_DECLARATIONS_END
 
     auto role = this->role();
-    if (role == AccessibilityRole::Label) {
+    if (isStaticTextLabel()) {
         // Labels that only contain static text should just be mapped to static text.
-        if (containsOnlyStaticText())
-            role = AccessibilityRole::StaticText;
+        role = AccessibilityRole::StaticText;
     } else if (isAnonymousMathOperator()) {
         // The mfenced element creates anonymous RenderMathMLOperators with no RenderText
         // descendants. These anonymous renderers are the only accessible objects
@@ -493,7 +488,7 @@ bool AXCoreObject::isEmptyGroup()
 
 AXCoreObject::AccessibilityChildrenVector AXCoreObject::crossFrameSortedDescendants(size_t limit, PreSortedObjectType type) const
 {
-    ASSERT(type == PreSortedObjectType::LiveRegion || type == PreSortedObjectType::WebArea);
+    AX_ASSERT(type == PreSortedObjectType::LiveRegion || type == PreSortedObjectType::WebArea);
     auto sortedObjects = type == PreSortedObjectType::LiveRegion ? allSortedLiveRegions() : allSortedNonRootWebAreas();
     AXCoreObject::AccessibilityChildrenVector results;
     for (const Ref<AXCoreObject>& object : sortedObjects) {
@@ -506,15 +501,62 @@ AXCoreObject::AccessibilityChildrenVector AXCoreObject::crossFrameSortedDescenda
     return results;
 }
 
+// Walk from the AX tree root to `marker`, counting characters. Works on
+// either the main thread (via SimpleRange) or the secondary AX thread (via
+// the isolated tree's character walk).
+static unsigned offsetFromRootForMarker(const AXTextMarker& marker)
+{
+    if (!marker.isValid())
+        return 0;
+
+    if (!isMainThread())
+        return marker.offsetFromRoot();
+    return makeNSRange(AXTextMarkerRange { marker, marker }.simpleRange()).location;
+}
+
+std::optional<unsigned> AXCoreObject::relativeIndexForTextMarker(const AXTextMarker& target)
+{
+    if (!target.isValid())
+        return std::nullopt;
+
+    auto range = textMarkerRange();
+    if (!range)
+        return std::nullopt;
+
+    // Fast path: when `target` is anchored to this object and this object
+    // carries text runs, the marker's own offset is already relative to this.
+    // O(1) — no walk.
+    if (target.objectID() == objectID() && target.treeID() == treeID() && hasTextRuns())
+        return target.offset();
+
+    // Fallback: subtract this object's range start offset from target's offset.
+    // Both are computed relative to the AX tree root, so the result is the
+    // object's relative offset. Each offsetFromRoot is O(document length).
+    // Defer the range.end() walk until we know target is at or after
+    // range.start(), and skip it altogether if target precedes this.
+    unsigned startFromRoot = offsetFromRootForMarker(range.start());
+    unsigned targetFromRoot = offsetFromRootForMarker(target);
+    if (targetFromRoot < startFromRoot)
+        return std::nullopt;
+
+    // FIXME: walking from range.start() to range.end() instead of from root
+    // would make the upper-bound check O(receiver length) rather than
+    // O(document length). Change once we have a cross-thread primitive for it.
+    unsigned endFromRoot = offsetFromRootForMarker(range.end());
+    if (targetFromRoot > endFromRoot)
+        return std::nullopt;
+    return targetFromRoot - startFromRoot;
+}
+
 namespace Accessibility {
 
 PlatformRoleMap createPlatformRoleMap()
 {
     struct RoleEntry {
         AccessibilityRole value;
-        NSString *string;
+        RetainPtr<NSString> string;
     };
-    static const auto roles = std::to_array<RoleEntry>({
+    static const NeverDestroyed roles = WTF::toArray<RoleEntry>({
         { AccessibilityRole::Unknown, NSAccessibilityUnknownRole },
         { AccessibilityRole::Button, NSAccessibilityButtonRole },
         { AccessibilityRole::RadioButton, NSAccessibilityRadioButtonRole },
@@ -647,12 +689,12 @@ PlatformRoleMap createPlatformRoleMap()
         { AccessibilityRole::FrameHost, NSAccessibilityGroupRole },
     });
     PlatformRoleMap roleMap;
-    for (auto& role : roles)
-        roleMap.add(static_cast<unsigned>(role.value), role.string);
+    for (auto& role : roles.get())
+        roleMap.add(static_cast<unsigned>(role.value), role.string.get());
     return roleMap;
 }
 
-#if ENABLE(AX_THREAD_TEXT_APIS)
+#if ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 std::optional<AXTextMarkerRange> markerRangeFrom(NSRange range, const AXCoreObject& object)
 {
     std::optional stopAtID = object.idOfNextSiblingIncludingIgnoredOrParent();
@@ -665,7 +707,7 @@ std::optional<AXTextMarkerRange> markerRangeFrom(NSRange range, const AXCoreObje
         return std::nullopt;
     return std::optional(AXTextMarkerRange { WTF::move(markerToLocation), WTF::move(markerToRangeEnd) });
 }
-#endif // ENABLE(AX_THREAD_TEXT_APIS)
+#endif // ENABLE(ACCESSIBILITY_ISOLATED_TREE)
 
 } // namespace Accessibility
 

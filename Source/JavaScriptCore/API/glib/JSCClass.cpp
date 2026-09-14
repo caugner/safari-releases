@@ -31,6 +31,7 @@
 #include "JSCValuePrivate.h"
 #include "JSCallbackObject.h"
 #include "JSRetainPtr.h"
+#include <wtf/glib/GSpanExtras.h>
 #include <wtf/glib/GUniquePtr.h>
 #include <wtf/glib/WTFGType.h>
 
@@ -115,17 +116,19 @@ static JSClassRef wrappedObjectClass(JSC::JSObject* jsObject)
 {
     ASSERT(isWrappedObject(jsObject));
     if (jsObject->isGlobalObject())
-        return JSC::jsCast<JSC::JSCallbackObject<JSC::JSAPIWrapperGlobalObject>*>(jsObject)->classRef();
-    return JSC::jsCast<JSC::JSCallbackObject<JSC::JSAPIWrapperObject>*>(jsObject)->classRef();
+        return uncheckedDowncast<JSC::JSCallbackObject<JSC::JSAPIWrapperGlobalObject>>(jsObject)->classRef();
+    return uncheckedDowncast<JSC::JSCallbackObject<JSC::JSAPIWrapperObject>>(jsObject)->classRef();
 }
 
 static GRefPtr<JSCContext> jscContextForObject(JSC::JSObject* jsObject)
 {
     ASSERT(isWrappedObject(jsObject));
-    JSC::JSGlobalObject* globalObject = jsObject->globalObject();
+    JSC::JSGlobalObject* globalObject = jsObject->realmMayBeNull();
+    if (!globalObject)
+        return nullptr;
     if (jsObject->isGlobalObject()) {
         if (auto* globalScopeExtension = globalObject->globalScopeExtension())
-            globalObject = JSC::JSScope::objectAtScope(globalScopeExtension)->globalObject();
+            globalObject = JSC::JSScope::objectAtScope(globalScopeExtension)->realm();
     }
     return jscContextGetOrCreate(toGlobalRef(globalObject));
 }
@@ -260,13 +263,10 @@ static void getPropertyNames(JSContextRef callerContext, JSObjectRef object, JSP
         if (auto* enumeratePropertiesFunction = jscClass->priv->vtable->enumerate_properties) {
             GUniquePtr<char*> properties(enumeratePropertiesFunction(jscClass, context.get(), instance));
             if (properties) {
-                unsigned i = 0;
-                WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // GLib port
-                while (const auto* name = properties.get()[i++]) {
+                for (auto* name : span(properties)) {
                     JSRetainPtr<JSStringRef> propertyName(Adopt, JSStringCreateWithUTF8CString(name));
                     JSPropertyNameAccumulatorAddName(propertyNames, propertyName.get());
                 }
-                WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
             }
         }
     }
@@ -647,10 +647,8 @@ JSCValue* jsc_class_add_constructorv(JSCClass* jscClass, const char* name, GCall
     if (!name)
         name = priv->name.data();
 
-    Vector<GType> parameters(parametersCount, [&](size_t i) -> GType {
-        WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // GLib port
+    Vector<GType> parameters(parametersCount, [parameterTypes = unsafeMakeSpan(parameterTypes, parametersCount)](size_t i) -> GType {
         return parameterTypes[i];
-        WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
     });
 
     return jscClassCreateConstructor(jscClass, name ? name : priv->name.data(), callback, userData, destroyNotify, returnType, WTF::move(parameters)).leakRef();
@@ -775,10 +773,8 @@ void jsc_class_add_methodv(JSCClass* jscClass, const char* name, GCallback callb
     g_return_if_fail(!parametersCount || parameterTypes);
     g_return_if_fail(jscClass->priv->context);
 
-    Vector<GType> parameters(parametersCount, [&](size_t i) -> GType {
-        WTF_ALLOW_UNSAFE_BUFFER_USAGE_BEGIN // GLib port
+    Vector<GType> parameters(parametersCount, [parameterTypes = unsafeMakeSpan(parameterTypes, parametersCount)](size_t i) -> GType {
         return parameterTypes[i];
-        WTF_ALLOW_UNSAFE_BUFFER_USAGE_END
     });
 
     jscClassAddMethod(jscClass, name, callback, userData, destroyNotify, returnType, WTF::move(parameters));

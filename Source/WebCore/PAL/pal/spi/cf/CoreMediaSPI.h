@@ -25,12 +25,22 @@
 
 #pragma once
 
+// FIXME: Remove the `__has_feature(modules)` condition when possible.
+#if !__has_feature(modules)
+
 #include <wtf/Compiler.h>
 #include <wtf/Platform.h>
 
 DECLARE_SYSTEM_HEADER
 
 #include <CoreMedia/CoreMedia.h>
+
+#if USE(APPLE_INTERNAL_SDK)
+// Include some private headers before CoreMediaSoftLink.h overshadows
+// declarations with its macros to soft-link call sites.
+#include <CoreMedia/CMTimePrivate.h>
+#include <MediaToolbox/FigImageQueueDispatch.h>
+#endif
 
 #if PLATFORM(MAC)
 #pragma clang diagnostic push
@@ -54,3 +64,5 @@ void FigThreadUnregisterAbortAction(FigThreadAbortActionToken);
 WTF_EXTERN_C_END
 
 #endif // PLATFORM(COCOA)
+
+#endif // !__has_feature(modules)

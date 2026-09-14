@@ -84,10 +84,10 @@ template <class T> concept YarrSyntaxCheckable = requires (T& checker, Vector<Ve
 template<YarrSyntaxCheckable Delegate, typename CharType>
 class Parser {
 public:
-    Parser(Delegate& delegate, StringView pattern, CompileMode compileMode, unsigned backReferenceLimit, bool isNamedForwardReferenceAllowed)
+    Parser(Delegate& delegate, std::span<const CharType> pattern, CompileMode compileMode, unsigned backReferenceLimit, bool isNamedForwardReferenceAllowed)
         : m_delegate(delegate)
-        , m_data(pattern.span<CharType>().data())
-        , m_size(pattern.length())
+        , m_data(pattern.data())
+        , m_size(pattern.size())
         , m_compileMode(compileMode)
         , m_backReferenceLimit(backReferenceLimit)
         , m_isNamedForwardReferenceAllowed(isNamedForwardReferenceAllowed)
@@ -536,7 +536,8 @@ private:
             if (m_state == ClassSetConstructionState::CachedCharacter) {
                 m_delegate.atomCharacterClassAtom(m_character);
                 m_state = ClassSetConstructionState::Empty;
-            }
+            } else if (m_state == ClassSetConstructionState::CachedCharacterHyphen || m_state == ClassSetConstructionState::AfterCharacterClassHyphen)
+                m_errorCode = ErrorCode::InvalidClassSetCharacter;
         }
 
         void afterSetOperand()
@@ -756,10 +757,7 @@ private:
         {
             if (m_state == ClassSetConstructionState::CachedCharacter)
                 m_delegate.atomCharacterClassAtom(m_character);
-            else if (m_state == ClassSetConstructionState::CachedCharacterHyphen) {
-                m_delegate.atomCharacterClassAtom(m_character);
-                m_delegate.atomCharacterClassAtom('-');
-            } else if (m_state == ClassSetConstructionState::AfterSetOperator)
+            else if (m_state == ClassSetConstructionState::CachedCharacterHyphen || m_state == ClassSetConstructionState::AfterCharacterClassHyphen || m_state == ClassSetConstructionState::AfterSetOperator)
                 m_errorCode = ErrorCode::InvalidClassSetCharacter;
 
             if (isInverted() && m_mayContainStrings)
@@ -1518,6 +1516,7 @@ private:
         consume();
 
         auto type = ParenthesesType::Subpattern;
+        bool isNonCapturingGroup = false;
 
         if (tryConsume('?')) {
             if (atEndOfPattern()) {
@@ -1529,6 +1528,7 @@ private:
             case ':':
                 consume();
                 m_delegate.atomParenthesesSubpatternBegin(false);
+                isNonCapturingGroup = true;
                 break;
             
             case '=':
@@ -1592,6 +1592,7 @@ private:
                 OptionSet<Flags> set;
                 OptionSet<Flags> unset;
                 bool hasHitNegation = false;
+                isNonCapturingGroup = true;
                 char32_t c;
                 while (!atEndOfPattern() && (c = consume()) != ':') {
                     switch (c) {
@@ -1648,7 +1649,7 @@ private:
             countCaptures();
         }
 
-        if (type == ParenthesesType::Subpattern)
+        if (type == ParenthesesType::Subpattern && !isNonCapturingGroup)
             ++m_numSubpatterns;
 
         m_parenthesesStack.append(type);
@@ -2277,8 +2278,8 @@ template<YarrSyntaxCheckable Delegate>
 ErrorCode parse(Delegate& delegate, const StringView pattern, CompileMode compileMode, unsigned backReferenceLimit = quantifyInfinite, bool isNamedForwardReferenceAllowed = true)
 {
     if (pattern.is8Bit())
-        return Parser<Delegate, Latin1Character>(delegate, pattern, compileMode, backReferenceLimit, isNamedForwardReferenceAllowed).parse();
-    return Parser<Delegate, char16_t>(delegate, pattern, compileMode, backReferenceLimit, isNamedForwardReferenceAllowed).parse();
+        return Parser<Delegate, Latin1Character>(delegate, pattern.span8(), compileMode, backReferenceLimit, isNamedForwardReferenceAllowed).parse();
+    return Parser<Delegate, char16_t>(delegate, pattern.span16(), compileMode, backReferenceLimit, isNamedForwardReferenceAllowed).parse();
 }
 
 } } // namespace JSC::Yarr

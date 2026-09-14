@@ -61,8 +61,8 @@ template<typename T> bool isOSObject(CFTypeRef);
 #define WTF_IMPLEMENT_IS_OS_OBJECT_FUNCTIONS_INTERNAL(TypeName, ProtocolString) \
 template<> inline bool isOSObject<OSObjectTypeCastTraits<TypeName>::BaseType>(CFTypeRef object) \
 { \
-    Class cls = object_getClass(bridge_id_cast(object)); \
-    return class_conformsToProtocol(cls, objc_getProtocol(ProtocolString)); \
+    RetainPtr cls = object_getClass(bridge_id_cast(object)); \
+    return class_conformsToProtocol(cls.get(), objc_getProtocol(ProtocolString)); \
 } \
 
 #ifdef __OBJC__
@@ -107,7 +107,7 @@ inline OSObjectPtr<T> dynamicOSObjectCast(const OSObjectPtr<U>& object)
     if (!isOSObject<typename OSObjectTypeCastTraits<T>::BaseType>(object.get()))
         return nullptr;
 
-    return static_cast<T*>(object.get());
+    return static_cast<T>(object.get());
 }
 
 template<typename T> inline T dynamicOSObjectCast(id object)
@@ -167,7 +167,7 @@ inline OSObjectPtr<T> dynamicOSObjectCast(const OSObjectPtr<U>& object)
     if (!isOSObject<typename OSObjectTypeCastTraits<T>::BaseType>(object.get()))
         return nullptr;
 
-    return static_cast<T*>(object.get());
+    return static_cast<T>(object.get());
 }
 
 #endif // !defined(__OBJC__)

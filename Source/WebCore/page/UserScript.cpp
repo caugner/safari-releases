@@ -30,6 +30,7 @@
 #include <wtf/HashCountedSet.h>
 #include <wtf/MainThread.h>
 #include <wtf/NeverDestroyed.h>
+#include <wtf/text/StringHash.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/MakeString.h>
 
@@ -114,7 +115,7 @@ String UserScript::debugDescription() const
     auto truncated = view.left(64);
     if (size_t pos = truncated.find('\n'); pos != notFound) {
         if (truncated.startsWith("//# sourceURL="_s))
-            truncated = truncated.substring(14, pos);
+            truncated = truncated.substring(14, pos - 14);
         else
             truncated = truncated.substring(0, pos);
     }

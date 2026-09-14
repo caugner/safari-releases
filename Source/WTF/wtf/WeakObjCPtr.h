@@ -25,6 +25,10 @@
 
 #pragma once
 
+#include <wtf/Platform.h>
+
+#if PLATFORM(COCOA)
+
 #include <objc/runtime.h>
 #include <type_traits>
 #include <wtf/RetainPtr.h>
@@ -116,11 +120,20 @@ RetainPtr<typename WeakObjCPtr<T>::ValueType> WeakObjCPtr<T>::get() const
 #if __has_feature(objc_arc)
     return static_cast<typename WeakObjCPtr<T>::ValueType *>(m_weakReference);
 #else
-    return adoptNS(objc_loadWeakRetained(&m_weakReference));
+    SUPPRESS_RETAINPTR_CTOR_ADOPT return adoptNS(objc_loadWeakRetained(&m_weakReference));
 #endif
 }
 #endif
 
+template<typename T>
+inline RetainPtr<typename WeakObjCPtr<T>::ValueType> protect(const WeakObjCPtr<T>& weakPtr)
+{
+    return weakPtr.get();
+}
+
 } // namespace WTF
 
+using WTF::protect;
 using WTF::WeakObjCPtr;
+
+#endif // PLATFORM(COCOA)

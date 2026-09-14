@@ -39,6 +39,7 @@
 #include "SystemImage.h"
 #include "TextRunIterator.h"
 #include "VideoFrame.h"
+#include <wtf/MathExtras.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/TextStream.h>
 
@@ -190,20 +191,20 @@ void GraphicsContext::drawEmphasisMarks(const FontCascade& font, const TextRun& 
 
 void GraphicsContext::drawBidiText(const FontCascade& font, const TextRun& run, const FloatPoint& point, FontCascade::CustomFontNotReadyAction customFontNotReadyAction)
 {
-    BidiResolver<TextRunIterator, BidiCharacterRun> bidiResolver;
+    BidiResolver<TextRunIterator, SimpleBidiCharacterRun> bidiResolver;
     bidiResolver.setStatus(BidiStatus(run.direction(), run.directionalOverride()));
     bidiResolver.setPositionIgnoringNestedIsolates(TextRunIterator(&run, 0));
 
     // FIXME: This ownership should be reversed. We should pass BidiRunList
     // to BidiResolver in createBidiRunsForLine.
-    BidiRunList<BidiCharacterRun>& bidiRuns = bidiResolver.runs();
+    auto& bidiRuns = bidiResolver.runs();
     bidiResolver.createBidiRunsForLine(TextRunIterator(&run, run.length()));
 
     if (!bidiRuns.runCount())
         return;
 
     FloatPoint currPoint = point;
-    BidiCharacterRun* bidiRun = bidiRuns.firstRun();
+    auto* bidiRun = bidiRuns.firstRun();
     while (bidiRun) {
         TextRun subrun = run.subRun(bidiRun->start(), bidiRun->stop() - bidiRun->start());
         bool isRTL = bidiRun->level() % 2;
@@ -462,7 +463,7 @@ void GraphicsContext::clipRoundedRect(const FloatRoundedRect& rect)
 
 void GraphicsContext::clipOutRoundedRect(const FloatRoundedRect& rect)
 {
-    if (!rect.isRounded()) {
+    if (!rect.hasNonZeroRadii()) {
         clipOut(rect.rect());
         return;
     }
@@ -485,18 +486,19 @@ void GraphicsContext::fillRect(const FloatRect& rect, Gradient& gradient)
 
 void GraphicsContext::fillRect(const FloatRect& rect, const Color& color, CompositeOperator op, BlendMode blendMode)
 {
-    CompositeOperator previousOperator = compositeOperation();
+    auto previousCompositeMode = compositeMode();
     setCompositeOperation(op, blendMode);
     fillRect(rect, color);
-    setCompositeOperation(previousOperator);
+    setCompositeMode(previousCompositeMode);
 }
 
 void GraphicsContext::fillRoundedRect(const FloatRoundedRect& rect, const Color& color, BlendMode blendMode)
 {
-    if (rect.isRounded()) {
+    if (rect.hasNonZeroRadii()) {
+        auto previousCompositeMode = compositeMode();
         setCompositeOperation(compositeOperation(), blendMode);
         fillRoundedRectImpl(rect, color);
-        setCompositeOperation(compositeOperation());
+        setCompositeMode(previousCompositeMode);
     } else
         fillRect(rect.rect(), color, compositeOperation(), blendMode);
 }
@@ -542,6 +544,17 @@ void GraphicsContext::drawPath(const Path& path)
     strokePath(path);
 }
 
+void GraphicsContext::strokeArc(const PathArc& arc)
+{
+    strokePath(Path({ PathSegment { arc } }));
+}
+
+void GraphicsContext::strokeLine(const PathDataLine& line)
+{
+    auto path = Path({ PathSegment { PathDataLine { { line.start() }, { line.end() } } } });
+    strokePath(path);
+}
+
 void GraphicsContext::fillEllipseAsPath(const FloatRect& ellipse)
 {
     Path path;
@@ -569,10 +582,12 @@ void GraphicsContext::drawDisplayList(const DisplayList::DisplayList& displayLis
 
 void GraphicsContext::drawDisplayList(const DisplayList::DisplayList& displayList, ControlFactory& controlFactory)
 {
+    AffineTransform baseTransform = getCTM();
+
     // FIXME: ControlFactory should be property of the context and not passed this way here.
     // Currently this mutates each ControlPart which is unsuitable for display lists.
     for (auto& item : displayList.items())
-        applyItem(*this, controlFactory, item);
+        applyItem(*this, baseTransform, controlFactory, item);
 }
 
 FloatRect GraphicsContext::computeUnderlineBoundsForText(const FloatRect& rect, bool printing)
@@ -601,11 +616,13 @@ FloatRect GraphicsContext::computeLineBoundsAndAntialiasingModeForText(const Flo
     }
 
     FloatPoint devicePoint = transform.mapPoint(rect.location());
-    // Visual overflow might occur here due to integral roundf/ceilf. visualOverflowForDecorations adjusts the overflow value for underline decoration.
-    FloatPoint deviceOrigin = FloatPoint(roundf(devicePoint.x()), ceilf(devicePoint.y()));
-    if (auto inverse = transform.inverse())
-        origin = inverse.value().mapPoint(deviceOrigin);
-    return FloatRect(origin, FloatSize(rect.width(), thickness));
+    // Visual overflow might occur here due to integral roundf/floorf/ceilf. visualOverflowForDecorations adjusts the overflow value for underline decoration.
+    if (auto inverse = transform.inverse()) {
+        // Snap away from the decorated text (toward increasing local y).
+        auto snappedDeviceY = transform.d() < 0 ? floorf(devicePoint.y()) : ceilf(devicePoint.y());
+        origin = inverse.value().mapPoint(FloatPoint { roundf(devicePoint.x()), snappedDeviceY });
+    }
+    return { origin, FloatSize { rect.width(), thickness } };
 }
 
 float GraphicsContext::dashedLineCornerWidthForStrokeWidth(float strokeWidth) const
@@ -701,11 +718,11 @@ auto GraphicsContext::computeRectsAndStrokeColorForLinesForText(const FloatPoint
             auto left = lineSegment.begin;
             auto width = lineSegment.length();
             auto doubleWidth = 2 * dashWidth;
-            auto quotient = static_cast<int>(left / doubleWidth);
+            auto quotient = truncateDoubleToInt32(left / doubleWidth);
             auto startOffset = left - quotient * doubleWidth;
             auto effectiveLeft = left + startOffset;
-            auto startParticle = static_cast<int>(std::floor(effectiveLeft / doubleWidth));
-            auto endParticle = static_cast<int>(std::ceil((left + width) / doubleWidth));
+            auto startParticle = truncateDoubleToInt32(std::floor(effectiveLeft / doubleWidth));
+            auto endParticle = truncateDoubleToInt32(std::ceil((left + width) / doubleWidth));
 
             for (auto j = startParticle; j < endParticle; ++j) {
                 auto actualDashWidth = dashWidth;

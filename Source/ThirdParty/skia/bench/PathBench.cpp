@@ -629,94 +629,6 @@ private:
     using INHERITED = RandomPathBench;
 };
 
-#ifndef SK_HIDE_PATH_EDIT_METHODS
-class SkBench_AddPathTest : public RandomPathBench {
-public:
-    enum AddType {
-        kAdd_AddType,
-        kAddTrans_AddType,
-        kAddMatrix_AddType,
-        kReverseAdd_AddType,
-    };
-
-    SkBench_AddPathTest(AddType type) : fType(type) {
-        fMatrix.setRotate(60 * SK_Scalar1);
-    }
-
-protected:
-    const char* onGetName() override {
-        switch (fType) {
-            case kAdd_AddType:
-                return "path_add_path";
-            case kAddTrans_AddType:
-                return "path_add_path_trans";
-            case kAddMatrix_AddType:
-                return "path_add_path_matrix";
-            case kReverseAdd_AddType:
-                return "path_reverse_add_path";
-            default:
-                SkDEBUGFAIL("Bad add type");
-                return "";
-        }
-    }
-
-    void onDelayedSetup() override {
-        this->createData(10, 100, true);
-        fPaths0.reset(kPathCnt);
-        fPaths1.reset(kPathCnt);
-        for (int i = 0; i < kPathCnt; ++i) {
-            fPaths0[i] = this->makePath();
-            fPaths1[i] = this->makePath();
-        }
-        this->finishedMakingPaths();
-    }
-
-    void onDraw(int loops, SkCanvas*) override {
-        switch (fType) {
-            case kAdd_AddType:
-                for (int i = 0; i < loops; ++i) {
-                    int idx = i & (kPathCnt - 1);
-                    SkPath result = fPaths0[idx];
-                    result.addPath(fPaths1[idx]);
-                }
-                break;
-            case kAddTrans_AddType:
-                for (int i = 0; i < loops; ++i) {
-                    int idx = i & (kPathCnt - 1);
-                    SkPath result = fPaths0[idx];
-                    result.addPath(fPaths1[idx], 2 * SK_Scalar1, 5 * SK_Scalar1);
-                }
-                break;
-            case kAddMatrix_AddType:
-                for (int i = 0; i < loops; ++i) {
-                    int idx = i & (kPathCnt - 1);
-                    SkPath result = fPaths0[idx];
-                    result.addPath(fPaths1[idx], fMatrix);
-                }
-                break;
-            case kReverseAdd_AddType:
-                for (int i = 0; i < loops; ++i) {
-                    int idx = i & (kPathCnt - 1);
-                    SkPath result = fPaths0[idx];
-                    result.reverseAddPath(fPaths1[idx]);
-                }
-                break;
-        }
-    }
-
-private:
-    AddType fType; // or reverseAddPath
-    enum {
-        // must be a pow 2
-        kPathCnt = 1 << 5,
-    };
-    AutoTArray<SkPath> fPaths0;
-    AutoTArray<SkPath> fPaths1;
-    SkMatrix         fMatrix;
-    using INHERITED = RandomPathBench;
-};
-#endif
-
 class CirclesBench : public Benchmark {
 protected:
     SkString            fName;
@@ -1219,7 +1131,6 @@ private:
     using INHERITED = Benchmark;
 };
 
-
 const SkRect ConservativelyContainsBench::kBounds = SkRect::MakeWH(SkIntToScalar(100), SkIntToScalar(100));
 const SkSize ConservativelyContainsBench::kQueryMin = {SkIntToScalar(1), SkIntToScalar(1)};
 const SkSize ConservativelyContainsBench::kQueryMax = {SkIntToScalar(40), SkIntToScalar(40)};
@@ -1294,13 +1205,6 @@ DEF_BENCH( return new MAKEFROM(builder_from_rect) )
 DEF_BENCH( return new MAKEFROM(path_from_rect) )
 
 #undef MAKEFROM
-
-#ifndef SK_HIDE_PATH_EDIT_METHODS
-DEF_BENCH( return new SkBench_AddPathTest(SkBench_AddPathTest::kAdd_AddType); )
-DEF_BENCH( return new SkBench_AddPathTest(SkBench_AddPathTest::kAddTrans_AddType); )
-DEF_BENCH( return new SkBench_AddPathTest(SkBench_AddPathTest::kAddMatrix_AddType); )
-DEF_BENCH( return new SkBench_AddPathTest(SkBench_AddPathTest::kReverseAdd_AddType); )
-#endif
 
 DEF_BENCH( return new CirclesBench(FLAGS00); )
 DEF_BENCH( return new CirclesBench(FLAGS01); )
@@ -1476,3 +1380,45 @@ DEF_BENCH( return new PathIsRectBench("complex_norect", SkPathBuilder()
                                                     .conicTo(10, 20, 20, 20, .7f)
                                                     .close()
                                                     .detach()); )
+
+// Measures SkPathBuilder perf when appending a large number of simple shapes (addRect etc).
+// Since internally we know how to reserve exactly or with growth, might consider exposing
+// that option in these helpers: addREct, addOval, etc.
+class PathBuilderManyShapes final : public Benchmark {
+public:
+    using Proc = void(*)(SkPathBuilder*);
+    PathBuilderManyShapes(const char* suffix, Proc proc)
+        : fName(SkStringPrintf("pathbuilder_many_%s", suffix))
+        , fProc(proc)
+    {}
+
+protected:
+    bool isSuitableFor(Backend backend) override {
+        return backend == Backend::kNonRendering;
+    }
+
+    const char* onGetName() override { return fName.c_str(); }
+
+    void onDraw(int loops, SkCanvas* canvas) override {
+        static constexpr size_t kManyCount = 10000;
+        for (int i = 0; i < loops; ++i) {
+            SkPathBuilder builder;
+            for (size_t c = 0; c < kManyCount; ++c) {
+                fProc(&builder);
+            }
+        }
+    }
+
+private:
+    const SkString fName;
+    const Proc     fProc;
+};
+
+DEF_BENCH( return new PathBuilderManyShapes("rects",
+                [](SkPathBuilder* b) { b->addRect({0, 0, 10, 20}); }); )
+DEF_BENCH( return new PathBuilderManyShapes("rrects",
+                [](SkPathBuilder* b) { b->addRRect(SkRRect::MakeRect({0, 0, 10, 20})); }); )
+DEF_BENCH( return new PathBuilderManyShapes("ovals",
+                [](SkPathBuilder* b) { b->addOval({0, 0, 10, 20}); }); )
+DEF_BENCH( return new PathBuilderManyShapes("circles",
+                [](SkPathBuilder* b) { b->addCircle({10, 10}, 5); }); )

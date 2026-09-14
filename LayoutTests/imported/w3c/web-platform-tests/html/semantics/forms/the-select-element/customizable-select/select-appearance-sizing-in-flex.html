@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+<style>select::picker(select), select::picker-icon { transition-duration: 0s !important; }</style>
 <title>Test of sizing customizable select inside of flex</title>
 <link rel=author href="mailto:dbaron@chromium.org">
 <link rel=help href="https://github.com/whatwg/html/issues/9799">
@@ -19,6 +20,13 @@
 
   select, .after {
     white-space: nowrap;
+  }
+
+  /* ::picker-icon will render inline in this test but on a new line in the
+   * reference because the select's inner element is display:block and can't be
+   * changed. */
+  ::picker-icon {
+    display: none;
   }
 </style>
 

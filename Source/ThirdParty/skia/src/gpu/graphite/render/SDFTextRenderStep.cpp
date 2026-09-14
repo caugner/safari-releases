@@ -30,6 +30,7 @@
 #include "src/gpu/graphite/geom/SubRunData.h"
 #include "src/gpu/graphite/geom/Transform.h"
 #include "src/gpu/graphite/render/CommonDepthStencilSettings.h"
+#include "src/gpu/graphite/text/GlyphData.h"
 #include "src/gpu/graphite/text/TextAtlasManager.h"
 #include "src/sksl/SkSLString.h"
 #include "src/text/gpu/SubRunContainer.h"
@@ -50,8 +51,9 @@ constexpr int kNumSDFAtlasTextures = 4;
 
 }  // namespace
 
-SDFTextRenderStep::SDFTextRenderStep()
-        : RenderStep(RenderStepID::kSDFText,
+SDFTextRenderStep::SDFTextRenderStep(Layout layout)
+        : RenderStep(layout,
+                     RenderStepID::kSDFText,
                      Flags::kPerformsShading | Flags::kHasTextures | Flags::kEmitsCoverage |
                      Flags::kAppendInstances,
                      /*uniforms=*/{{"subRunDeviceMatrix", SkSLType::kFloat4x4},
@@ -68,7 +70,7 @@ SDFTextRenderStep::SDFTextRenderStep()
                       {"indexAndFlags", VertexAttribType::kUShort2, SkSLType::kUShort2},
                       {"strikeToSourceScale", VertexAttribType::kFloat, SkSLType::kFloat},
                       {"depth", VertexAttribType::kFloat, SkSLType::kFloat},
-                      {"ssboIndices", VertexAttribType::kUInt2, SkSLType::kUInt2}}},
+                      {"ssboIndex", VertexAttribType::kUInt, SkSLType::kUInt}}},
                      /*varyings=*/
                      {{{"unormTexCoords", SkSLType::kFloat2},
                       {"textureCoords", SkSLType::kFloat2},
@@ -128,15 +130,18 @@ const char* SDFTextRenderStep::fragmentCoverageSkSL() const {
 
 void SDFTextRenderStep::writeVertices(DrawWriter* dw,
                                       const DrawParams& params,
-                                      skvx::uint2 ssboIndices) const {
+                                      uint32_t ssboIndex) const {
     const SubRunData& subRunData = params.geometry().subRunData();
-    subRunData.subRun()->vertexFiller().fillInstanceData(dw,
-                                                         subRunData.startGlyphIndex(),
-                                                         subRunData.glyphCount(),
-                                                         subRunData.subRun()->instanceFlags(),
-                                                         ssboIndices,
-                                                         subRunData.subRun()->glyphs(),
-                                                         params.order().depthAsFloat());
+    auto& glyphData = subRunData.subRun()->glyphVector().accessBackendData<GlyphData>();
+    auto glyphSpan = subRunData.subRun()->glyphVector().accessBackendGlyphs<Glyph>();
+    glyphData.fillInstanceData(subRunData.subRun()->vertexFiller(),
+                               glyphSpan,
+                               dw,
+                               subRunData.startGlyphIndex(),
+                               subRunData.glyphCount(),
+                               subRunData.subRun()->instanceFlags(),
+                               ssboIndex,
+                               params.order().depthAsFloat());
 }
 
 void SDFTextRenderStep::writeUniformsAndTextures(const DrawParams& params,

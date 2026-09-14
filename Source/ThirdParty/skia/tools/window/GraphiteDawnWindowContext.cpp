@@ -1,5 +1,5 @@
 /*
- * Copyright 2022 Google Inc.
+ * Copyright 2022 Google LLC
  *
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
@@ -21,21 +21,14 @@
 #include "tools/ToolUtils.h"
 #include "tools/graphite/GraphiteToolUtils.h"
 #include "tools/graphite/TestOptions.h"
+#include "tools/graphite/dawn/GraphiteDawnToggles.h"
 #include "tools/window/GraphiteDisplayParams.h"
+#include "include/private/base/SkLog.h"
 
 #include "dawn/dawn_proc.h"
 
 namespace skwindow::internal {
 
-namespace {
-    SkColorType ToSkColorType(wgpu::TextureFormat format) {
-        if (format == wgpu::TextureFormat::RGBA8Unorm) {
-            return kRGBA_8888_SkColorType;
-        } else {
-            return kBGRA_8888_SkColorType;
-        }
-    }
-}
 GraphiteDawnWindowContext::GraphiteDawnWindowContext(std::unique_ptr<const DisplayParams> params,
                                                      wgpu::TextureFormat surfaceFormat)
         : WindowContext(std::move(params)), fSurfaceFormat(surfaceFormat) {
@@ -44,6 +37,8 @@ GraphiteDawnWindowContext::GraphiteDawnWindowContext(std::unique_ptr<const Displ
     static const auto kTimedWaitAny = wgpu::InstanceFeatureName::TimedWaitAny;
     desc.requiredFeatureCount = 1;
     desc.requiredFeatures = &kTimedWaitAny;
+    wgpu::DawnTogglesDescriptor togglesDesc = skiatest::graphite::GetInstanceToggles();
+    desc.nextInChain = &togglesDesc;
     fInstance = std::make_unique<dawn::native::Instance>(&desc);
 }
 
@@ -67,15 +62,15 @@ void GraphiteDawnWindowContext::initializeContext(int width, int height) {
     backendContext.fQueue = fDevice.GetQueue();
 
     SkASSERT(fDisplayParams->graphiteTestOptions());
-    skwindow::GraphiteTestOptions opts = *fDisplayParams->graphiteTestOptions();
+    skiatest::graphite::TestOptions opts = *fDisplayParams->graphiteTestOptions();
 
     // Needed to make synchronous readPixels work:
-    opts.fPriv.fStoreContextRefInRecorder = true;
+    opts.fOptionsPriv.fStoreContextRefInRecorder = true;
     fDisplayParams =
             GraphiteDisplayParamsBuilder(fDisplayParams.get()).graphiteTestOptions(opts).detach();
 
     fGraphiteContext = skgpu::graphite::ContextFactory::MakeDawn(backendContext,
-                                                                 opts.fTestOptions.fContextOptions);
+                                                                 opts.fContextOptions);
     if (!fGraphiteContext) {
         SkASSERT(false);
         return;
@@ -106,7 +101,7 @@ sk_sp<SkSurface> GraphiteDawnWindowContext::getBackbufferSurface() {
     SkASSERT(surfaceTexture.texture);
     auto texture = surfaceTexture.texture;
 
-    skgpu::graphite::DawnTextureInfo info(/*sampleCount=*/1,
+    skgpu::graphite::DawnTextureInfo info(skgpu::graphite::SampleCount::k1,
                                           skgpu::Mipmapped::kNo,
                                           fSurfaceFormat,
                                           texture.GetUsage(),
@@ -115,7 +110,6 @@ sk_sp<SkSurface> GraphiteDawnWindowContext::getBackbufferSurface() {
     SkASSERT(this->graphiteRecorder());
     auto surface = SkSurfaces::WrapBackendTexture(this->graphiteRecorder(),
                                                   backendTex,
-                                                  ToSkColorType(fSurfaceFormat),
                                                   fDisplayParams->colorSpace(),
                                                   &fDisplayParams->surfaceProps());
     SkASSERT(surface);
@@ -137,78 +131,26 @@ wgpu::Device GraphiteDawnWindowContext::createDevice(wgpu::BackendType type) {
     DawnProcTable backendProcs = dawn::native::GetProcs();
     dawnProcSetProcs(&backendProcs);
 
-    static constexpr const char* kToggles[] = {
-#if defined(SK_DEBUG)
-            // Setting labels on backend objects has performance overhead.
-            "use_user_defined_labels_in_backend",
-#else
-            "skip_validation",
-#endif
-            "disable_lazy_clear_for_mapped_at_creation_buffer",  // matches Chromes toggles
-            "allow_unsafe_apis",  // Needed for dual-source blending, BufferMapExtendedUsages.
-            // Robustness impacts performance and is always disabled when running Graphite in
-            // Chrome, so this keeps Skia's tests operating closer to real-use behavior.
-            "disable_robustness",
-    };
-    wgpu::DawnTogglesDescriptor togglesDesc;
-    togglesDesc.enabledToggleCount  = std::size(kToggles);
-    togglesDesc.enabledToggles      = kToggles;
-
     wgpu::RequestAdapterOptions adapterOptions;
     adapterOptions.backendType = type;
     adapterOptions.featureLevel =
             type == wgpu::BackendType::OpenGL || type == wgpu::BackendType::OpenGLES
                     ? wgpu::FeatureLevel::Compatibility
                     : wgpu::FeatureLevel::Core;
+
+    wgpu::DawnTogglesDescriptor togglesDesc = skiatest::graphite::GetAdapterToggles();
     adapterOptions.nextInChain = &togglesDesc;
 
     std::vector<dawn::native::Adapter> adapters = fInstance->EnumerateAdapters(&adapterOptions);
     if (adapters.empty()) {
+        SKIA_LOG_E("No dawn adapters available");
         return nullptr;
     }
 
     wgpu::Adapter adapter = adapters[0].Get();
 
     std::vector<wgpu::FeatureName> features;
-    if (adapter.HasFeature(wgpu::FeatureName::MSAARenderToSingleSampled)) {
-        features.push_back(wgpu::FeatureName::MSAARenderToSingleSampled);
-    }
-    if (adapter.HasFeature(wgpu::FeatureName::TransientAttachments)) {
-        features.push_back(wgpu::FeatureName::TransientAttachments);
-    }
-    if (adapter.HasFeature(wgpu::FeatureName::Unorm16TextureFormats)) {
-        features.push_back(wgpu::FeatureName::Unorm16TextureFormats);
-    }
-    if (adapter.HasFeature(wgpu::FeatureName::DualSourceBlending)) {
-        features.push_back(wgpu::FeatureName::DualSourceBlending);
-    }
-    if (adapter.HasFeature(wgpu::FeatureName::FramebufferFetch)) {
-        features.push_back(wgpu::FeatureName::FramebufferFetch);
-    }
-    if (adapter.HasFeature(wgpu::FeatureName::BufferMapExtendedUsages)) {
-        features.push_back(wgpu::FeatureName::BufferMapExtendedUsages);
-    }
-    if (adapter.HasFeature(wgpu::FeatureName::TextureCompressionETC2)) {
-        features.push_back(wgpu::FeatureName::TextureCompressionETC2);
-    }
-    if (adapter.HasFeature(wgpu::FeatureName::TextureCompressionBC)) {
-        features.push_back(wgpu::FeatureName::TextureCompressionBC);
-    }
-    if (adapter.HasFeature(wgpu::FeatureName::R8UnormStorage)) {
-        features.push_back(wgpu::FeatureName::R8UnormStorage);
-    }
-    if (adapter.HasFeature(wgpu::FeatureName::DawnLoadResolveTexture)) {
-        features.push_back(wgpu::FeatureName::DawnLoadResolveTexture);
-    }
-    if (adapter.HasFeature(wgpu::FeatureName::DawnPartialLoadResolveTexture)) {
-        features.push_back(wgpu::FeatureName::DawnPartialLoadResolveTexture);
-    }
-    if (adapter.HasFeature(wgpu::FeatureName::TimestampQuery)) {
-        features.push_back(wgpu::FeatureName::TimestampQuery);
-    }
-    if (adapter.HasFeature(wgpu::FeatureName::DawnTexelCopyBufferRowAlignment)) {
-        features.push_back(wgpu::FeatureName::DawnTexelCopyBufferRowAlignment);
-    }
+    skiatest::graphite::AddPreferredFeatures(adapter, features);
 
     wgpu::DeviceDescriptor deviceDescriptor;
     deviceDescriptor.requiredFeatures = features.data();
@@ -224,18 +166,17 @@ wgpu::Device GraphiteDawnWindowContext::createDevice(wgpu::BackendType type) {
             [](const wgpu::Device&, wgpu::DeviceLostReason reason, wgpu::StringView message) {
                 if (reason == wgpu::DeviceLostReason::Unknown ||
                     reason == wgpu::DeviceLostReason::FailedCreation) {
-                    SK_ABORT("Device lost: %.*s\n", static_cast<int>(message.length), message.data);
+                    SKIA_LOG_F("Device lost: %.*s\n", static_cast<int>(message.length), message.data);
                 }
             });
     deviceDescriptor.SetUncapturedErrorCallback(
             [](const wgpu::Device&, wgpu::ErrorType, wgpu::StringView message) {
-                SkDebugf("Device error: %.*s\n", static_cast<int>(message.length), message.data);
-                SkASSERT(false);
+                SKIA_LOG_F("Device error: %.*s\n", static_cast<int>(message.length), message.data);
             });
 
     wgpu::DawnTogglesDescriptor deviceTogglesDesc;
 
-    if (fDisplayParams->graphiteTestOptions()->fTestOptions.fDisableTintSymbolRenaming) {
+    if (fDisplayParams->graphiteTestOptions()->fDisableTintSymbolRenaming) {
         static constexpr const char* kOptionalDeviceToggles[] = {
             "disable_symbol_renaming",
         };
@@ -250,6 +191,7 @@ wgpu::Device GraphiteDawnWindowContext::createDevice(wgpu::BackendType type) {
 
     auto device = adapter.CreateDevice(&deviceDescriptor);
     if (!device) {
+        SKIA_LOG_E("Could not create device from adapter");
         return nullptr;
     }
 

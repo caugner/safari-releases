@@ -81,6 +81,28 @@ static inline std::optional<SharedMemory::Handle> riceTransmitToSharedMemoryHand
     return SharedMemoryHandle::createCopy(unsafeMakeSpan(transmit->data.ptr, transmit->data.size), SharedMemoryProtection::ReadOnly);
 }
 
+static inline RiceTransportType fromRTCIceProtocol(RTCIceProtocol protocol)
+{
+    switch (protocol) {
+    case RTCIceProtocol::Tcp:
+        return RICE_TRANSPORT_TYPE_TCP;
+    case WebCore::RTCIceProtocol::Udp:
+        return RICE_TRANSPORT_TYPE_UDP;
+    };
+    return RICE_TRANSPORT_TYPE_UDP;
+}
+
+static inline RTCIceProtocol toRTCIceProtocol(RiceTransportType transportType)
+{
+    switch (transportType) {
+    case RICE_TRANSPORT_TYPE_UDP:
+        return RTCIceProtocol::Udp;
+    case RICE_TRANSPORT_TYPE_TCP:
+        return RTCIceProtocol::Tcp;
+    };
+    return RTCIceProtocol::Udp;
+}
+
 static inline RTCIceProtocol riceTransmitTransportToIceProtocol(const RiceTransmit& transmit)
 {
     switch (transmit.transport) {
@@ -92,7 +114,6 @@ static inline RTCIceProtocol riceTransmitTransportToIceProtocol(const RiceTransm
 
     return RTCIceProtocol::Udp;
 }
-
 
 } // namespace WebCore
 

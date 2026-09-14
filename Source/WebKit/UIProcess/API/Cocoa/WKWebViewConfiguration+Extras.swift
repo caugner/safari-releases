@@ -21,10 +21,10 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 // THE POSSIBILITY OF SUCH DAMAGE.
 
-#if ENABLE_SWIFTUI && compiler(>=6.0)
+#if ENABLE_SWIFTUI
 
 import Foundation
-internal import WebKit_Internal
+import WebKit_Private
 
 extension WKWebViewConfiguration {
     convenience init(_ wrapped: WebPage.Configuration) {
@@ -65,6 +65,20 @@ extension WKWebViewConfiguration {
             let handlerAdapter = WKURLSchemeHandlerAdapter(handler)
             self.setURLSchemeHandler(handlerAdapter, forURLScheme: scheme.rawValue)
         }
+
+        #if ENABLE_MODEL_ELEMENT_IMMERSIVE
+        self.allowsImmersiveEnvironments = wrapped.allowsImmersiveEnvironments
+        #endif
+
+        if let processPool = wrapped.processPool {
+            self.processPool = processPool
+        }
+
+        #if os(macOS)
+        self._requiresUserActionForEditingControlsManager = wrapped.requiresUserActionForEditingControlsManager
+        #endif
+
+        self._isControlledByAutomation = wrapped.isControlledByAutomation
     }
 }
 

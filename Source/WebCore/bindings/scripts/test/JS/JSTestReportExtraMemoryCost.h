@@ -29,13 +29,7 @@ namespace WebCore {
 class JSTestReportExtraMemoryCost : public JSDOMWrapper<TestReportExtraMemoryCost> {
 public:
     using Base = JSDOMWrapper<TestReportExtraMemoryCost>;
-    static JSTestReportExtraMemoryCost* create(JSC::Structure* structure, JSDOMGlobalObject* globalObject, Ref<TestReportExtraMemoryCost>&& impl)
-    {
-        SUPPRESS_UNCOUNTED_LOCAL auto& vm = globalObject->vm();
-        JSTestReportExtraMemoryCost* ptr = new (NotNull, JSC::allocateCell<JSTestReportExtraMemoryCost>(vm)) JSTestReportExtraMemoryCost(structure, *globalObject, WTF::move(impl));
-        ptr->finishCreation(vm);
-        return ptr;
-    }
+    static JSTestReportExtraMemoryCost* create(JSC::Structure*, JSDOMGlobalObject*, Ref<TestReportExtraMemoryCost>&&);
 
     static JSC::JSObject* createPrototype(JSC::VM&, JSDOMGlobalObject&);
     static JSC::JSObject* prototype(JSC::VM&, JSDOMGlobalObject&);
@@ -45,11 +39,7 @@ public:
 
     DECLARE_INFO;
 
-    static JSC::Structure* createStructure(JSC::VM& vm, JSC::JSGlobalObject* globalObject, JSC::JSValue prototype)
-    {
-        return JSC::Structure::create(vm, globalObject, prototype, JSC::TypeInfo(JSC::ObjectType, StructureFlags), info(), JSC::NonArray);
-    }
-
+    static JSC::Structure* createStructure(JSC::VM&, JSC::JSGlobalObject*, JSC::JSValue);
     static JSC::JSValue getConstructor(JSC::VM&, const JSC::JSGlobalObject*);
     template<typename, JSC::SubspaceAccess mode> static JSC::GCClient::IsoSubspace* subspaceFor(JSC::VM& vm)
     {
@@ -69,8 +59,12 @@ protected:
 
 class JSTestReportExtraMemoryCostOwner final : public JSC::WeakHandleOwner {
 public:
+    JSTestReportExtraMemoryCostOwner() = default;
     bool isReachableFromOpaqueRoots(JSC::Handle<JSC::Unknown>, void* context, JSC::AbstractSlotVisitor&, ASCIILiteral*) final;
     void finalize(JSC::Handle<JSC::Unknown>, void* context) final;
+
+private:
+    explicit JSTestReportExtraMemoryCostOwner(ClangVTableWorkaroundTag);
 };
 
 inline JSC::WeakHandleOwner* wrapperOwner(DOMWrapperWorld&, TestReportExtraMemoryCost*)
@@ -85,10 +79,8 @@ inline void* wrapperKey(TestReportExtraMemoryCost* wrappableObject)
 }
 
 JSC::JSValue toJS(JSC::JSGlobalObject*, JSDOMGlobalObject*, TestReportExtraMemoryCost&);
-inline JSC::JSValue toJS(JSC::JSGlobalObject* lexicalGlobalObject, JSDOMGlobalObject* globalObject, TestReportExtraMemoryCost* impl) { return impl ? toJS(lexicalGlobalObject, globalObject, *impl) : JSC::jsNull(); }
 JSC::JSValue toJSNewlyCreated(JSC::JSGlobalObject*, JSDOMGlobalObject*, Ref<TestReportExtraMemoryCost>&&);
 ALWAYS_INLINE JSC::JSValue toJSNewlyCreated(JSC::JSGlobalObject* lexicalGlobalObject, JSDOMGlobalObject* globalObject, TestReportExtraMemoryCost& impl) { return toJSNewlyCreated(lexicalGlobalObject, globalObject, Ref { impl }); }
-inline JSC::JSValue toJSNewlyCreated(JSC::JSGlobalObject* lexicalGlobalObject, JSDOMGlobalObject* globalObject, RefPtr<TestReportExtraMemoryCost>&& impl) { return impl ? toJSNewlyCreated(lexicalGlobalObject, globalObject, impl.releaseNonNull()) : JSC::jsNull(); }
 
 template<> struct JSDOMWrapperConverterTraits<TestReportExtraMemoryCost> {
     using WrapperClass = JSTestReportExtraMemoryCost;

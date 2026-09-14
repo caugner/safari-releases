@@ -69,7 +69,7 @@ sub _classRefGetter
     my $implementationClassName = _implementationClassName($idlType);
     $implementationClassName =~ s/^WebExtensionAPI//;
 
-    return $$self{codeGenerator}->WK_lcfirst($implementationClassName) . $suffix;
+    return $$self{codeGenerator}->WK_lcfirst($implementationClassName) . $suffix . "Singleton";
 }
 
 sub _parseLicenseBlock
@@ -331,7 +331,7 @@ ${implementationClassName}* to${implementationClassName}(JSContextRef context, J
 
 JSClassRef ${className}::${classRefGetter}()
 {
-    static JSClassRef jsClass;
+    SUPPRESS_UNCOUNTED_LOCAL static JSClassRef jsClass;
     if (!jsClass) {
         JSClassDefinition definition = kJSClassDefinitionEmpty;
         definition.className = "@{[_publicClassName($idlType)]}";
@@ -383,7 +383,7 @@ EOF
     push (@contents, <<EOF);
 JSClassRef ${className}::${globalClassRefGetter}()
 {
-    static JSClassRef jsClass;
+    SUPPRESS_UNCOUNTED_LOCAL static JSClassRef jsClass;
     if (!jsClass) {
         JSClassDefinition definition = kJSClassDefinitionEmpty;
         definition.className = "@{[_publicClassName($idlType)]}";
@@ -730,7 +730,7 @@ EOF
             if ($callbackHandlerArgument && !$returnsPromiseIfNoCallback) {
                 push(@contents, <<EOF);
     if (!${callbackHandlerArgument})
-        ${callbackHandlerArgument} = toJSErrorCallbackHandler(context, impl->protectedRuntime());
+        ${callbackHandlerArgument} = toJSErrorCallbackHandler(context, protect(impl->runtime()));
 
 EOF
             }
@@ -1473,7 +1473,7 @@ sub _platformTypeConstructor
         return "toJSValue(context, $argumentName)";
     }
 
-    return "toJSCallbackHandler(context, $argumentName, impl->protectedRuntime())" if $idlTypeName eq "function" && $signature->extendedAttributes->{"CallbackHandler"};
+    return "toJSCallbackHandler(context, $argumentName, protect(impl->runtime()))" if $idlTypeName eq "function" && $signature->extendedAttributes->{"CallbackHandler"};
     return "toNSArray(context, $argumentName, $arrayType.class)" if $idlTypeName eq "array" && $arrayType;
     return "toNSArray(context, $argumentName)" if $idlTypeName eq "array";
     return "JSValueToBoolean(context, $argumentName)" if $idlTypeName eq "boolean";
@@ -1732,7 +1732,7 @@ EOF
         return unless $_->extendedAttributes->{"Dynamic"} or $_->extendedAttributes->{"MainWorldOnly"};
 
         my $name = $_->name;
-        return "    JSPropertyNameAccumulatorAddName(propertyNames, toJSString(\"${name}\"_s).get());\n" unless $hasDynamicProperties;
+        return "    SUPPRESS_UNCOUNTED_ARG JSPropertyNameAccumulatorAddName(propertyNames, toJSString(\"${name}\"_s).get());\n" unless $hasDynamicProperties;
 
         my $condition = &$generateCondition($_);
         my $conditionalString = conditionalString($_);
@@ -1740,7 +1740,7 @@ EOF
         my $content = "";
         $content .= "#if ${conditionalString}\n" if $conditionalString;
         $content .= "    if (${condition})\n";
-        $content .= "        JSPropertyNameAccumulatorAddName(propertyNames, toJSString(\"${name}\"_s).get());\n";
+        $content .= "        SUPPRESS_UNCOUNTED_ARG JSPropertyNameAccumulatorAddName(propertyNames, toJSString(\"${name}\"_s).get());\n";
         $content .= "#endif // ${conditionalString}\n" if $conditionalString;
         $content .= "\n";
         return $content;

@@ -30,11 +30,11 @@
 
 namespace WebCore {
 
-struct MediaConfiguration;
+struct PlatformMediaConfiguration;
 
 class WEBCORE_EXPORT SpatialAudioPlaybackHelper {
 public:
-    static bool supportsSpatialAudioPlaybackForConfiguration(const MediaConfiguration&);
+    static bool supportsSpatialAudioPlaybackForConfiguration(const PlatformMediaConfiguration&);
 };
 
 } // namespace WebCore

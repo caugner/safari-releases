@@ -31,9 +31,12 @@
 #include "GeolocationPermissionRequestManagerProxy.h"
 #include "HiddenPageThrottlingAutoIncreasesCounter.h"
 #include "LayerTreeContext.h"
+#include "PDFDisplayMode.h"
 #include "PageLoadState.h"
+#include "ProcessActivityGroup.h"
 #include "ProcessThrottler.h"
 #include "ScrollingAccelerationCurve.h"
+#include "TextExtractionCache.h"
 #include "TextManipulationParameters.h"
 #include "VisibleWebPageCounter.h"
 #include "WebColorPicker.h"
@@ -45,13 +48,13 @@
 #include "WebPopupMenuProxy.h"
 #include "WebURLSchemeHandlerIdentifier.h"
 #include "WindowKind.h"
+#include <WebCore/BackForwardItemIdentifier.h>
 #include <WebCore/CornerRadii.h>
 #include <WebCore/FrameLoaderTypes.h>
 #include <WebCore/PrivateClickMeasurement.h>
 #include <WebCore/RegistrableDomain.h>
 #include <WebCore/ResourceRequest.h>
 #include <WebCore/SecurityOriginData.h>
-#include <WebCore/SpatialBackdropSource.h>
 #include <pal/HysteresisActivity.h>
 #include <wtf/UUID.h>
 
@@ -107,59 +110,6 @@
 
 namespace WebKit {
 
-#if ENABLE(WINDOW_PROXY_PROPERTY_ACCESS_NOTIFICATION)
-class WebPageProxyFrameLoadStateObserver final : public RefCounted<WebPageProxyFrameLoadStateObserver>, public FrameLoadStateObserver {
-    WTF_MAKE_NONCOPYABLE(WebPageProxyFrameLoadStateObserver);
-    WTF_MAKE_TZONE_ALLOCATED(WebPageProxyFrameLoadStateObserver);
-public:
-    static constexpr size_t maxVisitedDomainsSize = 6;
-
-    static Ref<WebPageProxyFrameLoadStateObserver> create();
-    virtual ~WebPageProxyFrameLoadStateObserver();
-
-    void ref() const final { RefCounted::ref(); }
-    void deref() const final { RefCounted::deref(); }
-
-    void didReceiveProvisionalURL(const URL& url) override
-    {
-        m_provisionalURLs.append(url);
-    }
-
-    void didCancelProvisionalLoad() override
-    {
-        m_provisionalURLs.clear();
-    }
-
-    void didCommitProvisionalLoad() override
-    {
-        for (auto& url : m_provisionalURLs)
-            didVisitDomain(WebCore::RegistrableDomain(url));
-    }
-
-    const ListHashSet<WebCore::RegistrableDomain>& visitedDomains() const
-    {
-        return m_visitedDomains;
-    }
-
-private:
-    WebPageProxyFrameLoadStateObserver();
-
-    void didVisitDomain(WebCore::RegistrableDomain&& domain)
-    {
-        if (domain.isEmpty())
-            return;
-
-        m_visitedDomains.prependOrMoveToFirst(WTF::move(domain));
-
-        if (m_visitedDomains.size() > maxVisitedDomainsSize)
-            m_visitedDomains.removeLast();
-    }
-
-    Vector<URL> m_provisionalURLs;
-    ListHashSet<WebCore::RegistrableDomain> m_visitedDomains;
-};
-#endif
-
 struct PrivateClickMeasurementAndMetadata {
     WebCore::PrivateClickMeasurement pcm;
     String sourceDescription;
@@ -175,7 +125,6 @@ struct SpeechSynthesisData {
     CompletionHandler<void()> speakingPausedCompletionHandler;
     CompletionHandler<void()> speakingResumedCompletionHandler;
 
-    Ref<WebCore::PlatformSpeechSynthesizer> protectedSynthesizer() { return synthesizer; }
 };
 #endif
 
@@ -229,6 +178,7 @@ struct WebPageProxy::Internals final : WebPopupMenuProxy::Client
 #if ENABLE(WIRELESS_PLAYBACK_TARGET) && !PLATFORM(IOS_FAMILY)
     , WebCore::WebMediaSessionManagerClient
 #endif
+    , ProcessActivityGroupContext
 {
     WTF_DEPRECATED_MAKE_STRUCT_FAST_ALLOCATED(WebPageProxy);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(Internals);
@@ -247,6 +197,7 @@ public:
         WebPaymentCoordinatorProxy::Client::setDidBeginCheckedPtrDeletion();
 #endif
         WebColorPickerClient::setDidBeginCheckedPtrDeletion();
+        ProcessActivityGroupContext::setDidBeginCheckedPtrDeletion();
     }
 
 #if PLATFORM(MACCATALYST)
@@ -265,6 +216,7 @@ public:
     WebCore::LayoutSize baseLayoutViewportSize;
     std::optional<WebCore::FontAttributes> cachedFontAttributesAtSelectionStart;
     Vector<Function<void()>> callbackHandlersAfterProcessingPendingMouseEvents;
+    Vector<Function<void()>> callbackHandlersAfterProcessingPendingKeyEvents;
     WebCore::FloatSize defaultUnobscuredSize;
     EditorState editorState;
     WebCore::IntSize fixedLayoutSize;
@@ -289,6 +241,8 @@ public:
     UserObservablePageCounter::Token pageIsUserObservableCount;
     std::optional<MonotonicTime> pageLoadStart;
     PageLoadState pageLoadState;
+
+    TextExtractionCache textExtractionCache;
     OptionSet<WebCore::ActivityState> potentiallyChangedActivityStateFlags;
     ProcessSuppressionDisabledToken preventProcessSuppressionCount;
     std::optional<PrivateClickMeasurementAndMetadata> privateClickMeasurement;
@@ -302,11 +256,11 @@ public:
     WebCore::IntSize sizeToContentAutoSizeMaximumSize;
     WebCore::Color themeColor;
     WebCore::FloatBoxExtent obscuredContentInsets;
+#if HAVE(NSREFRESHCONTROLLER)
+    bool hasRefreshController { false };
+#endif
 #if PLATFORM(MAC)
     std::optional<WebCore::FloatBoxExtent> pendingObscuredContentInsets;
-#endif
-#if ENABLE(WEB_PAGE_SPATIAL_BACKDROP)
-    std::optional<WebCore::SpatialBackdropSource> spatialBackdropSource;
 #endif
     RunLoop::Timer tryCloseTimeoutTimer;
     WebCore::Color underPageBackgroundColorOverride;
@@ -325,6 +279,8 @@ public:
 
     WeakHashSet<WebPageProxy> m_openedPages;
     HashMap<WebCore::SleepDisablerIdentifier, std::unique_ptr<WebCore::SleepDisabler>> sleepDisablers;
+
+    HashMap<WebCore::BackForwardItemIdentifier, Vector<Ref<WebFrameProxy>>> pendingBackForwardCachedChildren;
 
 #if ENABLE(APPLE_PAY)
     RefPtr<WebPaymentCoordinatorProxy> paymentCoordinator;
@@ -391,9 +347,12 @@ public:
 #endif
 
 #if ENABLE(WRITING_TOOLS)
-    HashMap<WTF::UUID, RefPtr<WebCore::TextIndicator>> textIndicatorDataForAnimationID;
+    HashMap<WTF::UUID, RefPtr<WebCore::TextIndicator>> textIndicatorForAnimationID;
+#if ENABLE(WRITING_TOOLS_TEXT_EFFECTS)
+    HashMap<WTF::UUID, RefPtr<WebCore::TextIndicator>> decorationIndicatorForAnimationID;
+#endif
     HashMap<WTF::UUID, CompletionHandler<void(WebCore::TextAnimationRunMode)>> completionHandlerForAnimationID;
-    HashMap<WTF::UUID, CompletionHandler<void(std::optional<WebCore::TextIndicatorData>)>> completionHandlerForDestinationTextIndicatorForSourceID;
+    HashMap<WTF::UUID, CompletionHandler<void(RefPtr<WebCore::TextIndicator>)>> completionHandlerForDestinationTextIndicatorForSourceID;
     HashMap<WTF::UUID, WTF::UUID> sourceAnimationIDtoDestinationAnimationID;
 #endif
 
@@ -408,7 +367,6 @@ public:
     bool needsFixedContainerEdgesUpdateAfterNextCommit { false };
 
 #if ENABLE(VIDEO_PRESENTATION_MODE)
-    RunLoop::Timer fullscreenVideoTextRecognitionTimer;
     std::optional<PlaybackSessionContextIdentifier> currentFullscreenVideoSessionIdentifier;
 #endif
 
@@ -418,11 +376,7 @@ public:
 
 #if ENABLE(EXTENSION_CAPABILITIES)
     RefPtr<MediaCapability> mediaCapability;
-#endif
-
-#if ENABLE(WINDOW_PROXY_PROPERTY_ACCESS_NOTIFICATION)
-    RefPtr<WebPageProxyFrameLoadStateObserver> frameLoadStateObserver;
-    HashMap<WebCore::RegistrableDomain, OptionSet<WebCore::WindowProxyProperty>> windowOpenerAccessedProperties;
+    RefPtr<MediaCapability> displayCaptureCapability;
 #endif
 
 #if PLATFORM(GTK) || PLATFORM(WPE)
@@ -447,25 +401,31 @@ public:
 
     EnhancedSecurityTracking enhancedSecurityTracker;
 
+#if PLATFORM(IOS_FAMILY) && ENABLE(UNIFIED_PDF)
+    PDFPluginDisplayMode pdfDisplayMode { PDFPluginDisplayMode::SinglePageContinuous };
+#endif
+
 #if HAVE(NSVIEW_CORNER_CONFIGURATION)
     WebCore::CornerRadii scrollbarAvoidanceCornerRadii;
 #endif
 
+    explicit Internals(WebPageProxy&, bool processInheritedFromOpener);
+
     bool forceNeedsSecureInputReevaluation { false };
 
-    explicit Internals(WebPageProxy&, std::optional<WebCore::SecurityOriginData>);
-
-    Ref<WebPageProxy> protectedPage() const;
-
 #if ENABLE(SPEECH_SYNTHESIS)
-    SpeechSynthesisData& speechSynthesisData();
+    SpeechSynthesisData& speechSynthesisData() LIFETIME_BOUND;
 #endif
 
     // WebPopupMenuProxy::Client
+#if !PLATFORM(IOS_FAMILY)
     void valueChangedForPopupMenu(WebPopupMenuProxy*, int32_t newSelectedIndex) final;
-    void setTextFromItemForPopupMenu(WebPopupMenuProxy*, int32_t index) final;
     NativeWebMouseEvent* currentlyProcessedMouseDownEvent() final;
-#if PLATFORM(GTK)
+#endif
+#if !PLATFORM(COCOA)
+    void setTextFromItemForPopupMenu(WebPopupMenuProxy*, int32_t index) final;
+#endif
+#if PLATFORM(GTK) || PLATFORM(WPE)
     void failedToShowPopupMenu() final;
 #endif
 
@@ -521,18 +481,13 @@ public:
     void externalOutputDeviceAvailableDidChange(WebCore::PlaybackTargetClientContextIdentifier, bool) final;
     void setShouldPlayToPlaybackTarget(WebCore::PlaybackTargetClientContextIdentifier, bool) final;
     void playbackTargetPickerWasDismissed(WebCore::PlaybackTargetClientContextIdentifier) final;
-    bool alwaysOnLoggingAllowed() const final { return protectedPage()->isAlwaysOnLoggingAllowed(); }
+    bool alwaysOnLoggingAllowed() const final { return protect(page)->isAlwaysOnLoggingAllowed(); }
     RetainPtr<CocoaView> platformView() const final;
 #endif
 
-    Ref<PageLoadState> protectedPageLoadState() { return pageLoadState; }
-    Ref<WebNotificationManagerMessageHandler> protectedNotificationManagerMessageHandler() { return notificationManagerMessageHandler; }
-#if ENABLE(WINDOW_PROXY_PROPERTY_ACCESS_NOTIFICATION)
-    RefPtr<WebPageProxyFrameLoadStateObserver> protectedFrameLoadStateObserver() { return frameLoadStateObserver; }
-#endif
-    Ref<GeolocationPermissionRequestManagerProxy> protectedGeolocationPermissionRequestManager() { return geolocationPermissionRequestManager; }
+    Vector<Ref<WebProcessProxy>> activityTargets() final;
 
-    std::optional<WebCore::SecurityOriginData> openerOrigin;
+    bool processInheritedFromOpener { false };
 };
 
 } // namespace WebKit

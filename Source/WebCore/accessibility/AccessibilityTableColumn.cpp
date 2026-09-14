@@ -29,6 +29,7 @@
 #include "config.h"
 #include "AccessibilityTableColumn.h"
 
+#include "AXLoggerBase.h"
 #include "AXObjectCache.h"
 #include "AccessibilityObjectInlines.h"
 #include "AccessibilityNodeObject.h"
@@ -82,14 +83,14 @@ bool AccessibilityTableColumn::computeIsIgnored() const
 {
 #if PLATFORM(IOS_FAMILY) || USE(ATSPI)
     return true;
-#endif
-
+#else
     return !m_parent || RefPtr { *m_parent }->isIgnored();
+#endif
 }
 
 void AccessibilityTableColumn::addChildren()
 {
-    ASSERT(!m_childrenInitialized);
+    AX_ASSERT(!m_childrenInitialized);
     m_childrenInitialized = true;
 
     RefPtr parentTable = dynamicDowncast<AccessibilityNodeObject>(m_parent.get());
@@ -109,7 +110,7 @@ void AccessibilityTableColumn::addChildren()
         addChild(*cell);
     }
 
-#ifndef NDEBUG
+#if ASSERT_ENABLED
     verifyChildrenIndexInParent();
 #endif
 }

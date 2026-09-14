@@ -91,17 +91,18 @@ public:
     std::optional<SharedPreferencesForWebProcess> sharedPreferencesForWebProcess(const IPC::Connection&) const;
 
     bool isFullScreen();
-    bool blocksReturnToFullscreenFromPictureInPicture() const;
+    bool NODELETE blocksReturnToFullscreenFromPictureInPicture() const;
 #if ENABLE(VIDEO_USES_ELEMENT_FULLSCREEN)
     bool isVideoElement() const { return m_isVideoElement; }
 #endif
 #if ENABLE(QUICKLOOK_FULLSCREEN)
     bool isImageElement() const { return m_mediaDetails && m_mediaDetails->type == FullScreenMediaDetails::Type::Image; }
     void prepareQuickLookImageURL(CompletionHandler<void(URL&&)>&&) const;
+    bool launchInImmersive() const { return m_launchInImmersive; }
 #endif // QUICKLOOK_FULLSCREEN
     void close();
     void detachFromClient();
-    void attachToNewClient(WebFullScreenManagerProxyClient&);
+    void NODELETE attachToNewClient(WebFullScreenManagerProxyClient&);
 
     void enterFullScreenForOwnerElementsInOtherProcesses(WebCore::FrameIdentifier, CompletionHandler<void()>&&);
     void exitFullScreenInOtherProcesses(WebCore::FrameIdentifier, CompletionHandler<void()>&&);
@@ -142,7 +143,7 @@ private:
     const Logger& logger() const { return m_logger; }
     uint64_t logIdentifier() const { return m_logIdentifier; }
     ASCIILiteral logClassName() const { return "WebFullScreenManagerProxy"_s; }
-    WTFLogChannel& logChannel() const;
+    WTFLogChannel& NODELETE logChannel() const;
 #endif
 
     WeakPtr<WebPageProxy> m_page;
@@ -154,6 +155,7 @@ private:
 #endif
 #if ENABLE(QUICKLOOK_FULLSCREEN)
     std::optional<FullScreenMediaDetails> m_mediaDetails;
+    bool m_launchInImmersive { false };
 #endif // QUICKLOOK_FULLSCREEN
     Vector<CompletionHandler<void()>> m_closeCompletionHandlers;
     WeakPtr<WebProcessProxy> m_fullScreenProcess;

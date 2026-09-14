@@ -63,6 +63,9 @@ class WebPageProxy;
 class PlaybackSessionManagerProxy;
 class PlaybackSessionModelContext;
 class VideoPresentationManagerProxy;
+#if ENABLE(ENDOWMENT_BASED_APPLICATION_STATE_TRACKING)
+class LayerHostingVisibilityPropagator;
+#endif
 struct SharedPreferencesForWebProcess;
 
 class VideoPresentationModelContext final
@@ -75,6 +78,11 @@ public:
     virtual ~VideoPresentationModelContext();
 
     void requestCloseAllMediaPresentations(bool finishedWithMedia, CompletionHandler<void()>&&);
+
+#if ENABLE(ENDOWMENT_BASED_APPLICATION_STATE_TRACKING)
+    LayerHostingVisibilityPropagator* layerHostingVisibilityPropagator() const { return m_layerHostingVisibilityPropagator.get(); }
+    void setLayerHostingVisibilityPropagator(RefPtr<LayerHostingVisibilityPropagator>&&);
+#endif
 
 private:
     friend class VideoPresentationManagerProxy;
@@ -136,7 +144,7 @@ private:
     const Logger* loggerPtr() const final;
 
     ASCIILiteral logClassName() const { return "VideoPresentationModelContext"_s; };
-    WTFLogChannel& logChannel() const;
+    WTFLogChannel& NODELETE logChannel() const;
 #endif
 
     WeakPtr<VideoPresentationManagerProxy> m_manager;
@@ -147,6 +155,10 @@ private:
     WebCore::FloatSize m_videoDimensions;
     bool m_hasVideo { false };
     bool m_isChildOfElementFullscreen { false };
+
+#if ENABLE(ENDOWMENT_BASED_APPLICATION_STATE_TRACKING)
+    RefPtr<LayerHostingVisibilityPropagator> m_layerHostingVisibilityPropagator;
+#endif
 
 #if !RELEASE_LOG_DISABLED
     mutable uint64_t m_childIdentifierSeed { 0 };
@@ -169,7 +181,7 @@ public:
     void invalidate();
 
     void requestHideAndExitFullscreen();
-    bool hasMode(WebCore::HTMLMediaElementEnums::VideoFullscreenMode) const;
+    bool NODELETE hasMode(WebCore::HTMLMediaElementEnums::VideoFullscreenMode) const;
     bool mayAutomaticallyShowVideoPictureInPicture() const;
     void applicationDidBecomeActive();
     bool isVisible() const;
@@ -178,15 +190,13 @@ public:
 
     void requestRouteSharingPolicyAndContextUID(PlaybackSessionContextIdentifier, CompletionHandler<void(WebCore::RouteSharingPolicy, String)>&&);
 
-    bool isPlayingVideoInEnhancedFullscreen() const;
+    bool isPlayingVideoInPictureInPicture() const;
 
     RefPtr<WebCore::PlatformVideoPresentationInterface> controlsManagerInterface();
     using VideoInPictureInPictureDidChangeObserver = WTF::Observer<void(bool)>;
     void addVideoInPictureInPictureDidChangeObserver(const VideoInPictureInPictureDidChangeObserver&);
 
     void forEachSession(Function<void(VideoPresentationModelContext&, WebCore::PlatformVideoPresentationInterface&)>&&);
-
-    void requestBitmapImageForCurrentTime(PlaybackSessionContextIdentifier, CompletionHandler<void(std::optional<WebCore::ShareableBitmap::Handle>&&)>&&);
 
 #if PLATFORM(IOS_FAMILY)
     RefPtr<WebCore::PlatformVideoPresentationInterface> returningToStandbyInterface() const;
@@ -219,10 +229,10 @@ private:
     typedef std::pair<Ref<VideoPresentationModelContext>, Ref<WebCore::PlatformVideoPresentationInterface>> ModelInterfacePair;
     ModelInterfacePair createModelAndInterface(PlaybackSessionContextIdentifier);
     const ModelInterfacePair& ensureModelAndInterface(PlaybackSessionContextIdentifier);
-    const ModelInterfacePair* findModelAndInterface(PlaybackSessionContextIdentifier) const;
+    const ModelInterfacePair* NODELETE findModelAndInterface(PlaybackSessionContextIdentifier) const;
     Ref<VideoPresentationModelContext> ensureModel(PlaybackSessionContextIdentifier);
     Ref<WebCore::PlatformVideoPresentationInterface> ensureInterface(PlaybackSessionContextIdentifier);
-    RefPtr<WebCore::PlatformVideoPresentationInterface> findInterface(PlaybackSessionContextIdentifier) const;
+    RefPtr<WebCore::PlatformVideoPresentationInterface> NODELETE findInterface(PlaybackSessionContextIdentifier) const;
     void ensureClientForContext(PlaybackSessionContextIdentifier);
     void addClientForContext(PlaybackSessionContextIdentifier);
     void removeClientForContext(PlaybackSessionContextIdentifier);
@@ -232,7 +242,7 @@ private:
 
     RetainPtr<WKLayerHostView> createLayerHostViewWithID(PlaybackSessionContextIdentifier, const WebCore::HostingContext&, const WebCore::FloatSize& initialSize, float hostingScaleFactor);
 
-#if USE(EXTENSIONKIT)
+#if HAVE(VISIBILITY_PROPAGATION_VIEW)
     void setVisibilityPropagationViewForLayerHostView(UIView *, WKLayerHostView *);
 #endif
 
@@ -296,10 +306,10 @@ private:
     void videosInElementFullscreenChanged();
 
 #if !RELEASE_LOG_DISABLED
-    const Logger& logger() const;
-    uint64_t logIdentifier() const;
+    const Logger& NODELETE logger() const;
+    uint64_t NODELETE logIdentifier() const;
     ASCIILiteral logClassName() const;
-    WTFLogChannel& logChannel() const;
+    WTFLogChannel& NODELETE logChannel() const;
 #endif
 
     bool m_mockVideoPresentationModeEnabled { false };

@@ -40,9 +40,10 @@
 #include "WebPageProxy.h"
 #include "WebProcessPool.h"
 #include <JavaScriptCore/MathCommon.h>
+#include <limits>
+#include <wtf/Borrow.h>
 #include <wtf/Ref.h>
 #include <wtf/URL.h>
-#include <wtf/Unexpected.h>
 #include <wtf/Vector.h>
 #include <wtf/text/WTFString.h>
 
@@ -90,17 +91,23 @@ void BidiBrowsingContextAgent::close(const BrowsingContext& browsingContext, std
     ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!session, InternalError);
 
     // FIXME: implement `promptUnload` option.
-    // FIXME: raise `invalid argument` if `browsingContext` is not a top-level traversable.
+    ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(browsingContext.isEmpty(), FrameNotFound);
 
-    RefPtr webPageProxy = session->webPageProxyForHandle(browsingContext);
+    auto handles = session->extractBrowsingContextHandles(browsingContext);
+    ASYNC_FAIL_IF_UNEXPECTED_RESULT(handles);
+    auto [pageHandle, frameHandle] = handles.value();
+
+    ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!frameHandle.isEmpty(), InvalidParameter);
+
+    RefPtr webPageProxy = session->webPageProxyForHandle(pageHandle);
     ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!webPageProxy, FrameNotFound);
 
-    session->closeBrowsingContext(browsingContext, WTF::move(callback));
+    session->closeBrowsingContext(pageHandle, WTF::move(callback));
 }
 
 static constexpr Inspector::Protocol::Automation::BrowsingContextPresentation defaultBrowsingContextPresentation = Inspector::Protocol::Automation::BrowsingContextPresentation::Tab;
 
-static Inspector::Protocol::Automation::BrowsingContextPresentation browsingContextPresentationFromCreateType(Inspector::Protocol::BidiBrowsingContext::CreateType createType)
+static Inspector::Protocol::Automation::BrowsingContextPresentation NODELETE browsingContextPresentationFromCreateType(Inspector::Protocol::BidiBrowsingContext::CreateType createType)
 {
     switch (createType) {
     case Inspector::Protocol::BidiBrowsingContext::CreateType::Tab:
@@ -118,9 +125,14 @@ void BidiBrowsingContextAgent::create(Inspector::Protocol::BidiBrowsingContext::
     RefPtr session = m_session.get();
     ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!session, InternalError);
 
+    if (!optionalUserContext.isNull()) {
+        bool isValid = session->isValidUserContext(optionalUserContext);
+        ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!isValid, NoSuchUserContext);
+    }
+
     // FIXME: implement `referenceContext` option.
     // FIXME: implement `background` option.
-    // FIXME: implement `userContext` option.
+    // FIXME: implement `userContext` option (use validated context to create in specific user context).
 
     session->createBrowsingContext(browsingContextPresentationFromCreateType(createType), [callback = WTF::move(callback)](CommandResultOf<BrowsingContext, Inspector::Protocol::Automation::BrowsingContextPresentation>&& result) {
         if (!result) {
@@ -211,7 +223,7 @@ void BidiBrowsingContextAgent::getTree(const BrowsingContext& optionalRoot, std:
     RefPtr session = m_session.get();
     ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!session, InternalError);
 
-    std::optional<uint64_t> maxDepth = std::nullopt;
+    std::optional<uint64_t> maxDepth;
     if (optionalMaxDepth) {
         ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(*optionalMaxDepth < 0, InvalidParameter);
         ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(std::floor(*optionalMaxDepth) != *optionalMaxDepth, InvalidParameter);
@@ -221,7 +233,8 @@ void BidiBrowsingContextAgent::getTree(const BrowsingContext& optionalRoot, std:
 
     Vector<Ref<WebPageProxy>> pagesToProcess;
 
-    for (Ref process : session->protectedProcessPool()->processes()) {
+    RefPtr processPool = session->processPool();
+    for (Ref process : borrow(processPool->processes()).get()) {
         for (Ref page : process->pages()) {
             if (!page->isControlledByAutomation())
                 continue;
@@ -272,7 +285,7 @@ void BidiBrowsingContextAgent::handleUserPrompt(const BrowsingContext& browsingC
 static constexpr Seconds defaultPageLoadTimeout = 300_s;
 static constexpr ReadinessState defaultReadinessState = ReadinessState::Interactive;
 
-static PageLoadStrategy pageLoadStrategyFromReadinessState(ReadinessState state)
+static PageLoadStrategy NODELETE pageLoadStrategyFromReadinessState(ReadinessState state)
 {
     switch (state) {
     case ReadinessState::None:
@@ -287,20 +300,27 @@ static PageLoadStrategy pageLoadStrategyFromReadinessState(ReadinessState state)
     return PageLoadStrategy::Normal;
 }
 
-void BidiBrowsingContextAgent::navigate(const BrowsingContext& browsingContext, const String& url, std::optional<ReadinessState>&& optionalReadinessState, CommandCallbackOf<String, Inspector::Protocol::BidiBrowsingContext::NavigationID>&& callback)
+void BidiBrowsingContextAgent::navigate(const BrowsingContext& browsingContext, const String& url, const String& optionalWait, CommandCallbackOf<String, Inspector::Protocol::BidiBrowsingContext::NavigationID>&& callback)
 {
     RefPtr session = m_session.get();
     ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!session, InternalError);
 
     RefPtr webPageProxy = session->webPageProxyForHandle(browsingContext);
-    ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!webPageProxy, WindowNotFound);
+    ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!webPageProxy, FrameNotFound);
 
     URL baseURL { webPageProxy->currentURL() };
     URL urlRecord { baseURL, url };
     ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!urlRecord.isValid(), InvalidParameter);
 
-    auto waitCondition = optionalReadinessState.value_or(defaultReadinessState);
-    auto pageLoadStrategy = pageLoadStrategyFromReadinessState(waitCondition);
+    // `wait` is modeled as an optional string so we can reject invalid provided values (e.g. "" per WPT).
+    std::optional<ReadinessState> waitCondition;
+    if (!optionalWait.isNull()) {
+        waitCondition = Inspector::Protocol::WebDriverBidiHelpers::parseEnumValueFromString<ReadinessState>(optionalWait);
+        ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!waitCondition, InvalidParameter);
+    }
+
+    auto readinessState = waitCondition.value_or(defaultReadinessState);
+    auto pageLoadStrategy = pageLoadStrategyFromReadinessState(readinessState);
     session->navigateBrowsingContext(browsingContext, urlRecord.string(), pageLoadStrategy, defaultPageLoadTimeout.milliseconds(), [urlRecord, callback = WTF::move(callback)](CommandResult<void>&& result) {
         if (!result) {
             callback(makeUnexpected(result.error()));
@@ -344,7 +364,61 @@ void BidiBrowsingContextAgent::traverseHistory(const BrowsingContext& browsingCo
     session->traverseHistoryInBrowsingContext(browsingContext, delta, WTF::move(callback));
 }
 
+static std::optional<int> parseNonNegativeInteger(const JSON::Object& object, const String& key)
+{
+    auto value = object.getDouble(key);
+    if (!value || !JSC::isInteger(*value))
+        return std::nullopt;
+
+    if (*value < 0 || *value > std::numeric_limits<int>::max())
+        return std::nullopt;
+
+    return static_cast<int>(*value);
+}
+
+void BidiBrowsingContextAgent::setViewport(const BrowsingContext& optionalContext, RefPtr<JSON::Object>&& optionalViewport, std::optional<double>&& optionalDevicePixelRatio, RefPtr<JSON::Array>&& optionalUserContexts, CommandCallback<void>&& callback)
+{
+    RefPtr session = m_session.get();
+    ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!session, InternalError);
+
+    bool hasContext = !optionalContext.isEmpty();
+    bool hasUserContexts = optionalUserContexts && optionalUserContexts->length() > 0;
+
+    ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(hasContext && hasUserContexts, InvalidParameter);
+    ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!hasContext && !hasUserContexts, InvalidParameter);
+
+    std::optional<int> viewportWidth;
+    std::optional<int> viewportHeight;
+    if (optionalViewport) {
+        viewportWidth = parseNonNegativeInteger(*optionalViewport, "width"_s);
+        viewportHeight = parseNonNegativeInteger(*optionalViewport, "height"_s);
+        ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!viewportWidth || !viewportHeight, InvalidParameter);
+    }
+
+    if (optionalDevicePixelRatio)
+        ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(*optionalDevicePixelRatio <= 0, InvalidParameter);
+
+    if (hasContext) {
+        RefPtr page = session->webPageProxyForHandle(optionalContext);
+        ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!page, FrameNotFound);
+
+        RefPtr mainFrame = page->mainFrame();
+        ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(!mainFrame, InvalidParameter);
+        auto mainFrameID = getBrowsingContextID(mainFrame->frameID());
+        ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(mainFrameID != optionalContext, InvalidParameter);
+
+        session->setViewportForPage(*page, viewportWidth, viewportHeight, optionalDevicePixelRatio, WTF::move(callback));
+    } else {
+        for (const auto& userContextValue : *optionalUserContexts) {
+            auto userContext = userContextValue->asString();
+            ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(userContext.isEmpty(), InvalidParameter);
+        }
+        // FIXME: Support applying the viewport to user contexts.
+        // https://bugs.webkit.org/show_bug.cgi?id=288104
+        ASYNC_FAIL_WITH_PREDEFINED_ERROR_IF(true, NotImplemented);
+    }
+}
+
 } // namespace WebKit
 
 #endif // ENABLE(WEBDRIVER_BIDI)
-

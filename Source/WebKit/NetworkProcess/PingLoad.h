@@ -69,7 +69,7 @@ private:
 
     void initialize(NetworkProcess&);
 
-    const URL& currentURL() const;
+    const URL& NODELETE currentURL() const;
 
     void willPerformHTTPRedirection(WebCore::ResourceResponse&&, WebCore::ResourceRequest&&, RedirectCompletionHandler&&) final;
     void didReceiveChallenge(WebCore::AuthenticationChallenge&&, NegotiatedLegacyTLS, ChallengeCompletionHandler&&) final;
@@ -94,7 +94,7 @@ private:
     RefPtr<NetworkDataTask> m_task;
     WebCore::Timer m_timeoutTimer;
     const Ref<NetworkLoadChecker> m_networkLoadChecker;
-    Vector<RefPtr<WebCore::BlobDataFileReference>> m_blobFiles;
+    Vector<Ref<WebCore::BlobDataFileReference>> m_blobFiles;
 };
 
 }

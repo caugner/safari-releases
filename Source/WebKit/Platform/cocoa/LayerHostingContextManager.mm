@@ -26,6 +26,9 @@
 #include "config.h"
 #include "LayerHostingContextManager.h"
 
+#import <QuartzCore/QuartzCore.h>
+#include <WebCore/FloatRect.h>
+#include <WebCore/IntRect.h>
 #include <wtf/MachSendRightAnnotated.h>
 
 namespace WebKit {
@@ -92,6 +95,12 @@ std::optional<WebCore::HostingContext> LayerHostingContextManager::createHosting
     return m_inlineLayerHostingContext ? m_inlineLayerHostingContext->hostingContext() : WebCore::HostingContext { };
 }
 
+void LayerHostingContextManager::setVideoLayerSize(const WebCore::FloatSize& size)
+{
+    m_videoLayerSize = size;
+    setVideoLayerSizeIfPossible();
+}
+
 void LayerHostingContextManager::setVideoLayerSizeFenced(const WebCore::FloatSize& size, WTF::MachSendRightAnnotated&& sendRightAnnotated, NOESCAPE CompletionHandler<void()>&& postCommitAction)
 {
 #if USE(EXTENSIONKIT)
@@ -130,7 +139,7 @@ void LayerHostingContextManager::setVideoLayerSizeIfPossible()
     // We do not want animations here.
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
-    [m_inlineLayerHostingContext->protectedRootLayer() setFrame:CGRectMake(0, 0, m_videoLayerSize.width(), m_videoLayerSize.height())];
+    [protect(m_inlineLayerHostingContext->rootLayer()) setFrame:CGRectMake(0, 0, m_videoLayerSize.width(), m_videoLayerSize.height())];
     [CATransaction commit];
 }
 

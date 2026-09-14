@@ -39,6 +39,8 @@
 #include "RenderMathMLRow.h"
 #include "RenderTreeUpdater.h"
 #include "SVGElement.h"
+#include "Settings.h"
+#include "StyleComputedStyle.h"
 #include <wtf/TZoneMallocInlines.h>
 
 namespace WebCore {
@@ -57,7 +59,7 @@ Ref<MathMLSelectElement> MathMLSelectElement::create(const QualifiedName& tagNam
     return adoptRef(*new MathMLSelectElement(tagName, document));
 }
 
-RenderPtr<RenderElement> MathMLSelectElement::createElementRenderer(RenderStyle&& style, const RenderTreePosition&)
+RenderPtr<RenderElement> MathMLSelectElement::createElementRenderer(Style::ComputedStyle&& style, const RenderTreePosition&)
 {
     return createRenderer<RenderMathMLRow>(RenderObject::Type::MathMLRow, *this, WTF::move(style));
 }
@@ -165,7 +167,7 @@ RefPtr<Element> MathMLSelectElement::getSelectedSemanticsChild()
     if (!child)
         return nullptr;
 
-    if (auto* childElement = dynamicDowncast<MathMLElement>(*child); !childElement || !childElement->isPresentationMathML()) {
+    if (RefPtr childElement = dynamicDowncast<MathMLElement>(*child); !childElement || !childElement->isPresentationMathML()) {
         // The first child is not a presentation MathML element. Hence we move to the second child and start searching an annotation child that could be displayed.
         child = child->nextElementSibling();
     } else if (!downcast<MathMLElement>(*child).isSemanticAnnotation()) {
@@ -212,7 +214,7 @@ void MathMLSelectElement::updateSelectedChild()
         return;
 
     if (m_selectedChild && m_selectedChild->renderer())
-        RenderTreeUpdater::tearDownRenderers(*m_selectedChild);
+        RenderTreeUpdater::tearDownRenderers(protect(*m_selectedChild));
 
     m_selectedChild = newSelectedChild;
     invalidateStyleForSubtree();

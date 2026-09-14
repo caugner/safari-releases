@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html><!-- webkit-test-runner [ ARIAActionsSupportEnabled=true ] -->
 <html>
 <body id="body">
 <script src="../resources/js-test-pre.js"></script>
@@ -23,6 +23,14 @@
     var currentProperty;
     var currentAttribute;
 
+    function isNonReflectionMethod(method) {
+        switch (method) {
+            case "ariaNotify":
+                return true;
+        }
+        return false;
+    }
+
     function isElementReflectionProperty(property) {
         switch (property) {
             case "ariaActiveDescendantElement":
@@ -33,6 +41,7 @@
 
     function isElementsArrayReflectionProperty(property) {
         switch (property) {
+            case "ariaActionsElements":
             case "ariaControlsElements":
             case "ariaDescribedByElements":
             case "ariaDetailsElements":
@@ -121,7 +130,7 @@
         // There are 46 ARIA attributes in total.
         var count = 0;
         for (var propertyName in element) {
-          if (propertyName.startsWith("aria")) {
+          if (propertyName.startsWith("aria") && !isNonReflectionMethod(propertyName)) {
               currentProperty = propertyName;
               testElement();
               count++;
@@ -129,7 +138,7 @@
         }
 
         debug("\n");
-        shouldBe("count", "51");
+        shouldBe("count", "52");
 
     } else {
         testFailed("Could not load accessibility controller");

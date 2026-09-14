@@ -43,6 +43,7 @@ WK_CLASS_AVAILABLE(macos(10.10), ios(8.0))
 
 @property (nonatomic, readonly) NSURL *URL;
 @property (nonatomic, readonly) NSURL *imageURL;
+@property (nonatomic, readonly) NSURL *modelURL WK_API_AVAILABLE(macos(27.0), ios(27.0), visionos(27.0));
 @property (nonatomic, readonly) NSString *title;
 @property (nonatomic, readonly) _WKActivatedElementType type;
 @property (nonatomic, readonly) CGRect boundingRect;
@@ -53,7 +54,6 @@ WK_CLASS_AVAILABLE(macos(10.10), ios(8.0))
 #endif // defined(TARGET_OS_VISION) && TARGET_OS_VISION & __VISION_OS_VERSION_MIN_REQUIRED >= 20000
 #if TARGET_OS_IPHONE
 @property (nonatomic, readonly) BOOL isAnimating;
-@property (nonatomic, readonly) BOOL canShowAnimationControls;
 @property (nonatomic, readonly) NSDictionary *userInfo WK_API_AVAILABLE(ios(11.0));
 @property (nonatomic, readonly, copy) UIImage *image;
 #else

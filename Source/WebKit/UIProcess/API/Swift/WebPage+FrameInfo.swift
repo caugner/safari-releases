@@ -21,10 +21,9 @@
 // ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF
 // THE POSSIBILITY OF SUCH DAMAGE.
 
-#if ENABLE_SWIFTUI && compiler(>=6.0)
+#if ENABLE_SWIFTUI
 
-import Foundation
-internal import WebKit_Internal
+public import Foundation
 
 extension WebPage {
     /// A type that contains information about a frame on a webpage.
@@ -33,7 +32,10 @@ extension WebPage {
     @available(watchOS, unavailable)
     @available(tvOS, unavailable)
     public struct FrameInfo {
-        init(_ wrapped: WKFrameInfo) {
+        // swift-format-ignore: AllPublicDeclarationsHaveDocumentation
+        @_spi(CrossImportOverlay)
+        @_spi(Testing)
+        public init(_ wrapped: WKFrameInfo) {
             self.wrapped = wrapped
         }
 

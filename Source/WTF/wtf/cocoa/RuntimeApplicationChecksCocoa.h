@@ -134,9 +134,18 @@ enum class SDKAlignedBehavior {
     GetBoundingClientRectZoomed,
     CrashWhenMutatingProcessAssertionsFromBackgroundThread,
     NoFontFaceSetConstructor,
+    NoHTMLEnhancedSelectParsingQuirk,
+    DataURLForPastedImages,
+    SuppressKeypressForModifierShortcuts,
+    ScrollColorExtensionGrowsDuringRubberBanding,
+    ManagedRefreshControlAppearance,
     EnableUserScriptAndUserStyleInterning,
+    AllBackForwardItemsWithoutUserGestureInvisibleToUI,
     ExposePartitionFromWKHTTPCookieStoreAPI,
-    NetworkProcessInheritsNetworkAccessFromUIProcess,
+    MediaSessionPauseOnInterruption,
+    ScrollPocketInFullscreen,
+    IgnorePageLocationDuringHardPocketEligibilityCheck,
+    AdjustColorExtensionsForHorizontalBannerViewOverlays,
 
     NumberOfBehaviors
 };
@@ -144,15 +153,15 @@ enum class SDKAlignedBehavior {
 using SDKAlignedBehaviors = WTF::BitSet<static_cast<size_t>(SDKAlignedBehavior::NumberOfBehaviors), uint32_t>;
 
 WTF_EXPORT_PRIVATE const SDKAlignedBehaviors& sdkAlignedBehaviors();
-WTF_EXPORT_PRIVATE void setSDKAlignedBehaviors(SDKAlignedBehaviors);
+WTF_EXPORT_PRIVATE void NODELETE setSDKAlignedBehaviors(SDKAlignedBehaviors);
 
 WTF_EXPORT_PRIVATE void enableAllSDKAlignedBehaviors();
-WTF_EXPORT_PRIVATE void disableAllSDKAlignedBehaviors();
+WTF_EXPORT_PRIVATE void NODELETE disableAllSDKAlignedBehaviors();
 
 WTF_EXPORT_PRIVATE bool linkedOnOrAfterSDKWithBehavior(SDKAlignedBehavior);
 
-WTF_EXPORT_PRIVATE bool processIsExtension();
-WTF_EXPORT_PRIVATE void setProcessIsExtension(bool);
+WTF_EXPORT_PRIVATE bool NODELETE processIsExtension();
+WTF_EXPORT_PRIVATE void NODELETE setProcessIsExtension(bool);
 
 WTF_EXPORT_PRIVATE void setApplicationBundleIdentifier(const String&);
 WTF_EXPORT_PRIVATE void setApplicationBundleIdentifierOverride(const String&);
@@ -189,6 +198,7 @@ WTF_EXPORT_PRIVATE bool isHRBlock();
 WTF_EXPORT_PRIVATE bool isTurboTax();
 WTF_EXPORT_PRIVATE bool isEpsonSoftwareUpdater();
 WTF_EXPORT_PRIVATE bool isMimeoPhotoProject();
+WTF_EXPORT_PRIVATE bool isGridLegends();
 
 } // MacApplication
 
@@ -220,6 +230,8 @@ WTF_EXPORT_PRIVATE bool isUNIQLOApp();
 WTF_EXPORT_PRIVATE bool isDOFUSTouch();
 WTF_EXPORT_PRIVATE bool isMyRideK12();
 WTF_EXPORT_PRIVATE bool isTableau();
+WTF_EXPORT_PRIVATE bool isTubular();
+WTF_EXPORT_PRIVATE bool isLensApp();
 
 } // IOSApplication
 

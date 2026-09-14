@@ -40,10 +40,13 @@
 #include "ScriptController.h"
 #include "ScriptableDocumentParser.h"
 #include "Settings.h"
+#include "StyleComputedStyle+GettersInlines.h"
+#include "StyleDisplay.h"
 #include "TrustedType.h"
 #include <JavaScriptCore/ConsoleTypes.h>
 #include <wtf/TZoneMallocInlines.h>
 #include <wtf/text/MakeString.h>
+#include "FrameDestructionObserverInlines.h"
 
 namespace WebCore {
 
@@ -133,7 +136,7 @@ void HTMLIFrameElement::attributeChanged(const QualifiedName& name, const AtomSt
         String invalidTokens;
         setSandboxFlags(newValue.isNull() ? SandboxFlags { } : SecurityContext::parseSandboxPolicy(newValue, invalidTokens));
         if (!invalidTokens.isNull())
-            protectedDocument()->addConsoleMessage(MessageSource::Other, MessageLevel::Error, makeString("Error while parsing the 'sandbox' attribute: "_s, invalidTokens));
+            protect(document())->addConsoleMessage(MessageSource::Other, MessageLevel::Error, makeString("Error while parsing the 'sandbox' attribute: "_s, invalidTokens));
         break;
     }
     case AttributeNames::allowAttr:
@@ -157,12 +160,12 @@ void HTMLIFrameElement::attributeChanged(const QualifiedName& name, const AtomSt
     }
 }
 
-bool HTMLIFrameElement::rendererIsNeeded(const RenderStyle& style)
+bool HTMLIFrameElement::rendererIsNeeded(const Style::ComputedStyle& style)
 {
-    return style.display() != DisplayType::None && canLoad();
+    return style.display() != Style::DisplayType::None && canLoad();
 }
 
-RenderPtr<RenderElement> HTMLIFrameElement::createElementRenderer(RenderStyle&& style, const RenderTreePosition&)
+RenderPtr<RenderElement> HTMLIFrameElement::createElementRenderer(Style::ComputedStyle&& style, const RenderTreePosition&)
 {
     return createRenderer<RenderIFrame>(*this, WTF::move(style));
 }
@@ -184,9 +187,9 @@ String HTMLIFrameElement::srcdoc() const
     return attributeWithoutSynchronization(srcdocAttr);
 }
 
-ExceptionOr<void> HTMLIFrameElement::setSrcdoc(Variant<RefPtr<TrustedHTML>, String>&& value, SubstituteData::SessionHistoryVisibility sessionHistoryVisibility)
+ExceptionOr<void> HTMLIFrameElement::setSrcdoc(Variant<Ref<TrustedHTML>, String>&& value, SubstituteData::SessionHistoryVisibility sessionHistoryVisibility)
 {
-    auto stringValueHolder = trustedTypeCompliantString(protectedDocument()->protectedContextDocument(), WTF::move(value), "HTMLIFrameElement srcdoc"_s);
+    auto stringValueHolder = trustedTypeCompliantString(protect(document().contextDocument()), WTF::move(value), "HTMLIFrameElement srcdoc"_s);
 
     if (stringValueHolder.hasException())
         return stringValueHolder.releaseException();
@@ -206,7 +209,7 @@ static bool isFrameLazyLoadable(const Document& document, const URL& url, const 
     if (!url.isValid() || url.isAboutBlank())
         return false;
 
-    if (RefPtr frame = document.frame(); !frame || !frame->checkedScript()->canExecuteScripts(ReasonForCallingCanExecuteScripts::NotAboutToExecuteScript))
+    if (RefPtr frame = document.frame(); !frame || !protect(frame->script())->canExecuteScripts(ReasonForCallingCanExecuteScripts::NotAboutToExecuteScript))
         return false;
 
     return equalLettersIgnoringASCIICase(loadingAttributeValue, "lazy"_s);
@@ -217,7 +220,7 @@ bool HTMLIFrameElement::shouldLoadFrameLazily()
     Ref document = this->document();
     if (!document->settings().lazyIframeLoadingEnabled() || document->quirks().shouldDisableLazyIframeLoadingQuirk())
         return false;
-    URL completeURL = document->completeURL(frameURL());
+    URL completeURL = document->encodingParseURL(frameURL());
     auto referrerPolicy = referrerPolicyFromAttribute();
     if (!m_lazyLoadFrameObserver) {
         if (isFrameLazyLoadable(document, completeURL, attributeWithoutSynchronization(HTMLNames::loadingAttr))) {

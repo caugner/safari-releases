@@ -363,7 +363,7 @@ WI.SettingsTabContentView = class SettingsTabContentView extends WI.TabContentVi
         consoleSettingsView.addSetting(WI.UIString("Traces:"), WI.settings.consoleAutoExpandTrace, WI.UIString("Auto-expand"));
         consoleSettingsView.addSetting(WI.UIString("Show:"), WI.settings.showConsoleMessageTimestamps, WI.UIString("Timestamps"));
 
-        // COMPATIBILITY (iOS 18.0, macOS 15.0): `Console.setConsoleClearAPIEnabled` did not exist yet.
+        // COMPATIBILITY (macOS 14.4, iOS 17.4): `Console.setConsoleClearAPIEnabled` did not exist yet.
         if (InspectorBackend.hasCommand("Console.setConsoleClearAPIEnabled"))
             consoleSettingsView.addSetting(WI.UIString("Clear:"), WI.settings.consoleClearAPIEnabled, WI.UIString("Allow page to clear Console"));
 
@@ -390,13 +390,7 @@ WI.SettingsTabContentView = class SettingsTabContentView extends WI.TabContentVi
                 let logEditor = consoleSettingsView.addGroupWithCustomSetting(label, WI.SettingEditor.Type.Select, {values: logLevels});
                 logEditor.value = channel.level;
                 logEditor.addEventListener(WI.SettingEditor.Event.ValueDidChange, function(event) {
-                    for (let target of WI.targets) {
-                        // FIXME: <https://webkit.org/b/298911> Add Console support for FrameTarget.
-                        if (target instanceof WI.FrameTarget)
-                            continue;
-
-                        target.ConsoleAgent.setLoggingChannelLevel(channel.source, this.value);
-                    }
+                    channel.level = this.value;
                 }, logEditor);
             }
         }
@@ -414,7 +408,6 @@ WI.SettingsTabContentView = class SettingsTabContentView extends WI.TabContentVi
         
         let consoleGroup = experimentalSettingsView.addGroup(WI.UIString("Console:"));
         consoleGroup.addSetting(WI.settings.experimentalGroupSourceMapErrors, WI.UIString("Group source map network errors"));
-        consoleGroup.addSetting(WI.settings.experimentalShowCaseSensitiveAutocomplete, WI.UIString("Use case sensitive autocomplete"));
         
         experimentalSettingsView.addSeparator();
 
@@ -429,6 +422,7 @@ WI.SettingsTabContentView = class SettingsTabContentView extends WI.TabContentVi
             experimentalSettingsView.addSeparator();
         }
 
+        // COMPATIBILITY (macOS 26.0, iOS 26.0): LayerTree.requestContent did not exist yet.
         if (InspectorBackend.hasCommand("LayerTree.requestContent")) {
             let layersGroup = experimentalSettingsView.addGroup(WI.UIString("Layers:"));
             layersGroup.addSetting(WI.settings.experimentalLayers3DShowLayerContents, WI.UIString("Show layer contents"));
@@ -476,7 +470,6 @@ WI.SettingsTabContentView = class SettingsTabContentView extends WI.TabContentVi
         }
 
         listenForChange(WI.settings.experimentalGroupSourceMapErrors);
-        listenForChange(WI.settings.experimentalShowCaseSensitiveAutocomplete);
 
         if (hasCSSDomain) {
             listenForChange(WI.settings.experimentalEnableStylesJumpToEffective);
@@ -484,6 +477,7 @@ WI.SettingsTabContentView = class SettingsTabContentView extends WI.TabContentVi
             listenForChange(WI.settings.experimentalCSSSortPropertyNameAutocompletionByUsage);
         }
 
+        // COMPATIBILITY (macOS 26.0, iOS 26.0): LayerTree.requestContent did not exist yet.
         if (InspectorBackend.hasCommand("LayerTree.requestContent"))
             listenForChange(WI.settings.experimentalLayers3DShowLayerContents);
 

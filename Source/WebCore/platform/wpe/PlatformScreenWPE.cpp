@@ -113,7 +113,7 @@ double fontDPI()
 {
 #if ENABLE(WPE_PLATFORM)
     // In WPE, there is no notion of font scaling separate from device DPI.
-    return screenDPI(primaryScreenDisplayID());
+    return screenDPI(PlatformScreen::singleton()->primaryScreenDisplayID());
 #else
     notImplemented();
     return 96.;

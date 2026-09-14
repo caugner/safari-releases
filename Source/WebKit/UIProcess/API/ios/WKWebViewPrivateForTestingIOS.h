@@ -48,6 +48,7 @@
 @property (nonatomic, readonly) CGRect _dragCaretRect;
 @property (nonatomic, readonly, getter=_isAnimatingDragCancel) BOOL _animatingDragCancel;
 @property (nonatomic, readonly) CGRect _tapHighlightViewRect;
+@property (nonatomic, readonly) CGRect _focusedElementInteractionRect;
 @property (nonatomic, readonly) UIGestureRecognizer *_imageAnalysisGestureRecognizer;
 @property (nonatomic, readonly) UITapGestureRecognizer *_singleTapGestureRecognizer;
 @property (nonatomic, readonly, getter=_isKeyboardScrollingAnimationRunning) BOOL _keyboardScrollingAnimationRunning;
@@ -101,6 +102,9 @@
 - (NSString *)_scrollbarState:(unsigned long long)scrollingNodeID processID:(unsigned long long)processID isVertical:(bool)isVertical;
 
 - (UIView *)_colorExtensionViewForTesting:(UIRectEdge)edge;
+
+@property (nonatomic, readonly) BOOL _hasPendingVisibleContentRectUpdateTimerForTesting;
+@property (nonatomic, readonly) CGRect _fixedClippingViewBoundsForTesting;
 
 @end
 

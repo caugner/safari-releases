@@ -58,8 +58,8 @@ def main():
       dawn_dir,
       "-B",
       build_dir,
-      f"-DCMAKE_C_COMPILER={quote_if_needed(args.cc)}",
-      f"-DCMAKE_CXX_COMPILER={quote_if_needed(args.cxx)}",
+      f"-DCMAKE_C_COMPILER={args.cc.replace(os.sep, '/')}",
+      f"-DCMAKE_CXX_COMPILER={args.cxx.replace(os.sep, '/')}",
       f"-DCMAKE_SYSTEM_NAME={target_os}",
       f"-DCMAKE_SYSTEM_PROCESSOR={target_cpu}",
       # This is handled by GN
@@ -81,6 +81,7 @@ def main():
       "-DDAWN_ENABLE_DESKTOP_GL=OFF",
       "-DDAWN_ENABLE_OPENGLES=OFF",
       "-DDAWN_ENABLE_VULKAN=OFF",
+      "-DDAWN_USE_X11=OFF",
   ]
   configure_cmd += get_third_party_locations()
   if args.enable_rtti:

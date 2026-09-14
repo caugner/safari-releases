@@ -47,6 +47,7 @@
 #import "DOMTreeWalkerInternal.h"
 #import "DOMXPathExpressionInternal.h"
 #import "DOMXPathResultInternal.h"
+#import <JavaScriptCore/HeapCellInlines.h>
 #import <WebCore/JSCSSRule.h>
 #import <WebCore/JSCSSRuleList.h>
 #import <WebCore/JSCSSStyleDeclaration.h>
@@ -118,7 +119,7 @@ static void disconnectWindowWrapper(WebScriptObject *windowWrapper)
     [(DOMAbstractView *)windowWrapper _disconnectFrame];
 }
 
-void initializeDOMWrapperHooks()
+void NODELETE initializeDOMWrapperHooks()
 {
     WebCore::initializeDOMWrapperHooks(createDOMWrapper, disconnectWindowWrapper);
 }

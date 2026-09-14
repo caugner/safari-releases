@@ -34,7 +34,7 @@
 #import <wtf/HashTraits.h>
 #import <wtf/Ref.h>
 #import <wtf/RefCountedAndCanMakeWeakPtr.h>
-#import <wtf/RetainReleaseSwift.h>
+#import <wtf/SwiftBridging.h>
 #import <wtf/TZoneMalloc.h>
 #import <wtf/Vector.h>
 #import <wtf/WeakPtr.h>
@@ -97,7 +97,7 @@ public:
 
     bool isValid() const { return m_renderCommandEncoder; }
     NSString* errorValidatingColorDepthStencilTargets(const RenderPipeline&) const;
-    id<MTLRenderCommandEncoder> renderCommandEncoder() const;
+    id<MTLRenderCommandEncoder> NODELETE renderCommandEncoder() const;
     void makeInvalid(NSString* = nil);
     CommandEncoder& parentEncoder() const { return m_parentEncoder; }
 
@@ -115,14 +115,14 @@ public:
         uint64_t offset;
     };
     static DrawIndexResult clampIndexBufferToValidValues(uint32_t indexCount, uint32_t instanceCount, int32_t baseVertex, uint32_t firstInstance, MTLIndexType, NSUInteger indexBufferOffsetInBytes, Buffer*, uint32_t minVertexCount, uint32_t minInstanceCount, RenderPassEncoder&, Device&, uint32_t rasterSampleCount, MTLPrimitiveType);
-    WARN_UNUSED_RETURN bool splitRenderPass();
+    [[nodiscard]] bool splitRenderPass();
     static std::pair<uint32_t, uint32_t> computeMininumVertexInstanceCount(const RenderPipeline*, bool& needsValidationLayerWorkaround, uint64_t (^)(uint32_t));
 
 private:
     RenderPassEncoder(id<MTLRenderCommandEncoder>, const WGPURenderPassDescriptor&, NSUInteger, bool depthReadOnly, bool stencilReadOnly, CommandEncoder&, id<MTLBuffer>, uint64_t maxDrawCount, Device&, MTLRenderPassDescriptor*);
     RenderPassEncoder(CommandEncoder&, Device&, NSString*);
 
-    bool validatePopDebugGroup() const;
+    bool NODELETE validatePopDebugGroup() const;
     bool executePreDrawCommands(uint32_t vertexCount);
     bool executePreDrawCommands(uint32_t firstInstance, uint32_t instanceCount, bool passWasSplit, const Buffer*, bool needsValidationLayerWorkaround);
     bool runIndexBufferValidation(uint32_t firstInstance, uint32_t instanceCount);
@@ -137,11 +137,11 @@ private:
 
     NSString* errorValidatingAndBindingBuffers();
     NSString* errorValidatingDrawIndexed() const;
-    uint32_t maxVertexBufferIndex() const;
-    uint32_t maxBindGroupIndex() const;
-    bool issuedDrawCall() const;
+    uint32_t NODELETE maxVertexBufferIndex() const;
+    uint32_t NODELETE maxBindGroupIndex() const;
+    bool NODELETE issuedDrawCall() const;
     void incrementDrawCount(uint32_t = 1);
-    bool occlusionQueryIsDestroyed() const;
+    bool NODELETE occlusionQueryIsDestroyed() const;
     DrawIndexResult clampIndexBufferToValidValues(uint32_t indexCount, uint32_t instanceCount, int32_t baseVertex, uint32_t firstInstance, MTLIndexType, NSUInteger indexBufferOffsetInBytes, bool& needsValidationLayerWorkaround);
     std::pair<uint32_t, uint32_t> computeMininumVertexInstanceCount(bool& needsValidationLayerWorkaround) const;
     std::pair<id<MTLBuffer>, uint64_t> clampIndirectIndexBufferToValidValues(Buffer&, MTLIndexType, NSUInteger indexBufferOffsetInBytes, uint64_t indirectOffset, uint32_t minVertexCount, uint32_t minInstanceCount, bool& splitEncoder);
@@ -204,7 +204,7 @@ private:
     using ExistingBufferKey = std::pair<uint64_t, uint32_t>;
     std::array<ExistingBufferKey, maxBufferSlots> m_existingVertexBuffers;
     std::array<ExistingBufferKey, maxBufferSlots> m_existingFragmentBuffers;
-    HashMap<uint32_t, RefPtr<const BindGroup>, DefaultHash<uint32_t>, WTF::UnsignedWithZeroKeyHashTraits<uint32_t>> m_bindGroups;
+    HashMap<uint32_t, Ref<const BindGroup>, DefaultHash<uint32_t>, WTF::UnsignedWithZeroKeyHashTraits<uint32_t>> m_bindGroups;
     std::array<uint32_t, 32> m_maxDynamicOffsetAtIndex;
     NSString* m_lastErrorString { nil };
     MTLRenderPassDescriptor* m_metalDescriptor { nil };
@@ -230,10 +230,10 @@ private:
 
 inline void refRenderPassEncoder(WebGPU::RenderPassEncoder* obj)
 {
-    WTF::ref(obj);
+    obj->ref();
 }
 
 inline void derefRenderPassEncoder(WebGPU::RenderPassEncoder* obj)
 {
-    WTF::deref(obj);
+    obj->deref();
 }

@@ -2493,10 +2493,10 @@ void GrGLCaps::initFormatTable(const GrGLContextInfo& ctxInfo, const GrGLInterfa
         }
 
         if (r16FTextureSupport) {
-            // Format: R16F, Surface: kAlpha_F16
-            info.fColorTypeInfoCount = 1;
+            info.fColorTypeInfoCount = 2;
             info.fColorTypeInfos = std::make_unique<ColorTypeInfo[]>(info.fColorTypeInfoCount);
             int ctIdx = 0;
+            // Format: R16F, Surface: kAlpha_F16
             {
                 auto& ctInfo = info.fColorTypeInfos[ctIdx++];
                 ctInfo.fColorType = GrColorType::kAlpha_F16;
@@ -2525,6 +2525,38 @@ void GrGLCaps::initFormatTable(const GrGLContextInfo& ctxInfo, const GrGLInterfa
                 {
                     auto& ioFormat = ctInfo.fExternalIOFormats[ioIdx++];
                     ioFormat.fColorType = GrColorType::kAlpha_F32xxx;
+                    ioFormat.fExternalType = GR_GL_FLOAT;
+                    ioFormat.fExternalTexImageFormat = 0;
+                    ioFormat.fExternalReadFormat = GR_GL_RGBA;
+                }
+            }
+            // Format: R16F, Surface: kR_F16
+            {
+                auto& ctInfo = info.fColorTypeInfos[ctIdx++];
+                ctInfo.fColorType = GrColorType::kR_F16;
+                ctInfo.fFlags = ColorTypeInfo::kUploadData_Flag | ColorTypeInfo::kRenderable_Flag;
+                this->setColorTypeFormat(GrColorType::kR_F16, GrGLFormat::kR16F);
+
+                // External IO ColorTypes:
+                ctInfo.fExternalIOFormatCount = 2;
+                ctInfo.fExternalIOFormats = std::make_unique<ColorTypeInfo::ExternalIOFormats[]>(
+                        ctInfo.fExternalIOFormatCount);
+                int ioIdx = 0;
+                // Format: R16F, Surface: kR_F16, Data: kR_F16
+                {
+                    auto& ioFormat = ctInfo.fExternalIOFormats[ioIdx++];
+                    ioFormat.fColorType = GrColorType::kR_F16;
+                    ioFormat.fExternalType = halfFloatType;
+                    ioFormat.fExternalTexImageFormat = GR_GL_RED;
+                    ioFormat.fExternalReadFormat = GR_GL_RED;
+                    // Not guaranteed by ES/WebGL.
+                    ioFormat.fRequiresImplementationReadQuery = !GR_IS_GR_GL(standard);
+                }
+
+                // Format: R16F, Surface: kR_F16, Data: kRGBA_F32
+                {
+                    auto& ioFormat = ctInfo.fExternalIOFormats[ioIdx++];
+                    ioFormat.fColorType = GrColorType::kRGBA_F32;
                     ioFormat.fExternalType = GR_GL_FLOAT;
                     ioFormat.fExternalTexImageFormat = 0;
                     ioFormat.fExternalReadFormat = GR_GL_RGBA;
@@ -2582,7 +2614,7 @@ void GrGLCaps::initFormatTable(const GrGLContextInfo& ctxInfo, const GrGLInterfa
                 info.fInternalFormatForTexImageOrStorage = GR_GL_LUMINANCE;
             }
 
-            info.fColorTypeInfoCount = 1;
+            info.fColorTypeInfoCount = 2;
             info.fColorTypeInfos = std::make_unique<ColorTypeInfo[]>(info.fColorTypeInfoCount);
             int ctIdx = 0;
             // Format: LUMINANCE16F, Surface: kAlpha_F16
@@ -2613,6 +2645,42 @@ void GrGLCaps::initFormatTable(const GrGLContextInfo& ctxInfo, const GrGLInterfa
                 }
 
                 // Format: LUMINANCE16F, Surface: kAlpha_F16, Data: kRGBA_F32
+                {
+                    auto& ioFormat = ctInfo.fExternalIOFormats[ioIdx++];
+                    ioFormat.fColorType = GrColorType::kRGBA_F32;
+                    ioFormat.fExternalType = GR_GL_FLOAT;
+                    ioFormat.fExternalTexImageFormat = 0;
+                    ioFormat.fExternalReadFormat = GR_GL_RGBA;
+                }
+            }
+            // Format: LUMINANCE16F, Surface: kR_F16
+            {
+                auto& ctInfo = info.fColorTypeInfos[ctIdx++];
+                ctInfo.fColorType = GrColorType::kR_F16;
+                ctInfo.fFlags = ColorTypeInfo::kUploadData_Flag;
+                ctInfo.fReadSwizzle = skgpu::Swizzle("r001");
+                ctInfo.fWriteSwizzle = skgpu::Swizzle("rrr1");
+
+                int idx = static_cast<int>(GrColorType::kR_F16);
+                if (fColorTypeToFormatTable[idx] == GrGLFormat::kUnknown) {
+                    this->setColorTypeFormat(GrColorType::kR_F16, GrGLFormat::kLUMINANCE16F);
+                }
+
+                // External IO ColorTypes:
+                ctInfo.fExternalIOFormatCount = 2;
+                ctInfo.fExternalIOFormats = std::make_unique<ColorTypeInfo::ExternalIOFormats[]>(
+                        ctInfo.fExternalIOFormatCount);
+                int ioIdx = 0;
+                // Format: LUMINANCE16F, Surface: kR_F16, Data: kR_F16
+                {
+                    auto& ioFormat = ctInfo.fExternalIOFormats[ioIdx++];
+                    ioFormat.fColorType = GrColorType::kR_F16;
+                    ioFormat.fExternalType = lumHalfFloatType;
+                    ioFormat.fExternalTexImageFormat = GR_GL_LUMINANCE;
+                    ioFormat.fExternalReadFormat = 0;
+                }
+
+                // Format: LUMINANCE16F, Surface: kR_F16, Data: kRGBA_F32
                 {
                     auto& ioFormat = ctInfo.fExternalIOFormats[ioIdx++];
                     ioFormat.fColorType = GrColorType::kRGBA_F32;
@@ -3973,8 +4041,15 @@ void GrGLCaps::applyDriverCorrectnessWorkarounds(const GrGLContextInfo& ctxInfo,
         fAllowSRGBCopyTexSubImage = true;
     }
 
-    // http://anglebug.com/6030
-    if (fMSFBOType == kES_EXT_MsToTexture_MSFBOType &&
+    // Originally, this condition disabled DMSAA on non-Intel (and some Intel) devices running over
+    // ANGLE D3D11 (http://anglebug.com/6030). ANGLE's D3D11 support for
+    // EXT_multisample_render_to_texture was incomplete and has been removed
+    // (http://crbug.com/443111620), which led to some significant performance regressions
+    // (http://crbug.com/466515405). Since ANGLE had always been advertising that extension, Ganesh
+    // was disabling DMSAA almost universally. The regression was triggered due to allocating very
+    // large MSAA attachments. To preserve prior behavior on ANGLE+D3D11, we will keep DMSAA
+    // disabled (although these techniques are used with Graphite on Dawn+D3D11).
+    if (/* fMSFBOType == kES_EXT_MsToTexture_MSFBOType && */
         ctxInfo.angleBackend() == GrGLANGLEBackend::kD3D11) {
         // As GL_EXT_multisampled_render_to_texture supporting issue,
         // fall back to default dmsaa path
@@ -4828,6 +4903,14 @@ void GrGLCaps::applyDriverCorrectnessWorkarounds(const GrGLContextInfo& ctxInfo,
         fPadRG88TransferAlignment = true;
     }
 #endif
+
+    // Mali HW doesn't have builtin support for no perspective varying interpolation. It's more
+    // efficient to use the smooth interpolation qualifier on Mali HW since it's otherwise emulated
+    // by patching up shaders.
+    if ((ctxInfo.renderer() == GrGLRenderer::kMaliG ||
+         ctxInfo.renderer() == GrGLRenderer::kMaliT)) {
+        shaderCaps->fNoPerspectiveInterpolationSupport = false;
+    }
 }
 
 void GrGLCaps::onApplyOptionsOverrides(const GrContextOptions& options) {
@@ -5324,6 +5407,10 @@ std::vector<GrTest::TestFormatColorTypeCombination> GrGLCaps::getTestingCombinat
         { GrColorType::kAlpha_F16,
           GrBackendFormats::MakeGL(GR_GL_R16F, GR_GL_TEXTURE_2D) },
         { GrColorType::kAlpha_F16,
+          GrBackendFormats::MakeGL(GR_GL_LUMINANCE16F, GR_GL_TEXTURE_2D) },
+        { GrColorType::kR_F16,
+          GrBackendFormats::MakeGL(GR_GL_R16F, GR_GL_TEXTURE_2D) },
+        { GrColorType::kR_F16,
           GrBackendFormats::MakeGL(GR_GL_LUMINANCE16F, GR_GL_TEXTURE_2D) },
         { GrColorType::kRGBA_F16,
           GrBackendFormats::MakeGL(GR_GL_RGBA16F, GR_GL_TEXTURE_2D) },

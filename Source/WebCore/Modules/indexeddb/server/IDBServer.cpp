@@ -32,6 +32,7 @@
 #include "MemoryIDBBackingStore.h"
 #include "SQLiteFileSystem.h"
 #include "SQLiteIDBBackingStore.h"
+#include "SQLiteMemoryIDBBackingStore.h"
 #include "SecurityOrigin.h"
 #include <algorithm>
 #include <wtf/CompletionHandler.h>
@@ -66,7 +67,7 @@ void IDBServer::registerConnection(IDBConnectionToClient& connection)
 {
     ASSERT(!isMainThread());
     ASSERT(!m_connectionMap.contains(connection.identifier()));
-    m_connectionMap.set(connection.identifier(), &connection);
+    m_connectionMap.set(connection.identifier(), connection);
 }
 
 void IDBServer::unregisterConnection(IDBConnectionToClient& connection)
@@ -425,7 +426,7 @@ void IDBServer::databaseConnectionPendingClose(IDBDatabaseConnectionIdentifier d
     LOG(IndexedDB, "IDBServer::databaseConnectionPendingClose - %" PRIu64, databaseConnectionIdentifier.toUInt64());
     ASSERT(!isMainThread());
 
-    RefPtr databaseConnection = m_databaseConnections.get(databaseConnectionIdentifier);
+    auto* databaseConnection = m_databaseConnections.get(databaseConnectionIdentifier);
     if (!databaseConnection)
         return;
 

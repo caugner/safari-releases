@@ -47,7 +47,7 @@ class StorageTracker {
     WTF_MAKE_NONCOPYABLE(StorageTracker);
     WTF_MAKE_TZONE_ALLOCATED(StorageTracker);
 public:
-    static void initializeTracker(const String& storagePath, WebCore::StorageTrackerClient*);
+    static void NODELETE initializeTracker(const String& storagePath, WebCore::StorageTrackerClient*);
     static StorageTracker& tracker();
 
     void setOriginDetails(const String& originIdentifier, const String& databaseFile);
@@ -60,7 +60,7 @@ public:
     
     void cancelDeletingOrigin(const String& originIdentifier);
     
-    bool isActive();
+    bool isActive() const { return m_isActive; }
 
     Seconds storageDatabaseIdleInterval() { return m_StorageDatabaseIdleInterval; }
     void setStorageDatabaseIdleInterval(Seconds interval) { m_StorageDatabaseIdleInterval = interval; }
@@ -87,7 +87,7 @@ private:
 
     void originFilePaths(Vector<String>& paths);
     
-    void setIsActive(bool);
+    void NODELETE setIsActive(bool);
 
     // Sync to disk on background thread.
     void syncDeleteAllOrigins();

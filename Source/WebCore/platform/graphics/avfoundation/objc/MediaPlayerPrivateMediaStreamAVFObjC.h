@@ -73,12 +73,12 @@ public:
     static void registerMediaEngine(MediaEngineRegistrar);
 
     using NativeImageCreator = RefPtr<NativeImage> (*)(const VideoFrame&);
-    WEBCORE_EXPORT static void setNativeImageCreator(NativeImageCreator&&);
+    WEBCORE_EXPORT static void NODELETE setNativeImageCreator(NativeImageCreator&&);
 
     // MediaPlayer Factory Methods
     static bool isAvailable();
     static void getSupportedTypes(HashSet<String>& types);
-    static MediaPlayer::SupportsType supportsType(const MediaEngineSupportParameters&);
+    static MediaPlayer::SupportsType NODELETE supportsType(const MediaEngineSupportParameters&);
 
     MediaPlayer::NetworkState networkState() const override;
     void setNetworkState(MediaPlayer::NetworkState);
@@ -134,13 +134,12 @@ private:
 
     void setPageIsVisible(bool) final;
     void setVisibleForCanvas(bool) final;
-    void setVisibleInViewport(bool) final;
+    void setViewportVisibility(ViewportVisibility) final;
 
     MediaTime duration() const override;
     MediaTime currentTime() const override;
 
-    void seekToTarget(const SeekTarget&) final { };
-    bool seeking() const final { return false; }
+    Ref<MediaTimePromise> seekToTarget(const SeekTarget&) final { return MediaTimePromise::createAndReject(PlatformMediaError::Cancelled); }
 
     const PlatformTimeRanges& seekable() const override;
     const PlatformTimeRanges& buffered() const override;
@@ -179,6 +178,7 @@ private:
     void setResourceOwner(const ProcessIdentity&) final { ASSERT_NOT_REACHED(); }
     void renderVideoWillBeDestroyed() final { destroyLayers(); }
     void setShouldMaintainAspectRatio(bool) final;
+    std::optional<VideoPlaybackQualityMetrics> videoPlaybackQualityMetrics() final;
 
     MediaPlayer::ReadyState currentReadyState();
     void updateReadyState();
@@ -249,7 +249,6 @@ private:
     void setVideoLayerSizeFenced(const FloatSize&, WTF::MachSendRightAnnotated&&) final;
     void requestHostingContext(LayerHostingContextCallback&&) final;
 
-    RefPtr<MediaStreamPrivate> protectedMediaStreamPrivate() const;
 
     ThreadSafeWeakPtr<MediaPlayer> m_player;
     RefPtr<MediaStreamPrivate> m_mediaStreamPrivate;
@@ -293,6 +292,7 @@ private:
 
     // SampleBufferDisplayLayerClient
     void sampleBufferDisplayLayerStatusDidFail() final;
+    void updateVideoFrameCounters(uint64_t, uint64_t) final;
 #if PLATFORM(IOS_FAMILY)
     bool canShowWhileLocked() const final;
 #endif
@@ -318,6 +318,9 @@ private:
     uint64_t m_lastVideoFrameMetadataSampleCount { 0 };
     Seconds m_presentationTime { 0 };
     VideoFrameTimeMetadata m_sampleMetadata;
+
+    uint64_t m_totalFrameCount { 0 };
+    uint64_t m_droppedFrameCount { 0 };
 
     std::optional<CGRect> m_storedBounds;
     static NativeImageCreator m_nativeImageCreator;

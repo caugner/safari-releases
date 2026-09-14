@@ -45,16 +45,16 @@ enum class URLPatternConstructorStringParserState : uint8_t { Init, Protocol, Au
 
 class URLPatternConstructorStringParser {
 public:
-    explicit URLPatternConstructorStringParser(String&& input);
+    explicit URLPatternConstructorStringParser(StringView input);
     ExceptionOr<URLPatternInit> parse(ScriptExecutionContext&);
 
 private:
     void performParse(ScriptExecutionContext&);
-    void rewind();
-    const URLPatternUtilities::Token& getSafeToken(size_t index) const;
-    bool isNonSpecialPatternChararacter(size_t index, char value) const;
+    void NODELETE rewind();
+    const URLPatternUtilities::Token& NODELETE getSafeToken(size_t index) const;
+    bool NODELETE isNonSpecialPatternChararacter(size_t index, char value) const;
     bool isSearchPrefix() const;
-    bool isAuthoritySlashesNext() const;
+    bool NODELETE isAuthoritySlashesNext() const;
     String makeComponentString() const;
     void changeState(URLPatternConstructorStringParserState, size_t skip);
     void updateState(ScriptExecutionContext&);

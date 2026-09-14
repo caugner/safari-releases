@@ -872,10 +872,7 @@ struct IndexRange
     {};
     IndexRange(Undefined) {}
     IndexRange() = default;
-    IndexRange(uint32_t start_, uint32_t end_) : mStart(start_), mEnd(end_)
-    {
-        ASSERT(start_ <= end_);
-    }
+    IndexRange(uint32_t start, uint32_t end) : mStart(start), mEnd(end) { ASSERT(mStart <= mEnd); }
     bool isEmpty() const { return mStart > mEnd; }
     uint32_t start() const
     {
@@ -896,6 +893,7 @@ struct IndexRange
         // Note: unsigned underflow ok on isEmpty() == true.
         return static_cast<size_t>(mEnd) - mStart + 1u;
     }
+
   private:
     uint32_t mStart{1};
     uint32_t mEnd{0};
@@ -1584,12 +1582,8 @@ inline uint16_t RotR16(uint16_t x, int8_t r)
 #    define ANGLE_ROTL64(x, y) ::rx::RotL64(x, y)
 #    define ANGLE_ROTR16(x, y) ::rx::RotR16(x, y)
 
-#endif  // namespace rx
+#endif  // defined(_MSC_VER)
 
-constexpr unsigned int Log2(unsigned int bytes)
-{
-    return bytes == 1 ? 0 : (1 + Log2(bytes / 2));
-}
 }  // namespace rx
 
 #endif  // COMMON_MATHUTIL_H_

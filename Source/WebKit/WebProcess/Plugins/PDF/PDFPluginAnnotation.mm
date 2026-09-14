@@ -34,11 +34,11 @@
 #import "PDFPluginTextAnnotation.h"
 #import <CoreGraphics/CoreGraphics.h>
 #import <PDFKit/PDFKit.h>
-#import <WebCore/AddEventListenerOptionsInlines.h>
 #import <WebCore/CSSPrimitiveValue.h>
 #import <WebCore/CSSPropertyNames.h>
 #import <WebCore/DocumentEventLoop.h>
 #import <WebCore/DocumentView.h>
+#import <WebCore/ElementInlines.h>
 #import <WebCore/Event.h>
 #import <WebCore/EventLoop.h>
 #import <WebCore/EventNames.h>
@@ -78,12 +78,12 @@ void PDFPluginAnnotation::attach(Element* parent)
     if (!element->hasClass())
         element->setAttributeWithoutSynchronization(classAttr, "annotation"_s);
     element->setAttributeWithoutSynchronization(x_apple_pdf_annotationAttr, "true"_s);
-    element->addEventListener(eventNames().changeEvent, *m_eventListener, false);
-    element->addEventListener(eventNames().blurEvent, *m_eventListener, false);
+    element->addEventListener(eventNames().changeEvent, *m_eventListener);
+    element->addEventListener(eventNames().blurEvent, *m_eventListener);
 
     updateGeometry();
 
-    RefPtr { m_parent.get() }->appendChild(element);
+    protect(m_parent.get())->appendChild(element);
 
     // FIXME: The text cursor doesn't blink after this. Why?
     element->focus();
@@ -97,12 +97,12 @@ void PDFPluginAnnotation::commit()
 PDFPluginAnnotation::~PDFPluginAnnotation()
 {
     Ref element = *m_element;
-    element->removeEventListener(eventNames().changeEvent, *m_eventListener, false);
-    element->removeEventListener(eventNames().blurEvent, *m_eventListener, false);
+    element->removeEventListener(eventNames().changeEvent, *m_eventListener, { .capture = false });
+    element->removeEventListener(eventNames().blurEvent, *m_eventListener, { .capture = false });
 
     m_eventListener->setAnnotation(nullptr);
 
-    element->protectedDocument()->checkedEventLoop()->queueTask(TaskSource::InternalAsyncTask, [weakElement = WeakPtr<Node, WeakPtrImplWithEventTargetData> { element.get() }]() {
+    protect(protect(element->document())->eventLoop())->queueTask(TaskSource::InternalAsyncTask, [weakElement = WeakPtr<Node, WeakPtrImplWithEventTargetData> { element.get() }]() {
         if (RefPtr element = weakElement.get())
             element->remove();
     });

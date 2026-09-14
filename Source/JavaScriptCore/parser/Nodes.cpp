@@ -28,6 +28,8 @@
 #include "NodeConstructors.h"
 
 #include "ExecutableInfo.h"
+#include "IdentifierInlines.h"
+#include "JSCJSValueInlines.h"
 #include "ModuleScopeData.h"
 #include <wtf/Assertions.h>
 
@@ -84,7 +86,7 @@ bool SourceElements::hasCompletionValue() const
 bool SourceElements::hasEarlyBreakOrContinue() const
 {
     for (StatementNode* statement = m_head; statement; statement = statement->next()) {
-        if (statement->isBreak() || statement->isContinue())
+        if (statement->hasEarlyBreakOrContinue())
             return true;
         if (statement->hasCompletionValue())
             return false;
@@ -107,12 +109,12 @@ StatementNode* BlockNode::singleStatement() const
 
 bool BlockNode::hasCompletionValue() const
 {
-    return m_statements ? m_statements->hasCompletionValue() : false;
+    return m_statements && m_statements->hasCompletionValue();
 }
 
 bool BlockNode::hasEarlyBreakOrContinue() const
 {
-    return m_statements ? m_statements->hasEarlyBreakOrContinue() : false;
+    return m_statements && m_statements->hasEarlyBreakOrContinue();
 }
 
 // ------------------------------ ScopeNode -----------------------------
@@ -155,12 +157,12 @@ StatementNode* ScopeNode::singleStatement() const
 
 bool ScopeNode::hasCompletionValue() const
 {
-    return m_statements ? m_statements->hasCompletionValue() : false;
+    return m_statements && m_statements->hasCompletionValue();
 }
 
 bool ScopeNode::hasEarlyBreakOrContinue() const
 {
-    return m_statements ? m_statements->hasEarlyBreakOrContinue() : false;
+    return m_statements && m_statements->hasEarlyBreakOrContinue();
 }
 
 // ------------------------------ ProgramNode -----------------------------

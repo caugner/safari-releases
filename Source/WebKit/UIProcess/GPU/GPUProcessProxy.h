@@ -88,7 +88,7 @@ class GPUProcessProxy final : public AuxiliaryProcessProxy {
 public:
     static void keepProcessAliveTemporarily();
     static Ref<GPUProcessProxy> getOrCreate();
-    static GPUProcessProxy* singletonIfCreated();
+    static GPUProcessProxy* NODELETE singletonIfCreated();
     ~GPUProcessProxy();
 
     void createGPUProcessConnection(WebProcessProxy&, IPC::Connection::Handle&&, GPUProcessConnectionParameters&&);
@@ -154,10 +154,6 @@ public:
     bool isMetalShaderValidationEnabledForTesting() const { return m_isMetalShaderValidationEnabledForTesting; }
 #endif
 
-#if ENABLE(VIDEO)
-    void requestBitmapImageForCurrentTime(WebCore::ProcessIdentifier, WebCore::MediaPlayerIdentifier, CompletionHandler<void(std::optional<WebCore::ShareableBitmap::Handle>&&)>&&);
-#endif
-
 #if PLATFORM(COCOA) && ENABLE(REMOTE_INSPECTOR)
     bool hasSentGPUToolsSandboxExtensions() const { return m_hasSentGPUToolsSandboxExtensions; }
     static Vector<SandboxExtensionHandle> createGPUToolsSandboxExtensionHandlesIfNeeded();
@@ -168,9 +164,14 @@ public:
 #endif
 
 #if PLATFORM(VISION) && ENABLE(MODEL_PROCESS)
+#if HAVE(CORE_RE)
     void requestSharedSimulationConnection(audit_token_t, CompletionHandler<void(std::optional<IPC::SharedFileHandle>)>&&);
+#endif
+
+#if HAVE(TASK_IDENTITY_TOKEN)
     void createMemoryAttributionIDForTask(WebCore::ProcessIdentity, CompletionHandler<void(const std::optional<String>&)>&&);
     void unregisterMemoryAttributionID(const String&, CompletionHandler<void()>&&);
+#endif
 #endif
 
 #if PLATFORM(COCOA)
@@ -198,7 +199,6 @@ private:
     void gpuProcessExited(ProcessTerminationReason);
 
     // ProcessThrottlerClient
-    ASCIILiteral clientName() const final { return "GPUProcess"_s; }
     void sendPrepareToSuspend(IsSuspensionImminent, double remainingRunTime, CompletionHandler<void()>&&) final;
     void sendProcessDidResume(ResumeReason) final;
 
@@ -256,9 +256,6 @@ private:
     bool m_isMetalShaderValidationEnabledForTesting { false };
 #endif
 
-#if HAVE(SCREEN_CAPTURE_KIT)
-    bool m_hasEnabledScreenCaptureKit { false };
-#endif
     static std::optional<GPUProcessMediaCodecCapabilities> s_gpuProcessMediaCodecCapabilities;
 #if PLATFORM(COCOA)
     static bool s_enableMetalDebugDeviceInNewGPUProcessesForTesting;

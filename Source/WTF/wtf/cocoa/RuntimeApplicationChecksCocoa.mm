@@ -62,7 +62,7 @@ static bool linkedBefore(dyld_build_version_t version, uint32_t fallbackIOSVersi
 #if USE(APPLE_INTERNAL_SDK) && __has_include(<WebKitAdditions/RuntimeApplicationChecksCocoaAdditions.cpp>)
 #import <WebKitAdditions/RuntimeApplicationChecksCocoaAdditions.cpp>
 #else
-static void disableAdditionalSDKAlignedBehaviors(SDKAlignedBehaviors&)
+static void NODELETE disableAdditionalSDKAlignedBehaviors(SDKAlignedBehaviors&)
 {
 }
 #endif
@@ -242,19 +242,21 @@ static SDKAlignedBehaviors computeSDKAlignedBehaviors()
     if (linkedBefore(dyld_2025_SU_B_os_versions, DYLD_IOS_VERSION_26_1, DYLD_MACOSX_VERSION_26_1))
         disableBehavior(SDKAlignedBehavior::GetBoundingClientRectZoomed);
 
+    if (linkedBefore(dyld_fall_2026_os_versions, DYLD_IOS_VERSION_27_0, DYLD_MACOSX_VERSION_27_0)) {
+        disableBehavior(SDKAlignedBehavior::IgnorePageLocationDuringHardPocketEligibilityCheck);
+        disableBehavior(SDKAlignedBehavior::ScrollPocketInFullscreen);
+    }
+
     // This should be disabled unconditionally until WTF::String is made thread-safe. See the comment in UserScript.cpp.
     // It's only enabled for clients that purposely enable all LOOA checks.
     disableBehavior(SDKAlignedBehavior::EnableUserScriptAndUserStyleInterning);
-
-    if (linkedBefore(dyld_2025_SU_G_os_versions, DYLD_IOS_VERSION_26_6, DYLD_MACOSX_VERSION_26_6))
-        disableBehavior(SDKAlignedBehavior::NetworkProcessInheritsNetworkAccessFromUIProcess);
 
     disableAdditionalSDKAlignedBehaviors(behaviors);
 
     return behaviors;
 }
 
-static std::optional<SDKAlignedBehaviors>& sdkAlignedBehaviorsValue()
+static std::optional<SDKAlignedBehaviors>& NODELETE sdkAlignedBehaviorsValue()
 {
     static NeverDestroyed<std::optional<SDKAlignedBehaviors>> behaviors;
     return behaviors.get();
@@ -296,7 +298,7 @@ bool linkedOnOrAfterSDKWithBehavior(SDKAlignedBehavior behavior)
     return sdkAlignedBehaviors().get(static_cast<size_t>(behavior));
 }
 
-static bool& processIsExtensionValue()
+static bool& NODELETE processIsExtensionValue()
 {
     static bool processIsExtension;
     return processIsExtension;
@@ -318,7 +320,7 @@ static bool applicationBundleIdentifierOverrideWasQueried;
 
 // The application bundle identifier gets set to the UIProcess bundle identifier by the WebProcess and
 // the Networking upon initialization. It is unset otherwise.
-static String& bundleIdentifierOverride()
+static String& NODELETE bundleIdentifierOverride()
 {
     static NeverDestroyed<String> identifierOverride;
 #if !ASSERT_MSG_DISABLED
@@ -327,7 +329,7 @@ static String& bundleIdentifierOverride()
     return identifierOverride;
 }
 
-static String& bundleIdentifier()
+static String& NODELETE bundleIdentifier()
 {
     static NeverDestroyed<String> identifier;
     return identifier;
@@ -432,7 +434,11 @@ bool CocoaApplication::shouldOSFaultLogForAppleApplicationUsingWebKit1()
             return false;
         if (applicationBundleIsEqualTo("com.apple.WebKit.TestWebKitAPI"_s))
             return false;
+        if (applicationBundleIsEqualTo("com.apple.dt.Xcode"_s))
+            return false;
         if (applicationBundleIsEqualTo("com.apple.ibtool"_s))
+            return false;
+        if (applicationBundleIsEqualTo("com.apple.xctest"_s))
             return false;
         if (CocoaApplication::isDumpRenderTree())
             return false;
@@ -511,6 +517,12 @@ bool MacApplication::isMimeoPhotoProject()
 {
     static bool isMimeoPhotoProject = applicationBundleIsEqualTo("com.mimeo.Mimeo.PhotoProject"_s);
     return isMimeoPhotoProject;
+}
+
+bool MacApplication::isGridLegends()
+{
+    static bool isGridLegends = applicationBundleIsEqualTo("com.feralinteractive.gridlegends"_s);
+    return isGridLegends;
 }
 
 #endif // PLATFORM(MAC)
@@ -647,6 +659,18 @@ bool IOSApplication::isTableau()
 {
     static bool isTableau = applicationBundleIdentifier().startsWith("com.tableausoftware"_s);
     return isTableau;
+}
+
+bool IOSApplication::isTubular()
+{
+    static bool isTubular = applicationBundleIdentifier().startsWith("com.aaronbrannan.youtubeAVP"_s);
+    return isTubular;
+}
+
+bool IOSApplication::isLensApp()
+{
+    static bool isLensApp = applicationBundleIsEqualTo("com.float.lens"_s);
+    return isLensApp;
 }
 
 #endif // PLATFORM(IOS_FAMILY)

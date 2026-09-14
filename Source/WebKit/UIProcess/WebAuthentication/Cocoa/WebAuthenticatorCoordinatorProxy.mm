@@ -29,6 +29,7 @@
 #import "config.h"
 #import "WebAuthenticatorCoordinatorProxy.h"
 
+#import "APIPageConfiguration.h"
 #import "APIUIClient.h"
 #import "ArgumentCoders.h"
 #import "LocalService.h"
@@ -127,7 +128,7 @@ static inline RefPtr<ArrayBuffer> toArrayBufferNilIfEmpty(NSData *data)
     return ArrayBuffer::create(span(data));
 }
 
-static inline ExceptionCode toExceptionCode(NSInteger nsErrorCode)
+static inline ExceptionCode NODELETE toExceptionCode(NSInteger nsErrorCode)
 {
     ExceptionCode exceptionCode = (ExceptionCode)nsErrorCode;
 
@@ -572,7 +573,7 @@ inline static Vector<AuthenticatorTransport> toTransports(NSArray<ASAuthorizatio
     return transports;
 }
 
-static inline AuthenticatorAttachment fromASAuthorizationPublicKeyCredentialAttachment(ASAuthorizationPublicKeyCredentialAttachment attachment)
+static inline AuthenticatorAttachment NODELETE fromASAuthorizationPublicKeyCredentialAttachment(ASAuthorizationPublicKeyCredentialAttachment attachment)
 {
     if (attachment == ASAuthorizationPublicKeyCredentialAttachmentPlatform)
         return AuthenticatorAttachment::Platform;
@@ -583,9 +584,14 @@ static inline AuthenticatorAttachment fromASAuthorizationPublicKeyCredentialAtta
 
 void WebAuthenticatorCoordinatorProxy::performRequest(WebAuthenticationRequestData &&requestData, RequestCompletionHandler &&handler)
 {
+    if (m_webPageProxy->configuration().backgroundTextExtractionEnabled()) {
+        handler(WebCore::AuthenticatorResponseData { }, AuthenticatorAttachment::Platform, { ExceptionCode::NotAllowedError, @"" });
+        return;
+    }
+
 #if HAVE(UNIFIED_ASC_AUTH_UI)
     RefPtr webPageProxy = m_webPageProxy.get();
-    if (!webPageProxy || !webPageProxy->protectedPreferences()->webAuthenticationASEnabled()) {
+    if (!webPageProxy || !protect(webPageProxy->preferences())->webAuthenticationASEnabled()) {
         auto context = contextForRequest(WTF::move(requestData));
         if (context.get() == nullptr) {
             handler({ }, (AuthenticatorAttachment)0, ExceptionData { ExceptionCode::NotAllowedError, "The origin of the document is not the same as its ancestors."_s });
@@ -667,7 +673,7 @@ void WebAuthenticatorCoordinatorProxy::performRequest(WebAuthenticationRequestDa
                     if (credential.get().prf.second)
                         second = toArrayBuffer(retainPtr(credential.get().prf.second).get());
                     if (first)
-                        extensionOutputs.prf = { credential.get().prf.isSupported, { { first, second } } };
+                        extensionOutputs.prf = { credential.get().prf.isSupported, { { first.releaseNonNull(), WTF::move(second) } } };
                     else
                         extensionOutputs.prf = { credential.get().prf.isSupported, std::nullopt };
                 }
@@ -702,7 +708,7 @@ void WebAuthenticatorCoordinatorProxy::performRequest(WebAuthenticationRequestDa
                     RefPtr<ArrayBuffer> second = nullptr;
                     if (credential.get().prf.second)
                         second = toArrayBuffer(retainPtr(credential.get().prf.second).get());
-                    extensionOutputs.prf = { std::nullopt, { { first, second } } };
+                    extensionOutputs.prf = { std::nullopt, { { first.releaseNonNull(), WTF::move(second) } } };
                 }
 #endif
 
@@ -725,7 +731,7 @@ void WebAuthenticatorCoordinatorProxy::performRequest(WebAuthenticationRequestDa
                     if (credential.get().prf.second)
                         second = toArrayBuffer(retainPtr(credential.get().prf.second).get());
                     if (first)
-                        extensionOutputs.prf = { credential.get().prf.isSupported, { { first, second } } };
+                        extensionOutputs.prf = { credential.get().prf.isSupported, { { first.releaseNonNull(), WTF::move(second) } } };
                     else
                         extensionOutputs.prf = { credential.get().prf.isSupported, std::nullopt };
                 }
@@ -755,7 +761,7 @@ void WebAuthenticatorCoordinatorProxy::performRequest(WebAuthenticationRequestDa
                     RefPtr<ArrayBuffer> second = nullptr;
                     if (credential.get().prf.second)
                         second = toArrayBuffer(retainPtr(credential.get().prf.second).get());
-                    extensionOutputs.prf = { std::nullopt, { { first, second } } };
+                    extensionOutputs.prf = { std::nullopt, { { first.releaseNonNull(), WTF::move(second) } } };
                 }
 #endif
 
@@ -883,7 +889,7 @@ static inline void setGlobalFrameIDForContext(RetainPtr<ASCCredentialRequestCont
     }
 }
 
-static inline ASPublicKeyCredentialResidentKeyPreference toASCResidentKeyPreference(std::optional<ResidentKeyRequirement> requirement, bool requireResidentKey)
+static inline ASPublicKeyCredentialResidentKeyPreference NODELETE toASCResidentKeyPreference(std::optional<ResidentKeyRequirement> requirement, bool requireResidentKey)
 {
     if (!requirement)
         return requireResidentKey ? ASPublicKeyCredentialResidentKeyPreferenceRequired : ASPublicKeyCredentialResidentKeyPreferenceNotPresent;
@@ -1238,6 +1244,7 @@ void WebAuthenticatorCoordinatorProxy::performRequestLegacy(RetainPtr<ASCCredent
     if (!webPageProxy) {
         RELEASE_LOG_ERROR(WebAuthn, "WebPageProxy had been released");
         handler({ }, (AuthenticatorAttachment)0, ExceptionData { ExceptionCode::NotAllowedError, "Operation failed."_s });
+        return;
     }
 
     if (RefPtr pageClient = webPageProxy->pageClient())
@@ -1328,6 +1335,11 @@ void WebAuthenticatorCoordinatorProxy::getClientCapabilities(const WebCore::Secu
 
 void WebAuthenticatorCoordinatorProxy::isUserVerifyingPlatformAuthenticatorAvailable(const SecurityOriginData& data, QueryCompletionHandler&& handler)
 {
+    if (m_webPageProxy->configuration().backgroundTextExtractionEnabled()) {
+        handler(false);
+        return;
+    }
+
     getCanCurrentProcessAccessPasskeyForRelyingParty(data, [handler = WTF::move(handler), data](bool canAccessPasskeyData) mutable {
         if (!canAccessPasskeyData) {
             handler(false);

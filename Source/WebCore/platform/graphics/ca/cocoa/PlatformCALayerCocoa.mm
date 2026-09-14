@@ -76,7 +76,7 @@ namespace WebCore {
 using LayerToPlatformCALayerMap = HashMap<void*, PlatformCALayer*>;
 
 static Lock layerToPlatformLayerMapLock;
-static LayerToPlatformCALayerMap& layerToPlatformLayerMap() WTF_REQUIRES_LOCK(layerToPlatformLayerMapLock)
+static LayerToPlatformCALayerMap& NODELETE layerToPlatformLayerMap() WTF_REQUIRES_LOCK(layerToPlatformLayerMapLock)
 {
     static NeverDestroyed<LayerToPlatformCALayerMap> layerMap;
     return layerMap;
@@ -139,11 +139,11 @@ static MonotonicTime mediaTimeToCurrentTime(CFTimeInterval t)
     } else
         startTime = mediaTimeToCurrentTime([animation beginTime]);
 
-    CALayer *layer = owner->platformLayer();
+    RetainPtr layer = owner->platformLayer();
 
     String animationKey;
-    for (NSString *key in [layer animationKeys]) {
-        if ([layer animationForKey:key] == animation) {
+    for (NSString *key in [layer.get() animationKeys]) {
+        if ([layer.get() animationForKey:key] == animation) {
             animationKey = key;
             break;
         }
@@ -163,12 +163,12 @@ static MonotonicTime mediaTimeToCurrentTime(CFTimeInterval t)
     RefPtr owner = m_owner.get();
     if (!owner)
         return;
-    
-    CALayer *layer = owner->platformLayer();
+
+    RetainPtr layer = owner->platformLayer();
 
     String animationKey;
-    for (NSString *key in [layer animationKeys]) {
-        if ([layer animationForKey:key] == animation) {
+    for (NSString *key in [layer.get() animationKeys]) {
+        if ([layer.get() animationForKey:key] == animation) {
             animationKey = key;
             break;
         }
@@ -196,7 +196,7 @@ void PlatformCALayerCocoa::setOwner(PlatformCALayerClient* owner)
         [static_cast<WebAnimationDelegate*>(m_delegate.get()) setOwner:this];        
 }
 
-static NSString *toCAFilterType(PlatformCALayer::FilterType type)
+static NSString *NODELETE toCAFilterType(PlatformCALayer::FilterType type)
 {
     switch (type) {
     case PlatformCALayer::FilterType::Linear: return kCAFilterLinear;
@@ -325,8 +325,8 @@ void PlatformCALayerCocoa::commonInit()
         [m_layer setValue:@YES forKey:@"isTile"];
 
     if (usesTiledBackingLayer()) {
-        WebTiledBackingLayer* tiledBackingLayer = static_cast<WebTiledBackingLayer*>(m_layer.get());
-        TileController* tileController = [tiledBackingLayer createTileController:this];
+        RetainPtr tiledBackingLayer = static_cast<WebTiledBackingLayer*>(m_layer.get());
+        CheckedPtr tileController = [tiledBackingLayer.get() createTileController:this];
 
         m_customSublayers = makeUnique<PlatformCALayerList>(tileController->containerLayers());
     }
@@ -393,12 +393,12 @@ Ref<PlatformCALayer> PlatformCALayerCocoa::clone(PlatformCALayerClient* owner) c
     if (type == PlatformCALayer::LayerType::LayerTypeAVPlayerLayer) {
         ASSERT(PAL::isAVFoundationFrameworkAvailable() && [newLayer->platformLayer() isKindOfClass:PAL::getAVPlayerLayerClassSingleton()]);
 
-        AVPlayerLayer *destinationPlayerLayer = newLayer->avPlayerLayer();
-        AVPlayerLayer *sourcePlayerLayer = avPlayerLayer();
+        RetainPtr destinationPlayerLayer = newLayer->avPlayerLayer();
+        RetainPtr sourcePlayerLayer = avPlayerLayer();
         ASSERT(sourcePlayerLayer);
 
-        RunLoop::mainSingleton().dispatch([destinationPlayerLayer = retainPtr(destinationPlayerLayer), sourcePlayerLayer = retainPtr(sourcePlayerLayer)] {
-            [destinationPlayerLayer setPlayer:[sourcePlayerLayer player]];
+        RunLoop::mainSingleton().dispatch([destinationPlayerLayer, sourcePlayerLayer] {
+            [destinationPlayerLayer.get() setPlayer:[sourcePlayerLayer.get() player]];
         });
     }
     
@@ -465,9 +465,9 @@ bool PlatformCALayerCocoa::needsDisplay() const
 void PlatformCALayerCocoa::copyContentsFromLayer(PlatformCALayer* layer)
 {
     BEGIN_BLOCK_OBJC_EXCEPTIONS
-    CALayer* caLayer = layer->m_layer.get();
-    if ([m_layer contents] != [caLayer contents])
-        [m_layer setContents:[caLayer contents]];
+    RetainPtr caLayer = layer->m_layer.get();
+    if ([m_layer contents] != [caLayer.get() contents])
+        [m_layer setContents:[caLayer.get() contents]];
     else
         [m_layer reloadValueForKeyPath:@"contents"];
     END_BLOCK_OBJC_EXCEPTIONS
@@ -561,13 +561,13 @@ void PlatformCALayerCocoa::addAnimationForKey(const String& key, PlatformCAAnima
         [webAnimationDelegate setOwner:this];
         m_delegate = WTF::move(webAnimationDelegate);
     }
-    
-    CAAnimation *propertyAnimation = static_cast<CAAnimation *>(downcast<PlatformCAAnimationCocoa>(animation).platformAnimation());
-    if (![propertyAnimation delegate])
-        [propertyAnimation setDelegate:static_cast<id>(m_delegate.get())];
+
+    RetainPtr propertyAnimation = static_cast<CAAnimation *>(downcast<PlatformCAAnimationCocoa>(animation).platformAnimation());
+    if (![propertyAnimation.get() delegate])
+        [propertyAnimation.get() setDelegate:static_cast<id>(m_delegate.get())];
 
     BEGIN_BLOCK_OBJC_EXCEPTIONS
-    [m_layer addAnimation:propertyAnimation forKey:key.createNSString().get()];
+    [m_layer addAnimation:propertyAnimation.get() forKey:key.createNSString().get()];
     END_BLOCK_OBJC_EXCEPTIONS
 }
 
@@ -580,19 +580,19 @@ void PlatformCALayerCocoa::removeAnimationForKey(const String& key)
 
 RefPtr<PlatformCAAnimation> PlatformCALayerCocoa::animationForKey(const String& key)
 {
-    CAAnimation *propertyAnimation = static_cast<CAAnimation *>([m_layer animationForKey:key.createNSString().get()]);
+    RetainPtr propertyAnimation = static_cast<CAAnimation *>([m_layer animationForKey:key.createNSString().get()]);
     if (!propertyAnimation)
         return nullptr;
-    return PlatformCAAnimationCocoa::create(propertyAnimation);
+    return PlatformCAAnimationCocoa::create(propertyAnimation.get());
 }
 
 void PlatformCALayerCocoa::setMaskLayer(RefPtr<WebCore::PlatformCALayer>&& layer)
 {
-    auto* caLayer = layer ? layer->platformLayer() : nil;
+    RetainPtr caLayer = layer ? layer->platformLayer() : nil;
     PlatformCALayer::setMaskLayer(WTF::move(layer));
 
     BEGIN_BLOCK_OBJC_EXCEPTIONS
-    [m_layer setMask:caLayer];
+    [m_layer setMask:caLayer.get()];
     END_BLOCK_OBJC_EXCEPTIONS
 }
 
@@ -845,7 +845,7 @@ void PlatformCALayerCocoa::setContents(CFTypeRef value)
 
 void PlatformCALayerCocoa::setDelegatedContents(const PlatformCALayerInProcessDelegatedContents& contents)
 {
-    if (!contents.finishedFence || contents.finishedFence->waitFor(delegatedContentsFinishedTimeout))
+    if (!contents.finishedFence || protect(contents.finishedFence)->waitFor(delegatedContentsFinishedTimeout))
         setContents(contents.surface.asLayerContents());
 }
 
@@ -935,15 +935,10 @@ bool PlatformCALayerCocoa::filtersCanBeComposited(const FilterOperations& filter
     for (unsigned i = 0; i < filters.size(); ++i) {
         const FilterOperation* filterOperation = filters.at(i);
         switch (filterOperation->type()) {
-        case FilterOperation::Type::Reference:
-            return false;
         case FilterOperation::Type::DropShadow:
             // FIXME: For now we can only handle drop-shadow is if it's last in the list
             if (i < (filters.size() - 1))
                 return false;
-            break;
-        case FilterOperation::Type::DropShadowWithStyleColor:
-            ASSERT_NOT_REACHED();
             break;
         default:
             break;
@@ -1199,8 +1194,8 @@ void PlatformCALayerCocoa::updateContentsFormat()
         BEGIN_BLOCK_OBJC_EXCEPTIONS
         auto contentsFormat = this->contentsFormat();
 
-        if (NSString *formatString = contentsFormatString(contentsFormat))
-            [m_layer setContentsFormat:formatString];
+        if (RetainPtr formatString = contentsFormatString(contentsFormat))
+            [m_layer setContentsFormat:formatString.get()];
 #if ENABLE(PIXEL_FORMAT_RGBA16F)
         if (contentsFormat == ContentsFormat::RGBA16F) {
             ALLOW_DEPRECATED_DECLARATIONS_BEGIN
@@ -1218,8 +1213,8 @@ TiledBacking* PlatformCALayerCocoa::tiledBacking()
     if (!usesTiledBackingLayer())
         return nullptr;
 
-    WebTiledBackingLayer *tiledBackingLayer = static_cast<WebTiledBackingLayer *>(m_layer.get());
-    return [tiledBackingLayer tiledBacking];
+    RetainPtr tiledBackingLayer = static_cast<WebTiledBackingLayer *>(m_layer.get());
+    return [tiledBackingLayer.get() tiledBacking];
 }
 
 #if PLATFORM(IOS_FAMILY)
@@ -1356,20 +1351,20 @@ Ref<PlatformCALayer> PlatformCALayerCocoa::createCompatibleLayer(PlatformCALayer
 
 void PlatformCALayerCocoa::enumerateRectsBeingDrawn(GraphicsContext& context, void (^block)(FloatRect))
 {
-    CGSRegionObj region = (CGSRegionObj)[m_layer regionBeingDrawn];
+    RetainPtr region = (CGSRegionObj)[m_layer regionBeingDrawn];
     if (!region) {
         block(context.clipBounds());
         return;
     }
 
     CGAffineTransform inverseTransform = CGAffineTransformInvert(context.getCTM());
-    CGSRegionEnumeratorObj enumerator = CGSRegionEnumerator(region);
+    CGSRegionEnumeratorObj enumerator = CGSRegionEnumerator(region.get());
     const CGRect* nextRect;
     while ((nextRect = CGSNextRect(enumerator))) {
         CGRect rectToDraw = CGRectApplyAffineTransform(*nextRect, inverseTransform);
         block(rectToDraw);
     }
-    
+
     CGSReleaseRegionEnumerator(enumerator);
 }
 
@@ -1389,8 +1384,8 @@ AVPlayerLayer *PlatformCALayerCocoa::avPlayerLayer() const
     if ([platformLayer() isKindOfClass:PAL::getAVPlayerLayerClassSingleton()])
         return static_cast<AVPlayerLayer *>(platformLayer());
 
-    if (auto *layer = dynamic_objc_cast<WebVideoContainerLayer>(platformLayer()))
-        return layer.playerLayer;
+    if (RetainPtr layer = dynamic_objc_cast<WebVideoContainerLayer>(platformLayer()))
+        return layer.get().playerLayer;
 
     ASSERT_NOT_REACHED();
     return nil;

@@ -59,15 +59,23 @@ private:
 
     // RiceBackend (Web -> Network)
     void resolveAddress(const String&, WebCore::RiceBackend::ResolveAddressCallback&&) final;
+
+    WebCore::ExceptionOr<String> resolveAddressSync(const String&) final;
+
     void send(unsigned, WebCore::RTCIceProtocol, String&&, String&&, WebCore::SharedMemory::Handle&&) final;
-    Vector<String> gatherSocketAddresses(unsigned) final;
+    WebCore::RiceGatherResult gatherSocketAddresses(WebCore::ScriptExecutionContextIdentifier, unsigned, unsigned, unsigned) final;
+
     void finalizeStream(unsigned) final;
+    void setSocketTypeOfService(unsigned, unsigned) final;
+    void allocateSocket(unsigned, unsigned, WebCore::RTCIceProtocol, String&&, String&&) final;
+    void removeSocket(unsigned, unsigned, WebCore::RTCIceProtocol, String&&, String&&) final;
 
     void refRiceBackend() final { ref(); }
     void derefRiceBackend() final { deref(); }
 
     // RiceBackendClient (Network -> Web)
     void notifyIncomingData(unsigned, WebCore::RTCIceProtocol, String&&, String&&, WebCore::SharedMemory::Handle&&);
+    void allocatedSocket(unsigned, unsigned, WebCore::RTCIceProtocol, String&&, String&&, String&&);
 
     // MessageSender
     IPC::Connection* messageSenderConnection() const final;

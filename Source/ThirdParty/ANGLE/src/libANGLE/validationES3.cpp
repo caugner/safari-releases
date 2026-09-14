@@ -354,45 +354,11 @@ bool ValidateTexImageFormatCombination(const Context *context,
     return true;
 }
 
-static bool ValidateES3CompressedFormatForTexture2DArray(const Context *context,
-                                                         angle::EntryPoint entryPoint,
-                                                         GLenum format)
-{
-    if ((IsETC1Format(format) && !context->getExtensions().compressedETC1RGB8SubTextureEXT) ||
-        IsPVRTC1Format(format))
-    {
-        ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kInternalFormatRequiresTexture2D);
-        return false;
-    }
-
-    return true;
-}
-
-static bool ValidCompressedFormatForTexture3D(GLenum format, const Extensions &extensions)
-{
-    if (IsASTC2DFormat(format))
-    {
-        return extensions.textureCompressionAstcHdrKHR ||
-               extensions.textureCompressionAstcSliced3dKHR;
-    }
-
-    if (IsASTC3DFormat(format) || IsBPTCFormat(format))
-    {
-        return true;
-    }
-
-    // All other compressed formats are specified to not support 3D textures.
-    ASSERT((IsS3TCFormat(format) || IsRGTCFormat(format)) ||
-           (IsETC1Format(format) || IsETC2EACFormat(format)) || IsPVRTC1Format(format));
-    return false;
-}
-
 bool ValidateES3TexImageParametersBase(const Context *context,
                                        angle::EntryPoint entryPoint,
                                        TextureTarget target,
                                        GLint level,
                                        GLenum internalformat,
-                                       bool isCompressed,
                                        bool isSubImage,
                                        GLint xoffset,
                                        GLint yoffset,
@@ -596,102 +562,6 @@ bool ValidateES3TexImageParametersBase(const Context *context,
     const InternalFormat &actualFormatInfo = isSubImage
                                                  ? *texture->getFormat(target, level).info
                                                  : GetInternalFormatInfo(internalformat, type);
-    if (isCompressed)
-    {
-        // compressedTexSubImage does not generate GL_INVALID_ENUM when format is unknown or invalid
-        if (!isSubImage)
-        {
-            if (!actualFormatInfo.compressed && !actualFormatInfo.paletted)
-            {
-                ANGLE_VALIDATION_ERROR(GL_INVALID_ENUM, kCompressedMismatch);
-                return false;
-            }
-
-            if (!actualFormatInfo.textureSupport(context->getClientVersion(),
-                                                 context->getExtensions()))
-            {
-                ANGLE_VALIDATION_ERROR(GL_INVALID_ENUM, kInvalidFormat);
-                return false;
-            }
-        }
-
-        if (texType == TextureType::_2DArray)
-        {
-            GLenum compressedDataFormat = isSubImage ? format : internalformat;
-            if (!ValidateES3CompressedFormatForTexture2DArray(context, entryPoint,
-                                                              compressedDataFormat))
-            {
-                // Error already generated.
-                return false;
-            }
-        }
-        else if (texType == TextureType::_3D)
-        {
-            GLenum compressedDataFormat = isSubImage ? format : internalformat;
-            if (!ValidCompressedFormatForTexture3D(compressedDataFormat, context->getExtensions()))
-            {
-                ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kInternalFormatNotSupportedTexture3D);
-                return false;
-            }
-        }
-
-        if (isSubImage)
-        {
-            if (!ValidCompressedSubImageSize(
-                    context, actualFormatInfo.internalFormat, xoffset, yoffset, zoffset, width,
-                    height, depth, texture->getWidth(target, level),
-                    texture->getHeight(target, level), texture->getDepth(target, level)))
-            {
-                ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kInvalidCompressedImageSize);
-                return false;
-            }
-
-            if (format != actualInternalFormat)
-            {
-                ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kMismatchedFormat);
-                return false;
-            }
-
-            // GL_EXT_compressed_ETC1_RGB8_sub_texture allows this format
-            if (IsETC1Format(actualInternalFormat) &&
-                !context->getExtensions().compressedETC1RGB8SubTextureEXT)
-            {
-                ANGLE_VALIDATION_ERRORF(GL_INVALID_OPERATION, kInvalidInternalFormat,
-                                        internalformat);
-                return false;
-            }
-        }
-        else
-        {
-            if (actualFormatInfo.compressed)
-            {
-                if (!ValidCompressedImageSize(context, actualInternalFormat, level, width, height,
-                                              depth))
-                {
-                    ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kInvalidCompressedImageSize);
-                    return false;
-                }
-            }
-            else
-            {
-                ASSERT(actualFormatInfo.paletted);
-                // TODO(http://anglebug.com/42266155): multi-level paletted images
-                if (level != 0)
-                {
-                    UNIMPLEMENTED();
-                    return false;
-                }
-            }
-        }
-
-        // Disallow 3D-only compressed formats from being set on 2D textures
-        if (actualFormatInfo.compressedBlockDepth > 1 && texType != TextureType::_3D)
-        {
-            ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kInvalidTextureTarget);
-            return false;
-        }
-    }
-    else
     {
         // Compressed formats are not valid internal formats for glTexImage*D
         if (!isSubImage)
@@ -714,7 +584,7 @@ bool ValidateES3TexImageParametersBase(const Context *context,
     // Validate sub image parameters
     if (isSubImage)
     {
-        if (isCompressed != actualFormatInfo.compressed)
+        if (actualFormatInfo.compressed)
         {
             ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kCompressedMismatch);
             return false;
@@ -783,7 +653,6 @@ bool ValidateES3TexImageParametersBase(const Context *context,
         // ...data is not evenly divisible into the number of bytes needed to store in memory a
         // datum
         // indicated by type.
-        if (!isCompressed)
         {
             size_t offset            = reinterpret_cast<size_t>(pixels);
             size_t dataBytesPerPixel = static_cast<size_t>(GetTypeInfo(type).bytes);
@@ -803,7 +672,7 @@ bool ValidateES3TexImageParametersBase(const Context *context,
         }
     }
 
-    if (context->getExtensions().webglCompatibilityANGLE)
+    if (context->isWebGL() || context->isHardenedContext())
     {
         // Define:
         //   DataStoreWidth  = (GL_UNPACK_ROW_LENGTH ? GL_UNPACK_ROW_LENGTH : width)
@@ -836,6 +705,7 @@ bool ValidateES3TexImageParametersBase(const Context *context,
             }
             if (target == TextureTarget::_3D || target == TextureTarget::_2DArray)
             {
+                // Note that CubeMapArray is not supported as a texture target in WebGL.
                 GLint dataStoreHeight = unpack.imageHeight ? unpack.imageHeight : height;
                 if (unpack.skipRows + height > dataStoreHeight)
                 {
@@ -854,7 +724,6 @@ bool ValidateES3TexImage2DParameters(const Context *context,
                                      TextureTarget target,
                                      GLint level,
                                      GLenum internalformat,
-                                     bool isCompressed,
                                      bool isSubImage,
                                      GLint xoffset,
                                      GLint yoffset,
@@ -874,15 +743,9 @@ bool ValidateES3TexImage2DParameters(const Context *context,
         return false;
     }
 
-    if (ANGLE_UNLIKELY(isCompressed && target == TextureTarget::Rectangle))
-    {
-        ANGLE_VALIDATION_ERROR(GL_INVALID_ENUM, kRectangleTextureCompressed);
-        return false;
-    }
-
-    return ValidateES3TexImageParametersBase(
-        context, entryPoint, target, level, internalformat, isCompressed, isSubImage, xoffset,
-        yoffset, zoffset, width, height, depth, border, format, type, pixels, outImageSize);
+    return ValidateES3TexImageParametersBase(context, entryPoint, target, level, internalformat,
+                                             isSubImage, xoffset, yoffset, zoffset, width, height,
+                                             depth, border, format, type, pixels, outImageSize);
 }
 
 bool ValidateES3TexImage3DParameters(const Context *context,
@@ -890,7 +753,6 @@ bool ValidateES3TexImage3DParameters(const Context *context,
                                      TextureTarget target,
                                      GLint level,
                                      GLenum internalformat,
-                                     bool isCompressed,
                                      bool isSubImage,
                                      GLint xoffset,
                                      GLint yoffset,
@@ -910,9 +772,9 @@ bool ValidateES3TexImage3DParameters(const Context *context,
         return false;
     }
 
-    return ValidateES3TexImageParametersBase(
-        context, entryPoint, target, level, internalformat, isCompressed, isSubImage, xoffset,
-        yoffset, zoffset, width, height, depth, border, format, type, pixels, outImageSize);
+    return ValidateES3TexImageParametersBase(context, entryPoint, target, level, internalformat,
+                                             isSubImage, xoffset, yoffset, zoffset, width, height,
+                                             depth, border, format, type, pixels, outImageSize);
 }
 
 struct EffectiveInternalFormatInfo
@@ -1512,12 +1374,12 @@ bool ValidateES3TexStorageParametersFormat(const Context *context,
             return false;
         }
 
-        if (target == TextureType::_2DArray)
+        if (target == TextureType::_2DArray || target == TextureType::CubeMapArray)
         {
-            if (!ValidateES3CompressedFormatForTexture2DArray(context, entryPoint,
-                                                              formatInfo.internalFormat))
+            if (!ValidCompressedFormatForTexture2DArray(formatInfo.internalFormat,
+                                                        context->getExtensions()))
             {
-                // Error already generated.
+                ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kInternalFormatRequiresTexture2D);
                 return false;
             }
         }
@@ -1558,102 +1420,6 @@ bool ValidateES3TexStorageParametersFormat(const Context *context,
     }
 
     return true;
-}
-
-bool ValidateES3TexStorageParametersBase(const Context *context,
-                                         angle::EntryPoint entryPoint,
-                                         TextureType target,
-                                         GLsizei levels,
-                                         GLenum internalformat,
-                                         GLsizei width,
-                                         GLsizei height,
-                                         GLsizei depth)
-{
-    if (width < 1 || height < 1 || depth < 1 || levels < 1)
-    {
-        ANGLE_VALIDATION_ERROR(GL_INVALID_VALUE, kTextureSizeTooSmall);
-        return false;
-    }
-
-    if (!ValidateES3TexStorageParametersLevel(context, entryPoint, target, levels, width, height,
-                                              depth))
-    {
-        // Error already generated.
-        return false;
-    }
-
-    if (!ValidateES3TexStorageParametersExtent(context, entryPoint, target, levels, width, height,
-                                               depth))
-    {
-        // Error already generated.
-        return false;
-    }
-
-    if (!ValidateES3TexStorageParametersTexObject(context, entryPoint, target))
-    {
-        // Error already generated.
-        return false;
-    }
-
-    // Forbid use of ANGLE internal formats
-    if (IsAngleInternalFormat(internalformat))
-    {
-        ANGLE_VALIDATION_ERRORF(GL_INVALID_ENUM, kInvalidInternalFormat, internalformat);
-        return false;
-    }
-
-    if (!ValidateES3TexStorageParametersFormat(context, entryPoint, target, levels, internalformat,
-                                               width, height, depth))
-    {
-        // Error already generated.
-        return false;
-    }
-
-    if (!ValidImageAllocationSize(context, entryPoint, width, height, depth, 0, internalformat))
-    {
-        // Error already generated.
-        return false;
-    }
-
-    return true;
-}
-
-bool ValidateES3TexStorage2DParameters(const Context *context,
-                                       angle::EntryPoint entryPoint,
-                                       TextureType target,
-                                       GLsizei levels,
-                                       GLenum internalformat,
-                                       GLsizei width,
-                                       GLsizei height,
-                                       GLsizei depth)
-{
-    if (!ValidTexture2DTarget(context, target))
-    {
-        ANGLE_VALIDATION_ERROR(GL_INVALID_ENUM, kInvalidTextureTarget);
-        return false;
-    }
-
-    return ValidateES3TexStorageParametersBase(context, entryPoint, target, levels, internalformat,
-                                               width, height, depth);
-}
-
-bool ValidateES3TexStorage3DParameters(const Context *context,
-                                       angle::EntryPoint entryPoint,
-                                       TextureType target,
-                                       GLsizei levels,
-                                       GLenum internalformat,
-                                       GLsizei width,
-                                       GLsizei height,
-                                       GLsizei depth)
-{
-    if (!ValidTexture3DTarget(context, target))
-    {
-        ANGLE_VALIDATION_ERROR(GL_INVALID_ENUM, kInvalidTextureTarget);
-        return false;
-    }
-
-    return ValidateES3TexStorageParametersBase(context, entryPoint, target, levels, internalformat,
-                                               width, height, depth);
 }
 
 bool ValidateBeginQuery(const Context *context,
@@ -1895,7 +1661,7 @@ bool ValidateDrawRangeElements(const Context *context,
         return false;
     }
 
-    if (!ValidateDrawElementsCommon(context, entryPoint, mode, count, type, indices, 1))
+    if (!ValidateDrawElementsCommon(context, entryPoint, mode, count, type, indices, 1, 0))
     {
         return false;
     }
@@ -1961,86 +1727,11 @@ bool ValidateReadBuffer(const Context *context, angle::EntryPoint entryPoint, GL
     return true;
 }
 
-bool ValidateCompressedTexImage3D(const Context *context,
-                                  angle::EntryPoint entryPoint,
-                                  TextureTarget target,
-                                  GLint level,
-                                  GLenum internalformat,
-                                  GLsizei width,
-                                  GLsizei height,
-                                  GLsizei depth,
-                                  GLint border,
-                                  GLsizei imageSize,
-                                  const void *data)
-{
-    if (!ValidTextureTarget(context, TextureTargetToType(target)))
-    {
-        ANGLE_VALIDATION_ERROR(GL_INVALID_ENUM, kInvalidTextureTarget);
-        return false;
-    }
-
-    // Validate image size
-    if (!ValidImageSizeParameters(context, entryPoint, TextureTargetToType(target), level, width,
-                                  height, depth, false))
-    {
-        // Error already generated.
-        return false;
-    }
-
-    const InternalFormat &formatInfo = GetSizedInternalFormatInfo(internalformat);
-    if (!formatInfo.compressed)
-    {
-        ANGLE_VALIDATION_ERROR(GL_INVALID_ENUM, kInvalidCompressedFormat);
-        return false;
-    }
-
-    GLuint blockSize = 0;
-    if (!formatInfo.computeCompressedImageSize(Extents(width, height, depth), &blockSize))
-    {
-        ANGLE_VALIDATION_ERROR(GL_INVALID_VALUE, kIntegerOverflow);
-        return false;
-    }
-
-    if (imageSize < 0 || static_cast<GLuint>(imageSize) != blockSize)
-    {
-        ANGLE_VALIDATION_ERROR(GL_INVALID_VALUE, kInvalidCompressedImageSize);
-        return false;
-    }
-
-    // 3D texture target validation
-    if (target != TextureTarget::_3D && target != TextureTarget::_2DArray)
-    {
-        if (context->getClientVersion() < ES_3_2 || target != TextureTarget::CubeMapArray)
-        {
-            ANGLE_VALIDATION_ERROR(GL_INVALID_ENUM, kInvalidTextureTarget);
-            return false;
-        }
-    }
-
-    // validateES3TexImageFormat sets the error code if there is an error
-    if (!ValidateES3TexImage3DParameters(context, entryPoint, target, level, internalformat, true,
-                                         false, 0, 0, 0, width, height, depth, border, GL_NONE,
-                                         GL_NONE, data, nullptr))
-    {
-        return false;
-    }
-
-    return true;
-}
-
 bool ValidateBindVertexArray(const Context *context,
                              angle::EntryPoint entryPoint,
                              VertexArrayID array)
 {
     return ValidateBindVertexArrayBase(context, entryPoint, array);
-}
-
-bool ValidateIsVertexArray(const PrivateState &state,
-                           ErrorSet *errors,
-                           angle::EntryPoint entryPoint,
-                           VertexArrayID array)
-{
-    return true;
 }
 
 static bool ValidateBindBufferCommon(const Context *context,
@@ -2690,8 +2381,8 @@ bool ValidateTexImage3D(const Context *context,
                         const void *pixels)
 {
     return ValidateES3TexImage3DParameters(context, entryPoint, target, level, internalformat,
-                                           false, false, 0, 0, 0, width, height, depth, border,
-                                           format, type, pixels, nullptr);
+                                           false, 0, 0, 0, width, height, depth, border, format,
+                                           type, pixels, nullptr);
 }
 
 bool ValidateTexImage3DRobustANGLE(const Context *context,
@@ -2710,7 +2401,7 @@ bool ValidateTexImage3DRobustANGLE(const Context *context,
 {
     GLuint imageSize = std::numeric_limits<GLuint>::max();
     if (!ValidateES3TexImage3DParameters(context, entryPoint, target, level, internalformat, false,
-                                         false, 0, 0, 0, width, height, depth, border, format, type,
+                                         0, 0, 0, width, height, depth, border, format, type,
                                          pixels, &imageSize))
     {
         return false;
@@ -2733,7 +2424,7 @@ bool ValidateTexSubImage3D(const Context *context,
                            GLenum type,
                            const void *pixels)
 {
-    return ValidateES3TexImage3DParameters(context, entryPoint, target, level, GL_NONE, false, true,
+    return ValidateES3TexImage3DParameters(context, entryPoint, target, level, GL_NONE, true,
                                            xoffset, yoffset, zoffset, width, height, depth, 0,
                                            format, type, pixels, nullptr);
 }
@@ -2754,69 +2445,14 @@ bool ValidateTexSubImage3DRobustANGLE(const Context *context,
                                       const void *pixels)
 {
     GLuint imageSize = std::numeric_limits<GLuint>::max();
-    if (!ValidateES3TexImage3DParameters(context, entryPoint, target, level, GL_NONE, false, true,
-                                         xoffset, yoffset, zoffset, width, height, depth, 0, format,
-                                         type, pixels, &imageSize))
+    if (!ValidateES3TexImage3DParameters(context, entryPoint, target, level, GL_NONE, true, xoffset,
+                                         yoffset, zoffset, width, height, depth, 0, format, type,
+                                         pixels, &imageSize))
     {
         return false;
     }
 
     return ValidateRobustTexImage(context, entryPoint, pixels, imageSize, bufSize);
-}
-
-bool ValidateCompressedTexSubImage3D(const Context *context,
-                                     angle::EntryPoint entryPoint,
-                                     TextureTarget target,
-                                     GLint level,
-                                     GLint xoffset,
-                                     GLint yoffset,
-                                     GLint zoffset,
-                                     GLsizei width,
-                                     GLsizei height,
-                                     GLsizei depth,
-                                     GLenum format,
-                                     GLsizei imageSize,
-                                     const void *data)
-{
-    if (!ValidateES3TexImage3DParameters(context, entryPoint, target, level, GL_NONE, true, true,
-                                         xoffset, yoffset, zoffset, width, height, depth, 0, format,
-                                         GL_NONE, data, nullptr))
-    {
-        return false;
-    }
-
-    const InternalFormat &formatInfo = GetSizedInternalFormatInfo(format);
-
-    if (!formatInfo.compressed)
-    {
-        ANGLE_VALIDATION_ERROR(GL_INVALID_ENUM, kInvalidCompressedFormat);
-        return false;
-    }
-
-    GLuint blockSize = 0;
-    if (!formatInfo.computeCompressedImageSize(Extents(width, height, depth), &blockSize))
-    {
-        ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kIntegerOverflow);
-        return false;
-    }
-
-    if (imageSize < 0 || static_cast<GLuint>(imageSize) != blockSize)
-    {
-        ANGLE_VALIDATION_ERROR(GL_INVALID_VALUE, kInvalidCompressedImageSize);
-        return false;
-    }
-
-    if (data == nullptr)
-    {
-        if (context->getState().getTargetBuffer(BufferBinding::PixelUnpack) == nullptr)
-        {
-            // If data is null, we need an unpack buffer to read from
-            ANGLE_VALIDATION_ERROR(GL_INVALID_VALUE, kPixelDataNull);
-            return false;
-        }
-    }
-
-    return true;
 }
 
 bool ValidateGenQueries(const Context *context,
@@ -3553,7 +3189,7 @@ bool ValidateDrawElementsInstanced(const Context *context,
                                    GLsizei instanceCount)
 {
     return ValidateDrawElementsInstancedBase(context, entryPoint, mode, count, type, indices,
-                                             instanceCount, 0);
+                                             instanceCount, 0, 0);
 }
 
 bool ValidateMultiDrawArraysInstancedANGLE(const Context *context,
@@ -3628,7 +3264,7 @@ bool ValidateMultiDrawElementsInstancedANGLE(const Context *context,
     for (GLsizei drawID = 0; drawID < drawcount; ++drawID)
     {
         if (!ValidateDrawElementsInstancedBase(context, entryPoint, mode, counts[drawID], type,
-                                               indices[drawID], instanceCounts[drawID], 0))
+                                               indices[drawID], instanceCounts[drawID], 0, 0))
         {
             return false;
         }
@@ -3670,7 +3306,7 @@ bool ValidateDrawElementsInstancedBaseVertexBaseInstanceANGLE(const Context *con
                                                               GLuint baseInstance)
 {
     return ValidateDrawElementsInstancedBase(context, entryPoint, mode, count, type, indices,
-                                             instanceCount, baseInstance);
+                                             instanceCount, baseVertex, baseInstance);
 }
 
 bool ValidateMultiDrawArraysInstancedBaseInstanceANGLE(const Context *context,
@@ -3736,7 +3372,7 @@ bool ValidateMultiDrawElementsInstancedBaseVertexBaseInstanceANGLE(const Context
     {
         if (!ValidateDrawElementsInstancedBase(context, entryPoint, modePacked, counts[drawID],
                                                typePacked, indices[drawID], instanceCounts[drawID],
-                                               baseInstances[drawID]))
+                                               baseVertices[drawID], baseInstances[drawID]))
         {
             return false;
         }
@@ -3953,11 +3589,6 @@ bool ValidateUniform4uiv(const Context *context,
     return ValidateUniform(context, entryPoint, GL_UNSIGNED_INT_VEC4, location, count);
 }
 
-bool ValidateIsQuery(const Context *context, angle::EntryPoint entryPoint, QueryID id)
-{
-    return true;
-}
-
 bool ValidateUniformMatrix2x3fv(const Context *context,
                                 angle::EntryPoint entryPoint,
                                 UniformLocation location,
@@ -4142,13 +3773,6 @@ bool ValidateBindTransformFeedback(const Context *context,
     return true;
 }
 
-bool ValidateIsTransformFeedback(const Context *context,
-                                 angle::EntryPoint entryPoint,
-                                 TransformFeedbackID id)
-{
-    return true;
-}
-
 bool ValidatePauseTransformFeedback(const Context *context, angle::EntryPoint entryPoint)
 {
     TransformFeedback *transformFeedback = context->getState().getCurrentTransformFeedback();
@@ -4188,13 +3812,6 @@ bool ValidateResumeTransformFeedback(const Context *context, angle::EntryPoint e
         return false;
     }
 
-    const Program *currentProgram = context->getState().getProgram();
-    if (!currentProgram || !transformFeedback->hasBoundProgram(currentProgram->id()))
-    {
-        ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kTransformFeedbackProgramNotActive);
-        return false;
-    }
-
     if (!ValidateProgramExecutableXFBBuffersPresent(
             context, context->getState().getLinkedProgramExecutable(context)))
     {
@@ -4202,11 +3819,11 @@ bool ValidateResumeTransformFeedback(const Context *context, angle::EntryPoint e
         return false;
     }
 
-    Program *linkedProgram                   = context->getState().getLinkedProgram(context);
+    Program *currentProgram                 = context->getState().getLinkedProgram(context);
     ProgramPipeline *currentProgramPipeline = context->getState().getProgramPipeline();
 
     if (transformFeedback->hasProgram() &&
-        (linkedProgram == nullptr || !transformFeedback->hasBoundProgram(linkedProgram->id())))
+        (currentProgram == nullptr || !transformFeedback->hasBoundProgram(currentProgram->id())))
     {
         ASSERT(!transformFeedback->hasProgramPipeline());
         ANGLE_VALIDATION_ERROR(GL_INVALID_OPERATION, kTransformFeedbackProgramNotSameAtResume);
@@ -4538,11 +4155,6 @@ bool ValidateFenceSync(const Context *context,
     return true;
 }
 
-bool ValidateIsSync(const Context *context, angle::EntryPoint entryPoint, SyncID syncPacked)
-{
-    return true;
-}
-
 bool ValidateDeleteSync(const Context *context, angle::EntryPoint entryPoint, SyncID syncPacked)
 {
     if (syncPacked.value != 0 && !context->getSync(syncPacked))
@@ -4612,11 +4224,6 @@ bool ValidateGetInteger64v(const Context *context,
     return ValidateStateQuery(context, entryPoint, pname, data, nullptr);
 }
 
-bool ValidateIsSampler(const Context *context, angle::EntryPoint entryPoint, SamplerID sampler)
-{
-    return true;
-}
-
 bool ValidateBindSampler(const Context *context,
                          angle::EntryPoint entryPoint,
                          GLuint unit,
@@ -4644,41 +4251,6 @@ bool ValidateVertexAttribDivisor(const PrivateState &privateState,
                                  GLuint divisor)
 {
     return ValidateVertexAttribIndex(privateState, errors, entryPoint, index);
-}
-
-bool ValidateTexStorage2D(const Context *context,
-                          angle::EntryPoint entryPoint,
-                          TextureType target,
-                          GLsizei levels,
-                          GLenum internalformat,
-                          GLsizei width,
-                          GLsizei height)
-{
-    if (!ValidateES3TexStorage2DParameters(context, entryPoint, target, levels, internalformat,
-                                           width, height, 1))
-    {
-        return false;
-    }
-
-    return true;
-}
-
-bool ValidateTexStorage3D(const Context *context,
-                          angle::EntryPoint entryPoint,
-                          TextureType target,
-                          GLsizei levels,
-                          GLenum internalformat,
-                          GLsizei width,
-                          GLsizei height,
-                          GLsizei depth)
-{
-    if (!ValidateES3TexStorage3DParameters(context, entryPoint, target, levels, internalformat,
-                                           width, height, depth))
-    {
-        return false;
-    }
-
-    return true;
 }
 
 bool ValidateGetBufferParameteri64v(const Context *context,

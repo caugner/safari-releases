@@ -34,27 +34,29 @@
 
 namespace WebCore {
 
-class RenderStyle;
+namespace Style {
+class ComputedStyle;
+}
 
 class CSSAnimation final : public StyleOriginatedAnimation {
     WTF_MAKE_TZONE_ALLOCATED(CSSAnimation);
     WTF_OVERRIDE_DELETE_FOR_CHECKED_PTR(CSSAnimation);
 public:
-    static Ref<CSSAnimation> create(const Styleable&, Style::Animation&&, const RenderStyle* oldStyle, const RenderStyle& newStyle, const Style::ResolutionContext&);
+    static Ref<CSSAnimation> create(const Styleable&, Style::Animation&&, const Style::ComputedStyle* oldStyle, const Style::ComputedStyle& newStyle, const Style::ResolutionContext&);
     ~CSSAnimation() = default;
 
-    const String& animationName() const { return m_animationName.name; }
-    const Style::ScopedName& scopedAnimationName() const { return m_animationName; }
+    const String& animationName() const LIFETIME_BOUND { return m_animationName.name; }
+    const Style::ScopedName& scopedAnimationName() const LIFETIME_BOUND { return m_animationName; }
 
-    void effectTimingWasUpdatedUsingBindings(OptionalEffectTiming);
-    void effectKeyframesWereSetUsingBindings();
-    void effectCompositeOperationWasSetUsingBindings();
+    void NODELETE effectTimingWasUpdatedUsingBindings(const OptionalEffectTiming&);
+    void NODELETE effectKeyframesWereSetUsingBindings();
+    void NODELETE effectCompositeOperationWasSetUsingBindings();
     void keyframesRuleDidChange();
-    void updateKeyframesIfNeeded(const RenderStyle* oldStyle, const RenderStyle& newStyle, const Style::ResolutionContext&);
+    void updateKeyframesIfNeeded(const Style::ComputedStyle* oldStyle, const Style::ComputedStyle& newStyle, const Style::ResolutionContext&);
 
     void syncStyleOriginatedTimeline();
 
-    const Style::Animation& backingStyleAnimation() const { return m_backingStyleAnimation; }
+    const Style::Animation& backingStyleAnimation() const LIFETIME_BOUND { return m_backingStyleAnimation; }
     void setBackingStyleAnimation(const Style::Animation&);
 
 private:

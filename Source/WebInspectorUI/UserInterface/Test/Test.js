@@ -71,6 +71,8 @@ WI.loaded = function()
         WI.animationManager = new WI.AnimationManager,
     ];
 
+    WI.domUndoCoordinator = new WI.DOMUndoCoordinator;
+
     // Register for events.
     document.addEventListener("DOMContentLoaded", WI.contentLoaded);
     WI.browserManager.enable();
@@ -173,6 +175,8 @@ WI.updateDockedState = () => {};
 WI.updateDockingAvailability = () => {};
 WI.updateVisibilityState = () => {};
 WI.updateFindString = () => {};
+
+WI.isSiteIsolationEnabled = () => WI.targets.some((x) => x instanceof WI.FrameTarget);
 
 // FIXME: <https://webkit.org/b/201149> Web Inspector: replace all uses of `window.*Agent` with a target-specific call
 (function() {

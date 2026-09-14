@@ -25,6 +25,8 @@
 #include "config.h"
 #include "NavigatorUAData.h"
 
+#include "JSDOMConvertDictionary.h"
+#include "JSDOMPromiseDeferred.h"
 #include "JSUADataValues.h"
 #include "NavigatorUABrandVersion.h"
 #include "NotImplemented.h"
@@ -37,6 +39,7 @@
 #include <random>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/WeakRandomNumber.h>
+#include <wtf/text/MakeString.h>
 #include <wtf/text/WTFString.h>
 
 #if USE(GLIB)
@@ -113,7 +116,7 @@ const Vector<NavigatorUABrandVersion>& NavigatorUAData::brands() const
     return brandVersion;
 }
 
-bool NavigatorUAData::mobile() const
+SUPPRESS_NODELETE bool NavigatorUAData::mobile() const
 {
     if (overrideFromUserAgentString)
         return mobileOverride;
@@ -158,7 +161,20 @@ UALowEntropyJSON NavigatorUAData::toJSON() const
 
 void NavigatorUAData::getHighEntropyValues(const Vector<String>& hints, NavigatorUAData::ValuesPromise&& promise) const
 {
-    auto values = UADataValues::create(brands(), mobile(), platform());
+    UADataValues values {
+        { },
+        { },
+        brands(),
+        std::nullopt,
+        std::nullopt,
+        { },
+        mobile(),
+        platform(),
+        { },
+        { },
+        std::nullopt
+    };
+
     if (overrideFromUserAgentString) {
         // if the user agent string has been overridden, we should not expose high entropy values
         promise.resolve(values);
@@ -167,29 +183,29 @@ void NavigatorUAData::getHighEntropyValues(const Vector<String>& hints, Navigato
 
     for (auto& hint : hints) {
         if (hint == "architecture")
-            values->architecture = ""_s;
+            values.architecture = ""_s;
         else if (hint == "bitness")
-            values->bitness = "64"_s;
+            values.bitness = "64"_s;
         else if (hint == "formFactors")
-            values->formFactors = Vector<String> { };
+            values.formFactors = Vector<String> { };
         else if (hint == "fullVersionList")
-            values->fullVersionList = brands();
+            values.fullVersionList = brands();
         else if (hint == "model")
-            values->model = ""_s;
+            values.model = ""_s;
         else if (hint == "platformVersion") {
 #if OS(LINUX)
-            values->platformVersion = ""_s;
+            values.platformVersion = ""_s;
 #elif PLATFORM(IOS_FAMILY)
-            values->platformVersion = systemMarketingVersionForUserAgentString();
+            values.platformVersion = systemMarketingVersionForUserAgentString();
 #elif OS(MACOS)
-            values->platformVersion = "10.15.7"_s;
+            values.platformVersion = "10.15.7"_s;
 #else
-            values->platformVersion = ""_s;
+            values.platformVersion = ""_s;
 #endif
         } else if (hint == "uaFullVersion")
-            values->uaFullVersion = "605.1.15"_s;
+            values.uaFullVersion = "605.1.15"_s;
         else if (hint == "wow64")
-            values->wow64 = false;
+            values.wow64 = false;
     }
 
     promise.resolve(WTF::move(values));

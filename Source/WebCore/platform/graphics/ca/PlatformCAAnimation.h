@@ -150,7 +150,7 @@ public:
     virtual void copyTimingFunctionsFrom(const PlatformCAAnimation&) = 0;
 
     // Animation group properties.
-    virtual void setAnimations(const Vector<RefPtr<PlatformCAAnimation>>&) = 0;
+    virtual void setAnimations(const Vector<Ref<PlatformCAAnimation>>&) = 0;
     virtual void copyAnimationsFrom(const PlatformCAAnimation&) = 0;
 
     void setActualStartTimeIfNeeded(CFTimeInterval t)
@@ -159,9 +159,9 @@ public:
             setBeginTime(t);
     }
 
-    bool isBasicAnimation() const;
+    bool NODELETE isBasicAnimation() const;
 
-    WEBCORE_EXPORT static String makeGroupKeyPath();
+    WEBCORE_EXPORT static String NODELETE makeGroupKeyPath();
     WEBCORE_EXPORT static String makeKeyPath(AnimatedProperty, FilterOperation::Type = FilterOperation::Type::None, int = 0);
     WEBCORE_EXPORT static bool isValidKeyPath(const String&, AnimationType = AnimationType::Basic);
 

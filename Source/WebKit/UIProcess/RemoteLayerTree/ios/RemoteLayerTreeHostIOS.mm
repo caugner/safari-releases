@@ -39,13 +39,11 @@
 #import <pal/spi/cocoa/QuartzCoreSPI.h>
 #import <wtf/MachSendRightAnnotated.h>
 
-#if ENABLE(ARKIT_INLINE_PREVIEW_IOS)
-#import "WKModelView.h"
-#endif
-
 #if ENABLE(MODEL_PROCESS)
 #import "ModelPresentationManagerProxy.h"
+#if HAVE(CORE_RE)
 #import "WKPageHostedModelView.h"
+#endif
 #endif
 
 #if HAVE(CORE_ANIMATION_SEPARATED_LAYERS)
@@ -92,7 +90,7 @@ RefPtr<RemoteLayerTreeNode> RemoteLayerTreeHost::makeNode(const RemoteLayerTreeT
         if (![WKMaterialHostingSupport isMaterialHostingAvailable])
             return makeWithView(adoptNS([[WKCompositingView alloc] init]));
 
-        return makeWithView([[WKMaterialHostingView alloc] init]);
+        return makeWithView(adoptNS([[WKMaterialHostingView alloc] init]));
     }
 #endif
 
@@ -106,8 +104,9 @@ RefPtr<RemoteLayerTreeNode> RemoteLayerTreeHost::makeNode(const RemoteLayerTreeT
 
 #if HAVE(AVKIT)
         if (properties.videoElementData) {
-            if (auto videoManager = m_drawingArea->page() ? m_drawingArea->page()->videoPresentationManager() : nullptr) {
-                m_videoLayers.add(*properties.layerID, properties.videoElementData->playerIdentifier);
+            if (RefPtr page = protect(m_drawingArea)->page()) {
+                if (RefPtr videoManager = page->videoPresentationManager()) {
+                    m_videoLayers.add(*properties.layerID, properties.videoElementData->playerIdentifier);
                 WebCore::HostingContext hostingContext;
                 hostingContext.contextID = properties.hostingContextID();
 #if ENABLE(MACH_PORT_LAYER_HOSTING)
@@ -115,14 +114,15 @@ RefPtr<RemoteLayerTreeNode> RemoteLayerTreeHost::makeNode(const RemoteLayerTreeT
                     hostingContext.sendRightAnnotated = WTF::move(*sendRightAnnotated);
 #endif
                 return makeWithView(videoManager->createViewWithID(properties.videoElementData->playerIdentifier, WTF::move(hostingContext), properties.videoElementData->initialSize, properties.videoElementData->naturalSize, properties.hostingDeviceScaleFactor()));
+                }
             }
         }
 #endif
 
-        if (!m_drawingArea->page())
+        if (!protect(m_drawingArea)->page())
             return nullptr;
 
-#if ENABLE(MODEL_PROCESS)
+#if ENABLE(MODEL_PROCESS) && HAVE(CORE_RE)
         if (auto modelContext = properties.modelContext()) {
             if (auto modelPresentationManager = m_drawingArea->page() ? m_drawingArea->page()->modelPresentationManagerProxy() : nullptr) {
                 if (auto view = modelPresentationManager->setUpModelView(*modelContext)) {
@@ -133,7 +133,7 @@ RefPtr<RemoteLayerTreeNode> RemoteLayerTreeHost::makeNode(const RemoteLayerTreeT
         }
 #endif
 
-        auto view = adoptNS([[WKUIRemoteView alloc] initWithFrame:CGRectZero pid:m_drawingArea->page()->legacyMainFrameProcessID() contextID:properties.hostingContextID()]);
+        auto view = adoptNS([[WKUIRemoteView alloc] initWithFrame:CGRectZero pid:protect(protect(m_drawingArea)->page())->legacyMainFrameProcessID() contextID:properties.hostingContextID()]);
         return makeWithView(WTF::move(view));
     }
     case PlatformCALayer::LayerType::LayerTypeShapeLayer:
@@ -158,15 +158,17 @@ RefPtr<RemoteLayerTreeNode> RemoteLayerTreeHost::makeNode(const RemoteLayerTreeT
         bool modelHandledOutOfProcess = false;
 #endif
 
-        if (!modelHandledOutOfProcess && m_drawingArea->page() && m_drawingArea->page()->preferences().modelElementEnabled()) {
-            if (auto* model = std::get_if<Ref<Model>>(&properties.additionalData)) {
+        if (!modelHandledOutOfProcess) {
+            if (RefPtr page = protect(m_drawingArea)->page()) {
+                if (protect(page->preferences())->modelElementEnabled()) {
+                    if (auto* model = std::get_if<Ref<Model>>(&properties.additionalData)) {
 #if ENABLE(SEPARATED_MODEL)
                 return makeWithView(adoptNS([[WKSeparatedModelView alloc] initWithModel:*model]));
-#elif ENABLE(ARKIT_INLINE_PREVIEW_IOS)
-                return makeWithView(adoptNS([[WKModelView alloc] initWithModel:*model layerID:*properties.layerID page:*m_drawingArea->page()]));
 #else
                 UNUSED_PARAM(model);
 #endif
+                    }
+                }
             }
         }
         return makeWithView(adoptNS([[WKCompositingView alloc] init]));

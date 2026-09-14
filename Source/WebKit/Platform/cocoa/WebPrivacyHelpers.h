@@ -63,6 +63,7 @@ enum class RestrictedOpenerType : uint8_t;
 void configureForAdvancedPrivacyProtections(NSURLSession *);
 bool isKnownTrackerAddressOrDomain(StringView host);
 WebCore::IsKnownCrossSiteTracker isRequestToKnownCrossSiteTracker(const WebCore::ResourceRequest&);
+bool isRequestBlockable(const WebCore::ResourceRequest&);
 void requestLinkDecorationFilteringData(CompletionHandler<void(Vector<WebCore::LinkDecorationFilteringData>&&)>&&);
 
 class ListDataObserver : public RefCountedAndCanMakeWeakPtr<ListDataObserver> {
@@ -120,7 +121,7 @@ public:
         });
     }
 
-    const BackingDataType& cachedListData() const { return m_cachedListData; }
+    const BackingDataType& cachedListData() const LIFETIME_BOUND { return m_cachedListData; }
 
 protected:
     friend class NeverDestroyed<DerivedType, MainRunLoopAccessTraits>;
@@ -165,7 +166,7 @@ private:
     unsigned resourceTypeValue() const final;
 #ifdef __OBJC__
     // FIXME: Remove when WebPrivacyHelpersAdditions.mm no longer depends on it.
-    WPResourceType resourceType() const;
+    WPResourceType NODELETE resourceType() const;
 #endif
 };
 
@@ -188,12 +189,13 @@ private:
 
 class ResourceMonitorURLsController {
 public:
-    static ResourceMonitorURLsController& singleton();
+    static ResourceMonitorURLsController& NODELETE singleton();
 
     void prepare(CompletionHandler<void(WKContentRuleList *, bool)>&&);
     void getSource(CompletionHandler<void(String&&)>&&);
 
     void setContentRuleListStore(API::ContentRuleListStore&);
+    API::ContentRuleListStore* contentRuleListStore() const { return m_contentRuleListStore; }
 
 private:
     friend class NeverDestroyed<ResourceMonitorURLsController, MainRunLoopAccessTraits>;
@@ -203,6 +205,13 @@ private:
 };
 
 #define HAVE_RESOURCE_MONITOR_URLS_GET_SOURCE 1
+
+class ConsistentPrivacyQuirkController : public ListDataController<ConsistentPrivacyQuirkController, ScriptTrackingPrivacyRules> {
+private:
+    void updateList(CompletionHandler<void()>&&) final;
+    void didUpdateCachedListData() final;
+    unsigned resourceTypeValue() const final;
+};
 
 #endif // ENABLE(ADVANCED_PRIVACY_PROTECTIONS)
 

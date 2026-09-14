@@ -92,8 +92,11 @@ public:
 
     std::optional<SharedPreferencesForWebProcess> sharedPreferencesForWebProcess() const;
 
+    // IPC::MessageReceiver.
+    void didReceiveMessage(IPC::Connection&, IPC::Decoder&) override;
+
 #if HAVE(WEB_AUTHN_AS_MODERN)
-    static WeakPtr<WebAuthenticatorCoordinatorProxy>& activeConditionalMediationProxy();
+    static WeakPtr<WebAuthenticatorCoordinatorProxy>& NODELETE activeConditionalMediationProxy();
     void pauseConditionalAssertion(CompletionHandler<void()>&&);
     void unpauseConditionalAssertion();
     void makeActiveConditionalAssertion();
@@ -104,9 +107,6 @@ private:
     explicit WebAuthenticatorCoordinatorProxy(WebPageProxy&);
 
     using QueryCompletionHandler = CompletionHandler<void(bool)>;
-
-    // IPC::MessageReceiver.
-    void didReceiveMessage(IPC::Connection&, IPC::Decoder&) override;
 
     // Receivers.
     void makeCredential(IPC::Connection&, WebCore::FrameIdentifier, FrameInfoData&&, WebCore::PublicKeyCredentialCreationOptions&&, WebCore::MediationRequirement, RequestCompletionHandler&&);

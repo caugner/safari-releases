@@ -31,10 +31,7 @@
 #include "config.h"
 #include <wtf/UUID.h>
 
-#include <mutex>
-#include <wtf/ASCIICType.h>
 #include <wtf/CryptographicallyRandomNumber.h>
-#include <wtf/HexNumber.h>
 #include <wtf/Lock.h>
 #include <wtf/NeverDestroyed.h>
 #include <wtf/SHA1.h>
@@ -48,7 +45,7 @@
 
 namespace WTF {
 
-static ALWAYS_INLINE UInt128 convertRandomUInt128ToUUIDVersion4(UInt128 buffer)
+static ALWAYS_INLINE UInt128 NODELETE convertRandomUInt128ToUUIDVersion4(UInt128 buffer)
 {
     // By default, we generate a v4 UUID value, as per https://datatracker.ietf.org/doc/html/rfc4122#section-4.4.
     auto high = static_cast<uint64_t>((buffer >> 64) & 0xffffffffffff0fff) | 0x4000;

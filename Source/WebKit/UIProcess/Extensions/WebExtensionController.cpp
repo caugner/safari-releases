@@ -28,9 +28,11 @@
 
 #if ENABLE(WK_WEB_EXTENSIONS)
 
+#include "WebExtensionControllerMessages.h"
 #include "WebExtensionControllerParameters.h"
 #include "WebExtensionControllerProxyMessages.h"
 #include "WebPageProxy.h"
+#include "WebProcessPool.h"
 #include <wtf/HashMap.h>
 #include <wtf/NeverDestroyed.h>
 
@@ -45,7 +47,7 @@ namespace WebKit {
 constexpr auto freshlyCreatedTimeout = 5_s;
 #endif
 
-static HashMap<WebExtensionControllerIdentifier, WeakPtr<WebExtensionController>>& webExtensionControllers()
+static HashMap<WebExtensionControllerIdentifier, WeakPtr<WebExtensionController>>& NODELETE webExtensionControllers()
 {
     static MainRunLoopNeverDestroyed<HashMap<WebExtensionControllerIdentifier, WeakPtr<WebExtensionController>>> controllers;
     return controllers;
@@ -81,6 +83,10 @@ WebExtensionController::WebExtensionController(Ref<WebExtensionControllerConfigu
 WebExtensionController::~WebExtensionController()
 {
     webExtensionControllers().remove(identifier());
+
+    for (Ref pool : m_processPools)
+        pool->removeMessageReceiver(Messages::WebExtensionController::messageReceiverName(), identifier());
+
     unloadAll();
 }
 

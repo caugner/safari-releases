@@ -1275,19 +1275,19 @@ UNIX_ONLY_TEST(SkParagraph_RainbowParagraph, reporter) {
             switch (index) {
                 case 0:
                     REPORTER_ASSERT(reporter, style.equals(text_style1));
-                    REPORTER_ASSERT(reporter, equal(impl->text().begin(), textRange, text1));
+                    REPORTER_ASSERT(reporter, equal(impl->text().data(), textRange, text1));
                     break;
                 case 1:
                     REPORTER_ASSERT(reporter, style.equals(text_style2));
-                    REPORTER_ASSERT(reporter, equal(impl->text().begin(), textRange, text2));
+                    REPORTER_ASSERT(reporter, equal(impl->text().data(), textRange, text2));
                     break;
                 case 2:
                     REPORTER_ASSERT(reporter, style.equals(text_style3));
-                    REPORTER_ASSERT(reporter, equal(impl->text().begin(), textRange, text3));
+                    REPORTER_ASSERT(reporter, equal(impl->text().data(), textRange, text3));
                     break;
                 case 3:
                     REPORTER_ASSERT(reporter, style.equals(text_style4));
-                    REPORTER_ASSERT(reporter, equal(impl->text().begin(), textRange, text41));
+                    REPORTER_ASSERT(reporter, equal(impl->text().data(), textRange, text41));
                     break;
                 default:
                     REPORTER_ASSERT(reporter, false);
@@ -1302,7 +1302,7 @@ UNIX_ONLY_TEST(SkParagraph_RainbowParagraph, reporter) {
         switch (index) {
             case 4:
                 REPORTER_ASSERT(reporter, style.equals(text_style4));
-                REPORTER_ASSERT(reporter, equal(impl->text().begin(), textRange, text42));
+                REPORTER_ASSERT(reporter, equal(impl->text().data(), textRange, text42));
                 break;
             default:
                 REPORTER_ASSERT(reporter, false);
@@ -1347,7 +1347,7 @@ UNIX_ONLY_TEST(SkParagraph_DefaultStyleParagraph, reporter) {
             StyleType::kAllAttributes,
             [&](TextRange textRange, const TextStyle& style, const TextLine::ClipContext& context) {
                 REPORTER_ASSERT(reporter, style.equals(paragraph_style.getTextStyle()));
-                REPORTER_ASSERT(reporter, equal(impl->text().begin(), textRange, text));
+                REPORTER_ASSERT(reporter, equal(impl->text().data(), textRange, text));
                 ++index;
                 return true;
             });
@@ -1393,7 +1393,7 @@ UNIX_ONLY_TEST(SkParagraph_BoldParagraph, reporter) {
             StyleType::kAllAttributes,
             [&](TextRange textRange, const TextStyle& style, const TextLine::ClipContext& context) {
                 REPORTER_ASSERT(reporter, style.equals(text_style));
-                REPORTER_ASSERT(reporter, equal(impl->text().begin(), textRange, text));
+                REPORTER_ASSERT(reporter, equal(impl->text().data(), textRange, text));
                 ++index;
                 return true;
             });
@@ -4275,8 +4275,9 @@ UNIX_ONLY_TEST(SkParagraph_EmojiParagraph, reporter) {
     auto impl = static_cast<ParagraphImpl*>(paragraph.get());
 
     REPORTER_ASSERT(reporter, impl->lines().size() == 8);
+
     for (auto& line : impl->lines()) {
-        if (&line != impl->lines().end() - 1) {
+        if (&line != impl->lines().data() + impl->lines().size() - 1) {
             // The actual value is 50_size / 109_ppemX * 136_advance = ~62.385319
             // FreeType reports advances in 24.6 fixed point, so each is 62.390625
             REPORTER_ASSERT(reporter,
@@ -5433,7 +5434,7 @@ DEF_TEST_DISABLED(SkParagraph_JSON2, reporter) {
     auto cluster = 0;
     for (auto& run : impl->runs()) {
         SkShaperJSONWriter::VisualizeClusters(
-                impl->text().begin() + run.textRange().start, 0, run.textRange().width(),
+                impl->text().data() + run.textRange().start, 0, run.textRange().width(),
                 run.glyphs(), run.clusterIndexes(),
                 [&](int codePointCount, SkSpan<const char> utf1to1,
                     SkSpan<const SkGlyphID> glyph1to1) {
@@ -8472,10 +8473,10 @@ UNIX_ONLY_TEST(SkParagraph_ICU4X_EmojiFontResolution, reporter) {
 }
 
 // Checked: disabled for TxtLib
-UNIX_ONLY_TEST(SkParagraph_ArabicMeansNoLetterSpacing, reporter) {
+UNIX_ONLY_TEST(SkParagraph_ArabicNoLetterSpacing, reporter) {
     sk_sp<ResourceFontCollection> fontCollection = sk_make_sp<ResourceFontCollection>();
     SKIP_IF_FONTS_NOT_FOUND(reporter, fontCollection)
-    TestCanvas canvas("SkParagraph_ArabicParagraph.png");
+    TestCanvas canvas("SkParagraph_NoSpacesArabicParagraph.png");
     const char* arabic = "سلام";
     const char* english = "Hello";
 
@@ -8493,7 +8494,9 @@ UNIX_ONLY_TEST(SkParagraph_ArabicMeansNoLetterSpacing, reporter) {
         builder.pop();
 
         auto paragraph = builder.Build();
-        paragraph->layout(SK_ScalarInfinity);
+        paragraph->layout(TestCanvasWidth);
+        paragraph->paint(canvas.get(), 20, 0);
+        canvas.get()->translate(0, paragraph->getHeight() + 20);
         return paragraph->getLongestLine();
     };
 
@@ -8507,6 +8510,81 @@ UNIX_ONLY_TEST(SkParagraph_ArabicMeansNoLetterSpacing, reporter) {
         auto noLetterSpacing = layout("Roboto", english, 0.0);
         auto withLetterSpacing = layout("Roboto", english, 100.0);
         REPORTER_ASSERT(reporter, SkScalarNearlyEqual((withLetterSpacing - noLetterSpacing), 100.0 * strlen(english), EPSILON1000));
+    }
+}
+
+UNIX_ONLY_TEST(SkParagraph_ArabicWithLetterSpacingWhitespacesAsChrome, reporter) {
+    sk_sp<ResourceFontCollection> fontCollection = sk_make_sp<ResourceFontCollection>();
+    SKIP_IF_FONTS_NOT_FOUND(reporter, fontCollection)
+    TestCanvas canvas("SkParagraph_SpacedArabicParagraph.png");
+    const char* arabic = "سلام";
+    const char* spaced = "س لا م";
+    ParagraphStyle paragraph_style;
+    TextStyle text_style;
+    text_style.setFontSize(20);
+    text_style.setColor(SK_ColorBLACK);
+
+    auto layout = [&](const char* familyName, const char* text, double letterSpacing) -> double {
+        ParagraphBuilderImpl builder(paragraph_style, fontCollection, get_unicode());
+        text_style.setLetterSpacing(letterSpacing);
+        text_style.setFontFamilies({SkString(familyName)});
+        builder.pushStyle(text_style);
+        builder.addText(text, strlen(text));
+        builder.pop();
+
+        auto paragraph = builder.Build();
+        paragraph->layout(TestCanvasWidth);
+        paragraph->paint(canvas.get(), 20, 0);
+        canvas.get()->translate(0, paragraph->getHeight() + 20);
+        return paragraph->getLongestLine();
+    };
+    {   // Letter spacing does not show for Arabic without whitespaces
+        auto noLetterSpacing = layout("Katibeh", arabic, 0.0);
+        auto withLetterSpacing = layout("Katibeh", arabic, 10.0);
+        REPORTER_ASSERT(reporter, SkScalarNearlyEqual(withLetterSpacing, noLetterSpacing, EPSILON100));
+    }
+    {   // Letter spacing shows for Arabic on whitespaces
+        auto noLetterSpacing = layout("Katibeh", spaced, 0.0);
+        auto withLetterSpacing = layout("Katibeh", spaced, 10.0);
+        REPORTER_ASSERT(reporter, SkScalarNearlyEqual(withLetterSpacing, noLetterSpacing, EPSILON100));
+    }
+}
+
+UNIX_ONLY_TEST(SkParagraph_ArabicWithLetterSpacingWhitespacesAsCSS, reporter) {
+    sk_sp<ResourceFontCollection> fontCollection = sk_make_sp<ResourceFontCollection>();
+    SKIP_IF_FONTS_NOT_FOUND(reporter, fontCollection)
+    TestCanvas canvas("SkParagraph_SpacedArabicParagraph.png");
+    const char* arabic = "سلام";
+    const char* spaced = "س لا م";
+    ParagraphStyle paragraph_style;
+    paragraph_style.setLetterSpacingByCSSSpec(true);
+    TextStyle text_style;
+    text_style.setFontSize(20);
+    text_style.setColor(SK_ColorBLACK);
+
+    auto layout = [&](const char* familyName, const char* text, double letterSpacing) -> double {
+        ParagraphBuilderImpl builder(paragraph_style, fontCollection, get_unicode());
+        text_style.setLetterSpacing(letterSpacing);
+        text_style.setFontFamilies({SkString(familyName)});
+        builder.pushStyle(text_style);
+        builder.addText(text, strlen(text));
+        builder.pop();
+
+        auto paragraph = builder.Build();
+        paragraph->layout(TestCanvasWidth);
+        paragraph->paint(canvas.get(), 20, 0);
+        canvas.get()->translate(0, paragraph->getHeight() + 20);
+        return paragraph->getLongestLine();
+    };
+    {   // Letter spacing does not show for Arabic without whitespaces
+        auto noLetterSpacing = layout("Katibeh", arabic, 0.0);
+        auto withLetterSpacing = layout("Katibeh", arabic, 10.0);
+        REPORTER_ASSERT(reporter, SkScalarNearlyEqual(withLetterSpacing, noLetterSpacing, EPSILON100));
+    }
+    {   // Letter spacing shows for Arabic on whitespaces
+        auto noLetterSpacing = layout("Katibeh", spaced, 0.0);
+        auto withLetterSpacing = layout("Katibeh", spaced, 10.0);
+        REPORTER_ASSERT(reporter, SkScalarNearlyEqual(withLetterSpacing, noLetterSpacing + 20.0, EPSILON100));
     }
 }
 

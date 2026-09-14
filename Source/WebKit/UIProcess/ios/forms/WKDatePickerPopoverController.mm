@@ -93,11 +93,11 @@ const CGFloat toolbarBottomMarginSmall = 2;
     pickerView.layoutMargins = UIEdgeInsetsMake(marginSize, marginSize, marginSize, marginSize);
     [pickerView sizeToFit];
 
-    [_accessoryView setStandardAppearance:^{
+    [_accessoryView setStandardAppearance:protect(^{
         auto appearance = adoptNS([UIToolbarAppearance new]);
         [appearance setBackgroundEffect:nil];
         return appearance.autorelease();
-    }()];
+    }()).get()];
     [_accessoryView sizeToFit];
 
     auto pickerViewSize = [pickerView bounds].size;
@@ -141,7 +141,7 @@ const CGFloat toolbarBottomMarginSmall = 2;
 
 - (CGFloat)bottomMarginForToolbar
 {
-    return _datePicker.datePickerMode == UIDatePickerModeDateAndTime ? 8 : toolbarBottomMarginSmall;
+    return [protect(_datePicker) datePickerMode] == UIDatePickerModeDateAndTime ? 8 : toolbarBottomMarginSmall;
 }
 
 #if HAVE(UI_CALENDAR_SELECTION_WEEK_OF_YEAR)
@@ -152,8 +152,9 @@ const CGFloat toolbarBottomMarginSmall = 2;
         return nil;
 
     _calendarView = calendarView;
-    [_calendarView setCalendar:[NSCalendar calendarWithIdentifier:NSCalendarIdentifierISO8601]];
-    [_calendarView setSelectionBehavior:weekSelection];
+    RetainPtr protectedCalendarView = _calendarView;
+    [protectedCalendarView setCalendar:[NSCalendar calendarWithIdentifier:NSCalendarIdentifierISO8601]];
+    [protectedCalendarView setSelectionBehavior:weekSelection];
 
     [self setupView:calendarView toolbarBottomMargin:toolbarBottomMarginSmall];
 

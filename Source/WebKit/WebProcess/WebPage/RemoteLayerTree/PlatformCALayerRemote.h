@@ -182,7 +182,7 @@ public:
     void setOpacity(float) override;
 
     void setFilters(const WebCore::FilterOperations&) override;
-    static bool filtersCanBeComposited(const WebCore::FilterOperations&);
+    static bool NODELETE filtersCanBeComposited(const WebCore::FilterOperations&);
     void copyFiltersFrom(const WebCore::PlatformCALayer&) override;
 
     void setBlendMode(WebCore::BlendMode) override;
@@ -263,16 +263,15 @@ public:
 
     unsigned backingStoreBytesPerPixel() const override;
 
-    void setClonedLayer(const PlatformCALayer*);
+    void NODELETE setClonedLayer(const PlatformCALayer*);
 
-    LayerProperties& properties() { return m_properties; }
-    const LayerProperties& properties() const { return m_properties; }
+    LayerProperties& properties() LIFETIME_BOUND { return m_properties; }
+    const LayerProperties& properties() const LIFETIME_BOUND { return m_properties; }
 
     void didCommit();
 
     void moveToContext(RemoteLayerTreeContext&);
     RemoteLayerTreeContext* context() const { return m_context.get(); }
-    RefPtr<RemoteLayerTreeContext> protectedContext() const { return m_context.get(); }
 
     void markFrontBufferVolatileForTesting() override;
     virtual void populateCreationProperties(RemoteLayerTreeTransaction::LayerCreationProperties&, const RemoteLayerTreeContext&, WebCore::PlatformCALayer::LayerType);
@@ -307,14 +306,14 @@ private:
     WebCore::IncludeDynamicContentScalingDisplayList shouldIncludeDisplayListInBackingStore() const;
 #endif
 
-    bool requiresCustomAppearanceUpdateOnBoundsChange() const;
+    bool NODELETE requiresCustomAppearanceUpdateOnBoundsChange() const;
 
     WebCore::LayerPool* layerPool() override;
 
     LayerProperties m_properties;
     WebCore::PlatformCALayerList m_children;
     WeakPtr<PlatformCALayerRemote> m_superlayer;
-    HashMap<String, RefPtr<WebCore::PlatformCAAnimation>> m_animations;
+    HashMap<String, Ref<WebCore::PlatformCAAnimation>> m_animations;
 
     bool m_acceleratesDrawing { false };
     WeakPtr<RemoteLayerTreeContext> m_context;
